@@ -16,6 +16,7 @@ drake_cc_library(
         "//drake/lcm",
         "//drake/multibody:rigid_body_tree",
         "//drake/multibody/parsers",
+        "//drake/multibody/rigid_body_plant:drake_visualizer",
         "//drake/solvers:mathematical_program",
     ],
 )

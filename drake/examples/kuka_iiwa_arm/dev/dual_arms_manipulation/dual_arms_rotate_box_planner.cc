@@ -40,10 +40,11 @@ std::tuple<std::unique_ptr<RigidBodyTreed>, parsers::ModelInstanceIdTable> Const
                                              table1_frame,
                                              rigid_body_tree.get());
 
-  model_instance_id_table = parsers::sdf::AddModelInstancesFromSdfFile(table_path,
+  auto model_instance_id_table_tmp = parsers::sdf::AddModelInstancesFromSdfFile(table_path,
                                              drake::multibody::joints::kFixed,
                                              table2_frame,
                                              rigid_body_tree.get());
+  model_instance_id_table.insert(model_instance_id_table_tmp.begin(), model_instance_id_table_tmp.end());
 
   const double kTableTopZInWorld = 0.736 + 0.057 / 2;
   const Eigen::Vector3d kRobotBase1(-0.243716, -0.625087, kTableTopZInWorld);
@@ -56,11 +57,12 @@ std::tuple<std::unique_ptr<RigidBodyTreed>, parsers::ModelInstanceIdTable> Const
       Eigen::Vector3d::Zero());
   rigid_body_tree->addFrame(robot_base_frame1);
 
-  model_instance_id_table = parsers::urdf::AddModelInstanceFromUrdfFile(
+  model_instance_id_table_tmp = parsers::urdf::AddModelInstanceFromUrdfFile(
       model_path,
       drake::multibody::joints::kFixed,
       robot_base_frame1,
       rigid_body_tree.get());
+  model_instance_id_table.insert(model_instance_id_table_tmp.begin(), model_instance_id_table_tmp.end());
 
   auto robot_base_frame2 = std::make_shared<RigidBodyFrame<double>>(
       "iiwa_base2",
@@ -69,13 +71,14 @@ std::tuple<std::unique_ptr<RigidBodyTreed>, parsers::ModelInstanceIdTable> Const
       Eigen::Vector3d::Zero());
   rigid_body_tree->addFrame(robot_base_frame2);
 
-  model_instance_id_table = parsers::urdf::AddModelInstanceFromUrdfFile(
+  model_instance_id_table_tmp = parsers::urdf::AddModelInstanceFromUrdfFile(
       model_path,
       drake::multibody::joints::kFixed,
       robot_base_frame2,
       rigid_body_tree.get());
+  model_instance_id_table.insert(model_instance_id_table_tmp.begin(), model_instance_id_table_tmp.end());
 
-  return std::make_tuple(rigid_body_tree, model_instance_id_table);
+  return std::make_tuple(std::move(rigid_body_tree), model_instance_id_table);
 }
 
 void VisualizePosture(RigidBodyTreed* tree, const parsers::ModelInstanceIdTable& model_instance_id_table, const Eigen::Ref<const Eigen::VectorXd>& q_kuka1, const Eigen::Ref<const Eigen::VectorXd>& q_kuka2, const Eigen::Ref<Eigen::Matrix<double, 7, 1>>& q_box) {
@@ -91,7 +94,7 @@ void VisualizePosture(RigidBodyTreed* tree, const parsers::ModelInstanceIdTable&
 
   systems::ViewerDrawTranslator posture_drawer(*tree);
   Eigen::VectorXd x(tree->get_num_positions() + tree->get_num_velocities());
-  x.block(tree->FindBody())
+  //x.block(tree->FindBody("base", "iiwa14", 0))
   systems::BasicVector<double> q_draw(x);
   posture_drawer.Serialize(0, q_draw, &message_bytes);
   lcm.Publish("DRAKE_VIEWER_DRAW", message_bytes.data(),
