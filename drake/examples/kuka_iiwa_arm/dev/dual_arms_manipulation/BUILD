@@ -6,6 +6,7 @@ load(
     "//tools:drake.bzl",
     "drake_cc_binary",
     "drake_cc_library",
+    "drake_cc_googletest",
 )
 
 drake_cc_library(
@@ -26,5 +27,12 @@ drake_cc_binary(
     srcs = ["dual_arms_rotate_box_demo.cc"],
     deps = [
         "dual_arms_rotate_box_planner",
+    ],
+)
+
+drake_cc_googletest(
+    name = "dual_arms_rotate_box_planner_test",
+    deps = [
+        ":dual_arms_rotate_box_planner",
     ],
 )
