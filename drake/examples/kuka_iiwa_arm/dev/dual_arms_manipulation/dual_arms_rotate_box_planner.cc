@@ -8,6 +8,7 @@
 #include "drake/multibody/rigid_body_plant/viewer_draw_translator.h"
 #include "drake/multibody/rigid_body_plant/create_load_robot_message.h"
 #include "drake/lcmtypes/drake/lcmt_viewer_load_robot.hpp"
+#include "drake/math/quaternion.h"
 
 namespace drake {
 namespace examples {
@@ -69,7 +70,12 @@ DualArmsRotateBoxPlanner::DualArmsRotateBoxPlanner(RigidBodyTreed* tree, int nT)
       q_kuka1_(NewContinuousVariables(7, nT_, "q_kuka1")),
       q_kuka2_(NewContinuousVariables(7, nT_, "q_kuka2")),
       q_box_(NewContinuousVariables(7, nT_, "q_box")),
-      v_box_(NewContinuousVariables(7, nT_, "v_box")) {}
+      v_box_(NewContinuousVariables(7, nT_, "v_box")) {
+  AddBoundingBoxConstraint(Eigen::VectorXd::Zero(nT_ - 1), Eigen::VectorXd::Constant(std::numeric_limits<double>::infinity(), nT_ - 1), dt_);
+  for (int i = 0; i < nT_; ++i) {
+    AddBoundingBoxConstraint(tree_->joint_limit_min, tree_->joint_limit_max, {q_kuka1_.col(i), q_kuka2_.col(i), q_box_.col(i)});
+  }
+}
 
 void CentroidalDynamicsConstraint::DoEval(
     const Eigen::Ref<const Eigen::VectorXd>& x, Eigen::VectorXd& y) const {
@@ -159,13 +165,90 @@ AutoDiffVecd<Eigen::Dynamic, 6> CentroidalDynamicsConstraint::vdot(
   return ret;
 }
 
+QuaternionJointInterpolationConstraint::QuaternionJointInterpolationConstraint(IntegrationType integration_type) :
+    solvers::Constraint(7, 27, Eigen::Matrix<double, 7, 1>::Zero(), Eigen::Matrix<double, 7, 1>::Zero()),
+    integration_type_(integration_type) {}
+
+void QuaternionJointInterpolationConstraint::DoEval(const Eigen::Ref<const Eigen::VectorXd> &x,
+                                                    Eigen::VectorXd &y) const {
+  Eigen::Matrix<double, 7, 1> q_l = x.head<7>();
+  Eigen::Matrix<double, 6, 1> v_l = x.block<6, 1>(7, 0);
+  Eigen::Matrix<double, 7, 1> q_r = x.block<7, 1>(13, 0);
+  Eigen::Matrix<double, 6, 1> v_r = x.block<6, 1>(20, 0);
+  double dt = x(26);
+  y.resize(6);
+  switch (integration_type_) {
+    case IntegrationType::kBackwardEuler: {
+      y.head<3>() = q_r.head<3>() - q_l.head<3>() - v_r.head<3>() * dt;
+      double theta = v_r.tail<3>().norm() * dt;
+      Eigen::Vector3d axis = v_r.tail<3>() / v_r.tail<3>().norm();
+      Eigen::Vector4d quat_rotate;
+      quat_rotate << cos(theta / 2), sin(theta / 2) * axis;
+      y.tail<4>() =
+          q_r.tail<4>() - math::quatProduct(q_l.tail<4>(), quat_rotate);
+      break;
+    }
+    case IntegrationType::kMidPoint : {
+      y.head<3>() = q_r.head<3>() - q_l.head<3>()
+          - (v_r.head<3>() + v_l.head<3>()) / 2 * dt;
+      Eigen::Vector3d omega_average = (v_r.tail<3>() + v_l.tail<3>()) / 2;
+      double theta = omega_average.norm() * dt;
+      Eigen::Vector3d axis = omega_average / omega_average.norm();
+      Eigen::Vector4d quat_rotate;
+      quat_rotate << cos(theta / 2), sin(theta / 2) * axis;
+      y.tail<4>() =
+          q_r.tail<4>() - math::quatProduct(q_l.tail<4>(), quat_rotate);
+      break;
+    }
+    case IntegrationType::kCubicHermite: {
+      throw std::runtime_error("Not implemented yet.");
+    }
+  }
+}
+
+void QuaternionJointInterpolationConstraint::DoEval(const Eigen::Ref<const AutoDiffVecXd> &x,
+                                                    AutoDiffVecXd &y) const {
+  using std::cos;
+  using std::sin;
+  AutoDiffVecd<Eigen::Dynamic, 7> q_l = x.head<7>();
+  AutoDiffVecd<Eigen::Dynamic, 6> v_l = x.block<6, 1>(7, 0);
+  AutoDiffVecd<Eigen::Dynamic, 7> q_r = x.block<7, 1>(13, 0);
+  AutoDiffVecd<Eigen::Dynamic, 6> v_r = x.block<6, 1>(20, 0);
+  auto dt = x(26);
+  y.resize(6);
+  switch (integration_type_) {
+    case IntegrationType::kBackwardEuler: {
+      y.head<3>() = q_r.head<3>() - q_l.head<3>() - v_r.head<3>() * dt;
+      Eigen::AutoDiffScalar<Eigen::VectorXd> theta = v_r.tail<4>().norm() * dt;
+      AutoDiffVecd<Eigen::Dynamic, 4> quat_rotate;
+      quat_rotate << cos(theta / 2), sin(theta / 2) * v_r.tail<4>() / v_r.tail<4>().norm();
+      y.tail<4>() = q_r.tail<4>() - math::quatProduct(q_l.tail<4>(), quat_rotate);
+      break;
+    }
+    case IntegrationType::kMidPoint: {
+      y.head<3>() = q_r.head<3>() - q_l.head<3>() - (v_l.head<3>() + v_r.head<3>()) * dt;
+      AutoDiffVecd<Eigen::Dynamic, 3> omega_average = (v_l.tail<3>() + v_r.tail<3>()) / 2;
+      Eigen::AutoDiffScalar<Eigen::VectorXd> theta = omega_average.norm() * dt;
+      AutoDiffVecd<Eigen::Dynamic, 4> quat_rotate;
+      quat_rotate << cos(theta / 2), sin(theta / 2) * omega_average / omega_average.norm();
+      y.tail<4>() = q_r.tail<4>() - math::quatProduct(q_l.tail<4>(), quat_rotate);
+      break;
+    }
+    case IntegrationType::kCubicHermite: {
+      throw std::runtime_error("Not implemented.");
+    }
+  }
+}
+
 CentroidalDynamicsContactImplicitDualArmsPlanner::
     CentroidalDynamicsContactImplicitDualArmsPlanner(RigidBodyTreed* tree,
                                                      int nT)
     : DualArmsRotateBoxPlanner(tree, nT) {}
 
 void CentroidalDynamicsContactImplicitDualArmsPlanner::
-    DoAddDynamicsConstraint() {}
+    DoAddDynamicsConstraint() {
+
+}
 }  // namespace kuka_iiwa_arm
 }  // namespace examples
 }  // namespace drake

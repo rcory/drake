@@ -34,10 +34,28 @@ class DualArmsRotateBoxPlanner : public solvers::MathematicalProgram {
   solvers::MatrixDecisionVariable<7, Eigen::Dynamic> q_box_;
   solvers::MatrixDecisionVariable<6, Eigen::Dynamic> v_box_;
 };
+
 enum class IntegrationType {
   kBackwardEuler,
   kMidPoint,
   kCubicHermite,
+};
+
+class QuaternionJointInterpolationConstraint : public solvers::Constraint {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QuaternionJointInterpolationConstraint)
+
+  QuaternionJointInterpolationConstraint(IntegrationType integration_type);
+
+  ~QuaternionJointInterpolationConstraint() override {}
+
+ protected:
+  void DoEval(const Eigen::Ref<const Eigen::VectorXd>& x, Eigen::VectorXd& y) const override;
+
+  void DoEval(const Eigen::Ref<const AutoDiffVecXd>& x, AutoDiffVecXd& y) const override;
+
+ private:
+  IntegrationType integration_type_;
 };
 
 class CentroidalDynamicsConstraint : public solvers::Constraint {
