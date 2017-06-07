@@ -36,3 +36,29 @@ drake_cc_googletest(
         ":dual_arms_rotate_box_planner",
     ],
 )
+
+drake_cc_library(
+    name = "dual_arms_box_util",
+    srcs = [
+        "dual_arms_box_util.cc",
+    ],
+    hdrs = [
+        "dual_arms_box_util.h",
+    ],
+    deps = [
+        "//drake/lcm",
+        "//drake/multibody:rigid_body_tree",
+        "//drake/multibody/parsers",
+        "//drake/multibody/rigid_body_plant:drake_visualizer",
+    ],
+)
+
+drake_cc_binary(
+    name = "dual_arms_box_ik_planner",
+    srcs = ["dual_arms_box_ik_planner.cc"],
+    deps = [
+        "dual_arms_box_util",
+        "//drake/examples/kuka_iiwa_arm/dev/tools:simple_tree_visualizer",
+        "//drake/multibody:inverse_kinematics",
+    ],
+)

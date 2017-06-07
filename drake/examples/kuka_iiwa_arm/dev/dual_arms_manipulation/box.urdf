@@ -33,14 +33,14 @@
 	<visual>
 		<origin rpy="0 0 0" xyz="0 0 0"/>
 		<geometry>
-			<box size="0.2 0.2 0.2"/>
+			<box size="0.56 0.56 0.56"/>
 		</geometry>
 		<material name="Blue"/>
 	</visual>
 	<collision>
 		<origin rpy="0 0 0" xyz="0 0 0"/>
 		<geometry>
-			<box size="0.2 0.2 0.2"/>
+			<box size="0.56 0.56 0.56"/>
 		</geometry>
 	</collision>
 	</link>
