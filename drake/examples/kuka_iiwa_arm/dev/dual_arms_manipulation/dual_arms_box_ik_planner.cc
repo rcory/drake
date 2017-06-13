@@ -251,7 +251,7 @@ Eigen::VectorXd PlanDualArmsBoxPosture(RigidBodyTreed* tree, int posture_id, con
       inverseKin(tree, q0, q0, cnstr_array.size(), cnstr_array.data(), ik_options, &q_sol, &info, &infeasible_cnstr);
       break;
     }
-    /*case 10: {
+    case 10: {
       auto cache = tree->doKinematics(q0);
       auto l_hand_pose0 = tree->CalcBodyPoseInWorldFrame(cache, tree->get_body(l_hand_idx));
       auto r_hand_pose0 = tree->CalcBodyPoseInWorldFrame(cache, tree->get_body(r_hand_idx));
@@ -278,8 +278,8 @@ Eigen::VectorXd PlanDualArmsBoxPosture(RigidBodyTreed* tree, int posture_id, con
       const std::vector<const RigidBodyConstraint*> cnstr_array{&l_hand_pos_cnstr, &l_hand_orient_cnstr, &r_hand_pos_cnstr, &r_hand_orient_cnstr, &box_pos_cnstr, &box_euler_cnstr};
       inverseKin(tree, q0, q0, cnstr_array.size(), cnstr_array.data(), ik_options, &q_sol, &info, &infeasible_cnstr);
       break;
-    }*/
-    case 10: {
+    }
+    case 11: {
       auto cache = tree->doKinematics(q0);
       auto l_hand_pose0 = tree->CalcBodyPoseInWorldFrame(cache, tree->get_body(l_hand_idx));
       auto r_hand_pose0 = tree->CalcBodyPoseInWorldFrame(cache, tree->get_body(r_hand_idx));
@@ -326,7 +326,7 @@ int DoMain() {
   auto tree = ConstructDualArmAndBox();
   std::vector<Eigen::VectorXd> q;
   q.push_back(Eigen::VectorXd::Zero(20));
-  for (int i = 1; i < 12; ++i) {
+  for (int i = 1; i < 13; ++i) {
     q.push_back(PlanDualArmsBoxPosture(tree.get(), i - 1, q[i - 1]));
   }
   drake::lcm::DrakeLcm lcm;
