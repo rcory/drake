@@ -335,6 +335,17 @@ int DoMain() {
     visualizer.visualize(q[i]);
   }
 
+  std::string simple_output_file_name = "simple_keyframes.txt";
+  RemoveFileIfExist(simple_output_file_name);
+  std::fstream simple_output_file;
+  simple_output_file.open(simple_output_file_name, std::ios::app | std::ios::out);
+  if (simple_output_file.is_open()) {
+    for (int i = 0; i < static_cast<int>(q.size()); ++i) {
+      simple_output_file << q[i].transpose() << std::endl;
+    }
+    simple_output_file.close();
+  }
+
   std::string output_file_name = "keyframes.txt";
   RemoveFileIfExist(output_file_name);
   std::fstream output_file;
