@@ -1,0 +1,103 @@
+/// @file
+///
+/// This test sets up a simple passive dynamics simulation of the  mobile
+/// robot, i.e., all joint torques are set to zero.
+
+#include <gflags/gflags.h>
+
+#include "drake/common/drake_path.h"
+#include "drake/common/text_logging_gflags.h"
+#include "drake/examples/TRI_Remy/remy_common.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/rigid_body_plant/drake_visualizer.h"
+#include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
+#include "drake/multibody/rigid_body_tree_construction.h"
+#include "drake/systems/analysis/simulator.h"
+#include "drake/systems/framework/diagram.h"
+#include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/primitives/constant_vector_source.h"
+
+namespace drake {
+
+using systems::Context;
+using systems::ContinuousState;
+using systems::RigidBodyPlant;
+using systems::VectorBase;
+
+namespace examples {
+namespace Remy {
+
+int DoMain() {
+  drake::lcm::DrakeLcm lcm;
+  systems::DiagramBuilder<double> builder;
+
+  // Adds a plant.
+  RigidBodyPlant<double> *plant = nullptr;
+  const std::string kModelPath = drake::GetDrakePath() +
+      "/examples/TRI_Remy/remy_description/robot/remy.urdf";
+  {
+    auto tree = std::make_unique<RigidBodyTree<double>>();
+    drake::multibody::AddFlatTerrainToWorld(tree.get());
+    CreateTreeFromFloatingModelAtPose(kModelPath, tree.get());
+
+    const double contact_stiffness = 2000;
+    const double contact_dissipation = 2;
+
+    plant = builder.AddSystem<RigidBodyPlant<double>>(std::move(tree));
+    plant->set_name("plant");
+    plant->set_normal_contact_parameters(contact_stiffness,
+                                         contact_dissipation);
+  }
+
+  // Verifies the tree.
+  const RigidBodyTree<double> &tree = plant->get_rigid_body_tree();
+  //VerifyRemyTree(tree);
+
+  // Creates and adds LCM publisher for visualization.
+  auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
+
+  // Feeds in constant command inputs of zero.
+  VectorX<double> zero_values = VectorX<double>::Zero(plant->get_input_size());
+  auto zero_source =
+      builder.AddSystem<systems::ConstantVectorSource<double>>(zero_values);
+  zero_source->set_name("zero_source");
+  builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
+
+  // Connects the visualizer and builds the diagram.
+  builder.Connect(plant->get_output_port(0), visualizer->get_input_port(0));
+  std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
+  systems::Simulator<double> simulator(*diagram);
+
+  Context<double> *remy_context = diagram->GetMutableSubsystemContext(
+      simulator.get_mutable_context(), plant);
+
+  // Sets torso lift initial conditions.
+  // See the @file docblock in remy_common.h for joint index descriptions.
+  VectorBase<double> *x0 = remy_context->get_mutable_continuous_state_vector();
+  x0->SetAtIndex(kLiftJointIdx, 0.1);
+
+  simulator.Initialize();
+
+  // Simulate for the desired duration.
+  simulator.set_target_realtime_rate(1);
+  simulator.StepTo(5);
+
+//  // Ensures the simulation was successful.
+//  const Context<double> &context = simulator.get_context();
+//  const ContinuousState<double> *state = context.get_continuous_state();
+//  const VectorBase<double> &position_vector = state->get_generalized_position();
+//  const VectorBase<double> &velocity_vector = state->get_generalized_velocity();
+
+
+  return 0;
+}
+
+}  // namespace Remy
+}  // namespace examples
+}  // namespace drake
+
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  return drake::examples::Remy::DoMain();
+}
