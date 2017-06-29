@@ -64,7 +64,7 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-  Vector3<double> input_values(0,0,0);
+  Vector3<double> input_values(1,1,0);
   auto zero_source =
       builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
   zero_source->set_name("zero_source");
@@ -82,7 +82,7 @@ int DoMain() {
   // See the @file docblock in remy_common.h for joint index descriptions.
   VectorBase<double> *x0 = remy_context->get_mutable_continuous_state_vector();
   const int kLiftJointIdx = 9;
-  x0->SetAtIndex(kLiftJointIdx, 0.1);
+  x0->SetAtIndex(kLiftJointIdx, 0.02);
 
   simulator.Initialize();
 
