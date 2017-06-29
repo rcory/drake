@@ -1,7 +1,5 @@
 #include "drake/examples/TRI_Remy/remy_common.h"
 
-#include <map>
-
 #include "drake/multibody/parsers/urdf_parser.h"
 
 using Eigen::Vector3d;

@@ -33,33 +33,40 @@ int DoMain() {
 
   // Adds a plant.
   RigidBodyPlant<double> *plant = nullptr;
-  const std::string kModelPath = drake::GetDrakePath() +
+  const std::string kModelPath =
+      drake::GetDrakePath() +
       "/examples/TRI_Remy/remy_description/robot/remy.urdf";
   {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     drake::multibody::AddFlatTerrainToWorld(tree.get());
-    CreateTreeFromFloatingModelAtPose(kModelPath, tree.get());
 
-    const double contact_stiffness = 2000;
+    Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
+    CreateTreeFromFloatingModelAtPose(kModelPath, tree.get(), pose);
+
+    const double contact_stiffness = 3000;
     const double contact_dissipation = 2;
+    const double dynamic_friction_coeff = 0.5;
+    const double static_friction_coeff = 1.0;
+    const double v_stiction_tolerance = 0.05;
 
     plant = builder.AddSystem<RigidBodyPlant<double>>(std::move(tree));
     plant->set_name("plant");
     plant->set_normal_contact_parameters(contact_stiffness,
                                          contact_dissipation);
+    plant->set_friction_contact_parameters(
+        static_friction_coeff, dynamic_friction_coeff, v_stiction_tolerance);
   }
 
   // Verifies the tree.
   const RigidBodyTree<double> &tree = plant->get_rigid_body_tree();
-  //VerifyRemyTree(tree);
+  // VerifyRemyTree(tree);
 
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-  // Feeds in constant command inputs of zero.
-  VectorX<double> zero_values = VectorX<double>::Zero(plant->get_input_size());
+  Vector3<double> input_values(0,0,0);
   auto zero_source =
-      builder.AddSystem<systems::ConstantVectorSource<double>>(zero_values);
+      builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
   zero_source->set_name("zero_source");
   builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
 
@@ -74,6 +81,7 @@ int DoMain() {
   // Sets torso lift initial conditions.
   // See the @file docblock in remy_common.h for joint index descriptions.
   VectorBase<double> *x0 = remy_context->get_mutable_continuous_state_vector();
+  const int kLiftJointIdx = 9;
   x0->SetAtIndex(kLiftJointIdx, 0.1);
 
   simulator.Initialize();
@@ -82,12 +90,13 @@ int DoMain() {
   simulator.set_target_realtime_rate(1);
   simulator.StepTo(5);
 
-//  // Ensures the simulation was successful.
-//  const Context<double> &context = simulator.get_context();
-//  const ContinuousState<double> *state = context.get_continuous_state();
-//  const VectorBase<double> &position_vector = state->get_generalized_position();
-//  const VectorBase<double> &velocity_vector = state->get_generalized_velocity();
-
+  //  // Ensures the simulation was successful.
+  //  const Context<double> &context = simulator.get_context();
+  //  const ContinuousState<double> *state = context.get_continuous_state();
+  //  const VectorBase<double> &position_vector =
+  //  state->get_generalized_position();
+  //  const VectorBase<double> &velocity_vector =
+  //  state->get_generalized_velocity();
 
   return 0;
 }
@@ -96,8 +105,7 @@ int DoMain() {
 }  // namespace examples
 }  // namespace drake
 
-
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   return drake::examples::Remy::DoMain();
 }

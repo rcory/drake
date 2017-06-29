@@ -1,7 +1,7 @@
 #pragma once
 /// @file
 ///
-/// This file assumes a 10-degree of freedom TRI-Remy mobile robot. Joints are
+/// This file assumes a 13-degree of freedom TRI-Remy mobile robot. Joints are
 /// numbered sequentially starting from the base with the joint index
 /// descriptions specified below.
 /// Note: The four element base quaternion vector specifies the rotation of the
@@ -14,9 +14,13 @@
 /// 4: base quaternion element x
 /// 5: base quaternion element y
 /// 6: base quaternion element z
-/// 7: right wheel
-/// 8: left wheel
+/// 7: right_wheel
+/// 8: left_wheel
 /// 9: lift
+/// 10: front_caster
+/// 11: front_caster_wheel
+/// 12: back_caster
+/// 13: back_caster_wheel
 ///
 /// Rotational position/velocity units are in rad and rad/s, respectively.
 /// Linear position units are in meters and m/s, respectively.
@@ -29,19 +33,7 @@ namespace drake {
 namespace examples {
 namespace Remy {
 
-constexpr int kNumDofs = 10;  // DOFs available for the Remy robot
-
-constexpr int kBasexTranslationIdx = 0;
-constexpr int kBaseyTranslationIdx = 1;
-constexpr int kBasezTranslationIdx = 2;
-constexpr int kQuatwElementIdx = 3;
-constexpr int kQuatxElementIdx = 4;
-constexpr int kQuatyElementIdx = 5;
-constexpr int kQuatzElementIdx = 6;
-constexpr int kRWheelJointIdx = 7;
-constexpr int kLWheelJointIdx = 8;
-constexpr int kLiftJointIdx = 9;
-
+constexpr int kNumDofs = 13;  // DOFs available for the Remy robot
 
 /// Verifies that @p tree matches assumptions about joint indices.
 /// Aborts if the tree isn't as expected.
