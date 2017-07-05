@@ -43,7 +43,7 @@ int DoMain() {
     Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
     CreateTreeFromFloatingModelAtPose(kModelPath, tree.get(), pose);
 
-    const double contact_stiffness = 3000;
+    const double contact_stiffness = 50000;
     const double contact_dissipation = 2;
     const double dynamic_friction_coeff = 0.5;
     const double static_friction_coeff = 1.0;
@@ -64,7 +64,9 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-  Vector3<double> input_values(1,1,0);
+  Eigen::Matrix<double, 11, 1> input_values;
+  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0;
+
   auto zero_source =
       builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
   zero_source->set_name("zero_source");
@@ -82,13 +84,19 @@ int DoMain() {
   // See the @file docblock in remy_common.h for joint index descriptions.
   VectorBase<double> *x0 = remy_context->get_mutable_continuous_state_vector();
   const int kLiftJointIdx = 9;
-  x0->SetAtIndex(kLiftJointIdx, 0.02);
+  const int kShoulderForeAftIdx = 15;
+  const int kElbowForeAftIdx = 16;
+  x0->SetAtIndex(kLiftJointIdx, 0.4);
+
+  x0->SetAtIndex(14, -1.57);
+  x0->SetAtIndex(kShoulderForeAftIdx, -1.57);
+  x0->SetAtIndex(kElbowForeAftIdx, 0);
 
   simulator.Initialize();
 
   // Simulate for the desired duration.
   simulator.set_target_realtime_rate(1);
-  simulator.StepTo(5);
+  simulator.StepTo(7);
 
   //  // Ensures the simulation was successful.
   //  const Context<double> &context = simulator.get_context();

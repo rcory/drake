@@ -21,6 +21,16 @@
 /// 11: front_caster_wheel
 /// 12: back_caster
 /// 13: back_caster_wheel
+/// --Jaco starts here--
+/// 14: shoulder roll
+/// 15: shoulder fore/aft
+/// 16: elbow fore/aft
+/// 17: forearm roll
+/// 18: wrist yaw
+/// 19: wrist roll
+/// 20: finger 1 bend/extend
+/// 21: finger 2 bend/extend
+/// 22: finger 3 bend/extend
 ///
 /// Rotational position/velocity units are in rad and rad/s, respectively.
 /// Linear position units are in meters and m/s, respectively.
@@ -33,7 +43,7 @@ namespace drake {
 namespace examples {
 namespace Remy {
 
-constexpr int kNumDofs = 13;  // DOFs available for the Remy robot
+constexpr int kNumDofs = 22;  // DOFs available for the Remy robot
 
 /// Verifies that @p tree matches assumptions about joint indices.
 /// Aborts if the tree isn't as expected.
