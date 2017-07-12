@@ -46,12 +46,35 @@ drake_cc_binary(
     ],
     deps = [
         ":remy_common",
+        "//drake/common:find_resource",
         "//drake/common:text_logging_gflags",
         "//drake/lcm",
         "//drake/multibody:rigid_body_tree_construction",
         "//drake/multibody/rigid_body_plant",
         "//drake/multibody/rigid_body_plant:drake_visualizer",
         "//drake/systems/analysis:simulator",
+        "//drake/systems/primitives:constant_vector_source",
+        "@com_github_gflags_gflags//:gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "run_controlled_remy_demo",
+    srcs = ["run_controlled_remy_demo.cc"],
+    data = [
+        "//drake/examples/TRI_Remy:models",
+        "//drake/manipulation/models/jaco_description:models",
+    ],
+    deps = [
+        ":remy_common",
+        "//drake/common:find_resource",
+        "//drake/common:text_logging_gflags",
+        "//drake/lcm",
+        "//drake/multibody:rigid_body_tree_construction",
+        "//drake/multibody/rigid_body_plant",
+        "//drake/multibody/rigid_body_plant:drake_visualizer",
+        "//drake/systems/analysis:simulator",
+        "//drake/systems/controllers:inverse_dynamics_controller",
         "//drake/systems/primitives:constant_vector_source",
         "@com_github_gflags_gflags//:gflags",
     ],
@@ -65,6 +88,7 @@ drake_cc_binary(
 #    ],
 #    deps = [
 #        ":remy_common",
+#        "//drake/common:find_resource",
 #        "//drake/common:text_logging_gflags",
 #        "//drake/lcm",
 #        "//drake/multibody:rigid_body_tree_construction",

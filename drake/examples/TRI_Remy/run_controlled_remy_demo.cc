@@ -13,6 +13,7 @@
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
 #include "drake/multibody/rigid_body_tree_construction.h"
 #include "drake/systems/analysis/simulator.h"
+#include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
@@ -64,8 +65,9 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
+  // adds an open loop torque input
   Eigen::Matrix<double, 11, 1> input_values;
-  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0;
+  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
   auto zero_source =
       builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);

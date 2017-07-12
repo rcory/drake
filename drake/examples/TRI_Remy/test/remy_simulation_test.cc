@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/common/drake_path.h"
+#include "drake/common/find_resource.h"
 #include "drake/common/text_logging_gflags.h"
 #include "drake/examples/TRI_Remy/remy_common.h"
 #include "drake/lcm/drake_lcm.h"
@@ -33,13 +33,13 @@ GTEST_TEST(RemySimTest, PassiveTest) {
 
   // Adds a plant.
   RigidBodyPlant<double> *plant = nullptr;
-  const std::string kModelPath =
-      drake::GetDrakePath() +
-      "/examples/TRI_Remy/remy_description/remy.urdf";
   {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     drake::multibody::AddFlatTerrainToWorld(tree.get());
-    CreateTreeFromFloatingModelAtPose(kModelPath, tree.get());
+    CreateTreeFromFloatingModelAtPose(
+        FindResourceOrThrow(
+            "drake/examples/TRI_Remy/remy_description/robot/remy.urdf"),
+        tree.get());
 
     const double contact_stiffness = 2000;
     const double contact_dissipation = 2;
