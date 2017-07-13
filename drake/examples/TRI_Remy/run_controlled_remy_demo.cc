@@ -8,6 +8,7 @@
 #include "drake/common/find_resource.h"
 #include "drake/common/text_logging_gflags.h"
 #include "drake/examples/TRI_Remy/remy_common.h"
+#include "drake/examples/TRI_Remy/controller/remy_controller.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/rigid_body_plant/drake_visualizer.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
@@ -17,6 +18,7 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/examples/TRI_Remy/controller/remy_controller.h"
 
 namespace drake {
 
@@ -34,6 +36,8 @@ int DoMain() {
 
   // Adds a plant.
   RigidBodyPlant<double> *plant = nullptr;
+  FetchControllerSystem<double>* controller = nullptr;
+
   {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     drake::multibody::AddFlatTerrainToWorld(tree.get());
@@ -41,7 +45,7 @@ int DoMain() {
     Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
     CreateTreeFromFloatingModelAtPose(
         FindResourceOrThrow(
-            "drake/examples/TRI_Remy/remy_description/robot/remy.urdf"),
+            "drake/examples/TRI_Remy/remy_description/robot/remy_clumsy.urdf"),
         tree.get(), pose);
 
     const double contact_stiffness = 50000;
@@ -50,12 +54,18 @@ int DoMain() {
     const double static_friction_coeff = 1.0;
     const double v_stiction_tolerance = 0.05;
 
+    auto control_tree = tree->Clone();
+
     plant = builder.AddSystem<RigidBodyPlant<double>>(std::move(tree));
     plant->set_name("plant");
     plant->set_normal_contact_parameters(contact_stiffness,
                                          contact_dissipation);
     plant->set_friction_contact_parameters(
         static_friction_coeff, dynamic_friction_coeff, v_stiction_tolerance);
+
+
+    controller = builder.AddSystem<FetchControllerSystem<double>>(
+        std::move(control_tree));
   }
 
   // Verifies the tree.
@@ -65,17 +75,24 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-  // adds an open loop torque input
-  Eigen::Matrix<double, 11, 1> input_values;
-  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-
-  auto zero_source =
-      builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
-  zero_source->set_name("zero_source");
-  builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
+//  // adds an open loop torque input
+//  Eigen::Matrix<double, 11, 1> input_values;
+//  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+//
+//  auto zero_source =
+//      builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
+//  zero_source->set_name("zero_source");
+//  builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
 
   // Connects the visualizer and builds the diagram.
   builder.Connect(plant->get_output_port(0), visualizer->get_input_port(0));
+
+  // Connects the controller and the plant.
+  builder.Connect(controller->get_output_port_control(),
+                  plant->actuator_command_input_port());
+  builder.Connect(plant->get_output_port(0),
+                  controller->get_input_port_full_estimated_state());
+
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
   systems::Simulator<double> simulator(*diagram);
 

@@ -69,6 +69,7 @@ drake_cc_binary(
         ":remy_common",
         "//drake/common:find_resource",
         "//drake/common:text_logging_gflags",
+        "//drake/examples/TRI_Remy/controller:remy_controller",
         "//drake/lcm",
         "//drake/multibody:rigid_body_tree_construction",
         "//drake/multibody/rigid_body_plant",

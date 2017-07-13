@@ -40,7 +40,7 @@ int DoMain() {
     Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
     CreateTreeFromFloatingModelAtPose(
         FindResourceOrThrow(
-            "drake/examples/TRI_Remy/remy_description/robot/remy.urdf"),
+            "drake/examples/TRI_Remy/remy_description/robot/remy_clumsy.urdf"),
         tree.get(), pose);
 
     const double contact_stiffness = 50000;
