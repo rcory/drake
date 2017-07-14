@@ -182,8 +182,8 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0.7"
-      upper="1"
+      lower="0"
+      upper="0.8"
       effort="0"
       velocity="0" />
   </joint>
@@ -550,14 +550,12 @@
     <inertia ixx="0.010502207991" ixy="0" ixz="0" iyy="0.000792" iyz="0" izz="0.010502207991"/>
   </inertial>
 </link>
-<!--<joint name="j2n6s300_joint_2" type="revolute">-->
-<joint name="j2n6s300_joint_2" type="revoluate">
+<joint name="j2n6s300_joint_2" type="revolute">
   <parent link="j2n6s300_link_1"/>
   <child link="j2n6s300_link_2"/>
   <axis xyz="0 0 1"/>
   <limit effort="2000" lower="-2.618" upper="2.613" velocity="1"/>
-  <!--<origin rpy="-1.57079632679 3.1415 3.14159265359" xyz="0 0.0016 -0.11875"/>-->
-  <origin rpy="-1.57079632679 -1.57 3.14159265359" xyz="0 0.0016 -0.11875"/>
+  <origin rpy="-1.57079632679 3.1415 3.14159265359" xyz="0 0.0016 -0.11875"/>
   <dynamics damping="0.0" friction="0.0"/>
 </joint>
 <transmission name="j2n6s300_joint_2_trans">

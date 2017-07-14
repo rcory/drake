@@ -72,6 +72,7 @@ drake_cc_binary(
         "//drake/examples/TRI_Remy/controller:remy_controller",
         "//drake/lcm",
         "//drake/multibody:rigid_body_tree_construction",
+        "//drake/multibody/joints",
         "//drake/multibody/rigid_body_plant",
         "//drake/multibody/rigid_body_plant:drake_visualizer",
         "//drake/systems/analysis:simulator",

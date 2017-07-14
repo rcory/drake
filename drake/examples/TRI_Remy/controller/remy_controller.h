@@ -11,6 +11,9 @@ namespace drake {
 namespace examples {
 namespace Remy {
 
+template <typename Scalar, int Dim>
+using Vector = Eigen::Matrix<Scalar, Dim, 1>;
+
 // The number of actuated dofs for various parts of the robot
 constexpr int kNumMMBDofs = 3;
 constexpr int kNumArmDofs = 6;
@@ -31,8 +34,8 @@ class FetchController {
                          const Vector2<T>& v_d,
                          const Vector2<T>& vd_d = Vector2<T>::Zero()) const;
 
-  Vector2<T> CalcHandTorque(const KinematicsCache<T>& cache,
-                            const Vector2<T>& q_d) const;
+  Vector3<T> CalcHandTorque(const KinematicsCache<T>& cache,
+                            const Vector3<T>& q_d) const;
 
   T CalcTorsoAcc(const KinematicsCache<T>& cache, const T q_d, const T v_d,
                  const T vd_d = 0) const;

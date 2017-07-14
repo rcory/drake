@@ -28,8 +28,8 @@ FetchController<T>::FetchController(
     std::unique_ptr<RigidBodyTree<T>> full_robot)
     : full_robot_(std::move(full_robot)),
       base_link_(full_robot_->FindBody("base_link")) {
-  kp_arm_.setConstant(10);
-  kd_arm_.setConstant(5);
+  kp_arm_.setConstant(30);
+  kd_arm_.setConstant(15);
 
   kp_head_.setConstant(10);
   kd_head_.setConstant(5);
@@ -40,8 +40,8 @@ FetchController<T>::FetchController(
   kp_torso_ = 10;
   kd_torso_ = 5;
 
-  lin_v_gain_ = 5;
-  omega_v_gain_ = 5 * kWheelYOffset;
+  lin_v_gain_ = 10;
+  omega_v_gain_ = 10 * kWheelYOffset;
 }
 
 template <typename T>
@@ -84,14 +84,16 @@ Vector2<T> FetchController<T>::CalcHeadAcc(const KinematicsCache<T>& cache,
 }
 
 template <typename T>
-Vector2<T> FetchController<T>::CalcHandTorque(const KinematicsCache<T>& cache,
-                                              const Vector2<T>& q_d) const {
+Vector3<T> FetchController<T>::CalcHandTorque(const KinematicsCache<T>& cache,
+                                              const Vector3<T>& q_d) const {
   auto q = cache.getQ().template segment<3>(kHandQStart);
   auto v = cache.getV().template segment<3>(kHandVStart);
 
-  Vector2<T> trq =
+  Vector3<T> trq =
       (kp_hand_.array() * (q_d - q).array() - kd_hand_.array() * v.array())
           .matrix();
+
+  //trq.setZero();
   return trq;
 }
 
@@ -138,7 +140,7 @@ VectorX<T> FetchController<T>::CalcTorque(const VectorX<T>& acc,
   VectorX<T> arm_torque = full_torque.segment(kArmVStart,
                                               kNumArmDofs+kNumHandDofs);
 
-  VectorX<T> torque;
+  VectorX<T> torque(12);
   torque << mmb_torque, arm_torque;
 
   return torque;
@@ -179,7 +181,7 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
 
   VectorX<T> vd_d = VectorX<T>::Zero(robot.get_num_velocities());
   // Torso acc
-  vd_d[kTorsoVStart] = controller_.CalcTorsoAcc(cache, 0.2, 0, 0);
+  vd_d[kTorsoVStart] = controller_.CalcTorsoAcc(cache, 0.1, 0, 0);
 
 //  // Head acc
 //  vd_d.template segment<2>(kHeadVStart) = controller_.CalcHeadAcc(
@@ -187,22 +189,24 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
 
   // Arms acc
   VectorX<T> arm_q = VectorX<T>::Zero(kNumArmDofs);
-  //arm_q[0] = 0.3;
+  arm_q << -2, -0.85, -1.86;
 
   vd_d.template segment<kNumArmDofs>(kArmVStart) = controller_.CalcArmAcc(
       cache, arm_q, VectorX<T>::Zero(kNumArmDofs),
       VectorX<T>::Zero(kNumArmDofs));
 
   // Call ID.
-  output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
+  VectorX<T> temp = controller_.CalcTorque(vd_d, &cache);
+  output->get_mutable_value() = temp;
+  //output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
 
   // Wheels
   output->get_mutable_value().template head<2>() =
-      controller_.CalcWheelTorque(cache, 0.2, 0.2);
+      controller_.CalcWheelTorque(cache, 0.1, 0);
 
   // Hand
   output->get_mutable_value().template tail<kNumHandDofs>() =
-      controller_.CalcHandTorque(cache, Vector2<T>::Zero());
+      controller_.CalcHandTorque(cache, Vector3<T>::Ones());
 }
 
 template class FetchController<double>;

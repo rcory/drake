@@ -19,6 +19,9 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/examples/TRI_Remy/controller/remy_controller.h"
+#include "drake/multibody/joints/drake_joints.h"
+#include "drake/multibody/joints/prismatic_joint.h"
+#include "drake/multibody/joints/fixed_axis_one_dof_joint.h"
 
 namespace drake {
 
@@ -45,7 +48,7 @@ int DoMain() {
     Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
     CreateTreeFromFloatingModelAtPose(
         FindResourceOrThrow(
-            "drake/examples/TRI_Remy/remy_description/robot/remy_clumsy.urdf"),
+            "drake/examples/TRI_Remy/remy_description/robot/jaco_remy.urdf"),
         tree.get(), pose);
 
     const double contact_stiffness = 50000;
@@ -103,14 +106,22 @@ int DoMain() {
   // See the @file docblock in remy_common.h for joint index descriptions.
   VectorBase<double> *x0 = remy_context.get_mutable_continuous_state_vector();
   const int kLiftJointIdx = 9;
-  const int kShoulderForeAftIdx = 15;
-  const int kElbowForeAftIdx = 16;
+  //const int kShoulderForeAftIdx = 15;
+  //const int kElbowForeAftIdx = 16;
   x0->SetAtIndex(kLiftJointIdx, 0.4);
 
-  x0->SetAtIndex(14, -1.57);
-  x0->SetAtIndex(kShoulderForeAftIdx, -1.57);
-  x0->SetAtIndex(kElbowForeAftIdx, 0);
+  //x0->SetAtIndex(14, -1.57);
+  //x0->SetAtIndex(kShoulderForeAftIdx, -1.57);
+  //x0->SetAtIndex(kElbowForeAftIdx, 0);
 
+  // set torso joint limit dynamics
+  const int kJointStiff = 10000; // stiffness
+  const int kJointDiss = 50; // dissipation
+  const int kTorsoIndex = tree.FindBodyIndex("lift");
+  PrismaticJoint& tjoint = (PrismaticJoint&)tree.get_body(kTorsoIndex).getJoint();
+  tjoint.SetJointLimitDynamics(kJointStiff,kJointDiss);
+
+  // initialize and run the simulation
   simulator.Initialize();
 
   // Simulate for the desired duration.
