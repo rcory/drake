@@ -23,6 +23,9 @@
 #include "drake/multibody/joints/prismatic_joint.h"
 #include "drake/multibody/joints/fixed_axis_one_dof_joint.h"
 
+DEFINE_double(stiffness,20000,"stiffness");
+DEFINE_double(dissipation,10,"dissipation");
+
 namespace drake {
 
 using systems::Context;
@@ -45,14 +48,14 @@ int DoMain() {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     drake::multibody::AddFlatTerrainToWorld(tree.get());
 
-    Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0.11));
+    Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0*0.3 + 0.11));
     CreateTreeFromFloatingModelAtPose(
         FindResourceOrThrow(
-            "drake/examples/TRI_Remy/remy_description/robot/jaco_remy.urdf"),
+            "drake/examples/TRI_Remy/remy_description/robot/jaco_remy_spheres.urdf"),
         tree.get(), pose);
 
-    const double contact_stiffness = 50000;
-    const double contact_dissipation = 2;
+    //const double contact_stiffness = 10000;
+    //const double contact_dissipation = 2;
     const double dynamic_friction_coeff = 0.5;
     const double static_friction_coeff = 1.0;
     const double v_stiction_tolerance = 0.05;
@@ -61,8 +64,8 @@ int DoMain() {
 
     plant = builder.AddSystem<RigidBodyPlant<double>>(std::move(tree));
     plant->set_name("plant");
-    plant->set_normal_contact_parameters(contact_stiffness,
-                                         contact_dissipation);
+    plant->set_normal_contact_parameters(FLAGS_stiffness,
+                                         FLAGS_dissipation);
     plant->set_friction_contact_parameters(
         static_friction_coeff, dynamic_friction_coeff, v_stiction_tolerance);
 
@@ -73,28 +76,33 @@ int DoMain() {
 
   // Verifies the tree.
   const RigidBodyTree<double> &tree = plant->get_rigid_body_tree();
-  // VerifyRemyTree(tree);
+  VerifyRemyTree(tree);
 
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
+//// ============ zero torque ============================
 //  // adds an open loop torque input
-//  Eigen::Matrix<double, 11, 1> input_values;
-//  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+//  Eigen::Matrix<double, 12, 1> input_values;
+//  input_values.setZero();
+//  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 //
 //  auto zero_source =
 //      builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
 //  zero_source->set_name("zero_source");
 //  builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
+//// ==================================================
 
-  // Connects the visualizer and builds the diagram.
-  builder.Connect(plant->get_output_port(0), visualizer->get_input_port(0));
-
+// ====================== controller ===================================
   // Connects the controller and the plant.
   builder.Connect(controller->get_output_port_control(),
                   plant->actuator_command_input_port());
   builder.Connect(plant->get_output_port(0),
                   controller->get_input_port_full_estimated_state());
+// ===============================================================
+
+  // Connects the visualizer and builds the diagram.
+  builder.Connect(plant->get_output_port(0), visualizer->get_input_port(0));
 
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
   systems::Simulator<double> simulator(*diagram);

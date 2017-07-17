@@ -13,36 +13,42 @@ namespace Remy {
 void VerifyRemyTree(const RigidBodyTree<double>& tree) {
   std::map<std::string, int> name_to_idx = tree.computePositionNameToIndexMap();
 
-  int joint_idx = 7;  // joints 0-6 are the floating base
-  DRAKE_DEMAND(name_to_idx.size() == kNumDofs);
-  DRAKE_DEMAND(name_to_idx.count("r_wheel_joint"));
-  DRAKE_DEMAND(name_to_idx["r_wheel_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("l_wheel_joint"));
-  DRAKE_DEMAND(name_to_idx["l_wheel_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("torso_lift_joint"));
-  DRAKE_DEMAND(name_to_idx["torso_lift_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("head_pan_joint"));
-  DRAKE_DEMAND(name_to_idx["head_pan_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("head_tilt_joint"));
-  DRAKE_DEMAND(name_to_idx["head_tilt_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("shoulder_pan_joint"));
-  DRAKE_DEMAND(name_to_idx["shoulder_pan_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("shoulder_lift_joint"));
-  DRAKE_DEMAND(name_to_idx["shoulder_lift_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("upperarm_roll_joint"));
-  DRAKE_DEMAND(name_to_idx["upperarm_roll_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("elbow_flex_joint"));
-  DRAKE_DEMAND(name_to_idx["elbow_flex_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("forearm_roll_joint"));
-  DRAKE_DEMAND(name_to_idx["forearm_roll_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("wrist_flex_joint"));
-  DRAKE_DEMAND(name_to_idx["wrist_flex_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("wrist_roll_joint"));
-  DRAKE_DEMAND(name_to_idx["wrist_roll_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("r_gripper_finger_joint"));
-  DRAKE_DEMAND(name_to_idx["r_gripper_finger_joint"] == joint_idx++);
-  DRAKE_DEMAND(name_to_idx.count("l_gripper_finger_joint"));
-  DRAKE_DEMAND(name_to_idx["l_gripper_finger_joint"] == joint_idx++);
+   // cout the joint ordering
+    std::cout <<"=============================="<<std::endl;
+    for(auto& p: name_to_idx)
+      std::cout << p.first << ':' << p.second << ' '<<std::endl;
+    std::cout <<"=============================="<<std::endl;;
+
+//  int joint_idx = 7;  // joints 0-6 are the floating base
+//  DRAKE_DEMAND(name_to_idx.size() == kNumDofs);
+//  DRAKE_DEMAND(name_to_idx.count("r_wheel_joint"));
+//  DRAKE_DEMAND(name_to_idx["r_wheel_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("l_wheel_joint"));
+//  DRAKE_DEMAND(name_to_idx["l_wheel_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("torso_lift_joint"));
+//  DRAKE_DEMAND(name_to_idx["torso_lift_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("head_pan_joint"));
+//  DRAKE_DEMAND(name_to_idx["head_pan_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("head_tilt_joint"));
+//  DRAKE_DEMAND(name_to_idx["head_tilt_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("shoulder_pan_joint"));
+//  DRAKE_DEMAND(name_to_idx["shoulder_pan_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("shoulder_lift_joint"));
+//  DRAKE_DEMAND(name_to_idx["shoulder_lift_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("upperarm_roll_joint"));
+//  DRAKE_DEMAND(name_to_idx["upperarm_roll_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("elbow_flex_joint"));
+//  DRAKE_DEMAND(name_to_idx["elbow_flex_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("forearm_roll_joint"));
+//  DRAKE_DEMAND(name_to_idx["forearm_roll_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("wrist_flex_joint"));
+//  DRAKE_DEMAND(name_to_idx["wrist_flex_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("wrist_roll_joint"));
+//  DRAKE_DEMAND(name_to_idx["wrist_roll_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("r_gripper_finger_joint"));
+//  DRAKE_DEMAND(name_to_idx["r_gripper_finger_joint"] == joint_idx++);
+//  DRAKE_DEMAND(name_to_idx.count("l_gripper_finger_joint"));
+//  DRAKE_DEMAND(name_to_idx["l_gripper_finger_joint"] == joint_idx++);
 }
 
 void CreateTreeFromFloatingModelAtPose(const std::string& model_file_name,

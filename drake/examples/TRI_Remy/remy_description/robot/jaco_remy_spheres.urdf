@@ -1,0 +1,1004 @@
+<? xml version="1.0" ?>
+<robot
+  name="remy_description">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.000574966688148862 0.0121043151479479 0.14390885732606"
+        rpy="0 0 0" />
+      <mass
+        value="8.46822252536056" />
+      <inertia
+        ixx="0.269087598168183"
+        ixy="0.000174113402562132"
+        ixz="0.00219659451629178"
+        iyy="0.225923332302707"
+        iyz="-0.0210595612806915"
+        izz="0.0468171836389949" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/base_link.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+      </material>
+    </visual>
+  </link>
+  <link
+    name="right_wheel">
+    <inertial>
+      <origin
+        xyz="1.06187546273085E-18 2.52135245130945E-06 -0.0015908616235798"
+        rpy="0 0 0" />
+      <mass
+        value="2.11820986694096" />
+      <inertia
+        ixx="0.01"
+        ixy="0.01"
+        ixz="0.01"
+        iyy="0.01"
+        iyz="0.01"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/right_wheel.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/right_wheel.obj" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="right_wheel_joint"
+    type="continuous">
+    <origin
+      xyz="-0.241935 0 0"
+      rpy="1.5707963267949 -6.81692115950261E-17 -1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="right_wheel" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="left_wheel">
+    <inertial>
+      <origin
+        xyz="-0.00159086162357977 2.52135245130521E-06 -6.22060369643651E-19"
+        rpy="0 0 0" />
+      <mass
+        value="2.11820986694096" />
+      <inertia
+        ixx="0.01"
+        ixy="0.01"
+        ixz="0.01"
+        iyy="0.01"
+        iyz="0.01"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/left_wheel.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/left_wheel.obj" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="left_wheel_joint"
+    type="continuous">
+    <origin
+      xyz="0.241935 0 0"
+      rpy="1.5707963267949 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="left_wheel" />
+    <axis
+      xyz="1 0 0" />
+  </joint>
+  <link
+    name="lift">
+    <inertial>
+      <origin
+        xyz="0.00751477217216802 0.250772406984837 0.0753077093150405"
+        rpy="0 0 0" />
+      <mass
+        value="1.10311806702314" />
+      <inertia
+        ixx="0.0522588985971981"
+        ixy="0.00440024139003049"
+        ixz="0.00198114192191808"
+        iyy="0.0122720602436082"
+        iyz="-0.014769042122161"
+        izz="0.0421392165136061" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/lift.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+  </link>
+  <joint
+    name="lift_joint"
+    type="prismatic">
+    <origin
+      xyz="0.017399 -0.040484 0.084147"
+      rpy="0.2618 1.0643E-16 -3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="lift" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0.8"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="jaco_mount">
+    <inertial>
+      <origin
+        xyz="3.57081916762845E-05 -3.57111682599554E-05 0.00492411468168719"
+        rpy="0 0 0" />
+      <mass
+        value="0.12648183952591" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/jaco_mount.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="jaco_mount" type="fixed">
+    <origin
+      xyz="0.0173989999999999 0.159412958043339 0.00572157209564689"
+      rpy="0.261799387799146 8.34582944186186E-17 -3.14159265358979" />
+    <parent
+      link="lift" />
+    <child
+      link="jaco_mount" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="front_caster_mount">
+    <inertial>
+      <origin
+        xyz="-5.46655959811071E-05 0.00340956997851766 -0.0168502386603693"
+        rpy="0 0 0" />
+      <mass
+        value="0.107382154839307" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/front_caster_mount.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="front_caster_joint" type="fixed"> <!-- changed from cont to fixed -->
+    <origin
+      xyz="0 -0.2286 -0.0033196"
+      rpy="0.05236 -2.0274E-17 -0.33749" />
+    <parent
+      link="base_link" />
+    <child
+      link="front_caster_mount" />
+    <axis
+      xyz="0 0.052336 0.99863" />
+  </joint>
+  <link
+    name="front_caster_wheel">
+    <inertial>
+      <origin
+        xyz="8.21500753117599E-08 4.63518112781003E-15 1.83492130254037E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.185602296468908" />
+      <inertia
+        ixx="0.01"
+        ixy="0.01"
+        ixz="0.01"
+        iyy="0.01"
+        iyz="0.01"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/front_caster_wheel.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.250980392156863 0.250980392156863 0.250980392156863 1" />
+      </material>
+    </visual>
+    <!--<collision>-->
+      <!--<origin-->
+        <!--xyz="0 0 0"-->
+        <!--rpy="0 0 0" />-->
+      <!--<geometry>-->
+        <!--<mesh-->
+          <!--filename="../meshes/front_caster_wheel.obj" />-->
+      <!--</geometry>-->
+    <!--</collision>-->
+  </link>
+  <joint name="front_caster_wheel_joint" type="fixed"> <!-- changed from cont to fixed -->
+    <origin
+      xyz="0 0.0294020016396793 -0.0759667553056439"
+      rpy="1.5707963267949 -0.616507014377602 -1.57079632679489" />
+    <parent
+      link="front_caster_mount" />
+    <child
+      link="front_caster_wheel" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="back_caster_mount">
+    <inertial>
+      <origin
+        xyz="-5.46675230128635E-05 0.00340967822128417 -0.0168501983720861"
+        rpy="0 0 0" />
+      <mass
+        value="0.107381888645876" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/back_caster_mount.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+  </link>
+  <joint
+    name="back_caster_joint"
+    type="fixed">
+    <origin
+      xyz="0 0.2286 -0.00331958737700475"
+      rpy="0.0523598775586215 -5.92206520112322E-17 -1.82771088172709" />
+    <parent
+      link="base_link" />
+    <child
+      link="back_caster_mount" />
+    <axis
+      xyz="0 0.0523359562417371 0.998629534754637" />
+  </joint>
+  <link
+    name="back_caster_wheel">
+    <inertial>
+      <origin
+        xyz="8.21500825490262E-08 0 1.83492141758723E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.185602296468908" />
+      <inertia
+        ixx="0.01"
+        ixy="0.01"
+        ixz="0.01"
+        iyy="0.01"
+        iyz="0.01"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/back_caster_wheel.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.250980392156863 0.250980392156863 0.250980392156863 1" />
+      </material>
+    </visual>
+    <!--<collision>-->
+      <!--<origin-->
+        <!--xyz="0 0 0"-->
+        <!--rpy="0 0 0" />-->
+      <!--<geometry>-->
+        <!--<mesh-->
+          <!--filename="../meshes/back_caster_wheel.obj" />-->
+      <!--</geometry>-->
+    <!--</collision>-->
+  </link>
+  <joint
+    name="back_caster_wheel_joint"
+    type="fixed">
+    <origin
+      xyz="0 0.0294020016398932 -0.0759667553055578"
+      rpy="1.5707963267949 -0.616507014374687 -1.5707963267949" />
+    <parent
+      link="back_caster_mount" />
+    <child
+      link="back_caster_wheel" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+
+   <!--adding ball joints to represent the caster-->
+
+  <link name="front_ball_caster">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0. 0. 0." />
+      <mass value=".01" />
+      <inertia ixx=".000015" ixy=".000015" ixz=".000015" iyy=".000015" iyz=".000015" izz=".000015" />
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.046"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.046"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="front_ball_caster_joint" type="ball">
+    <origin xyz="0 0 0"/>
+    <parent link="front_caster_wheel" />
+    <child link="front_ball_caster" />
+  </joint>
+
+  <link name="back_ball_caster">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0. 0. 0." />
+      <mass value="0.1" />
+      <inertia ixx=".000015" ixy=".000015" ixz=".000015" iyy=".000015" iyz=".000015" izz=".000015" />
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.046"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.046"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="back_ball_caster_joint" type="ball">
+    <origin xyz="0 0 0"/>
+    <parent link="back_caster_wheel" />
+    <child link="back_ball_caster" />
+  </joint>
+
+<transmission name="r_wheel_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="right_wheel_joint">
+  </joint>
+  <actuator name="r_wheel_act">
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<transmission name="l_wheel_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="left_wheel_joint">
+  </joint>
+  <actuator name="l_wheel_act">
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<transmission name="lift_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="lift_joint">
+  </joint>
+  <actuator name="lift_act">
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<!-- =================================================================================== -->
+<link name="j2n6s300_link_base">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/base.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <origin rpy="0 0 0" xyz="0 0 0.1"/>
+    <geometry>
+      <cylinder length="0.075" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.46784"/>
+    <origin rpy="0 0 0" xyz="0 0 0.1255"/>
+    <inertia ixx="0.000951270861568" ixy="0" ixz="0" iyy="0.000951270861568" iyz="0" izz="0.000374272"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_base" type="fixed">
+  <parent link="jaco_mount"/>
+  <child link="j2n6s300_link_base"/>
+  <axis xyz="0 0 0"/>
+  <limit effort="2000" lower="0" upper="0" velocity="1"/>
+  <origin rpy="0 0 0" xyz="0 0 0"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<link name="j2n6s300_link_1">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/shoulder.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_big.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin rpy="0 0 0" xyz="0 0 -0.06"/>
+    <geometry>
+      <cylinder length="0.06" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.7477"/>
+    <origin xyz="0 -0.002 -0.0605"/>
+    <inertia ixx="0.00152031725204" ixy="0" ixz="0" iyy="0.00152031725204" iyz="0" izz="0.00059816"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_1" type="continuous">
+  <parent link="j2n6s300_link_base"/>
+  <child link="j2n6s300_link_1"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-6.28318530718" upper="6.28318530718" velocity="1"/>
+  <origin rpy="0 3.14159265359 0" xyz="0 0 0.15675"/>
+  <dynamics damping="0.0" friction="1.0"/>
+</joint>
+<transmission name="j2n6s300_joint_1_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_1">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_1_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_2">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/arm.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_big.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin rpy="1.57079632679 0 0" xyz="0 -0.21 0"/>
+    <geometry>
+      <cylinder length="0.3" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.99"/>
+    <origin xyz="0 -0.2065 -0.01"/>
+    <inertia ixx="0.010502207991" ixy="0" ixz="0" iyy="0.000792" iyz="0" izz="0.010502207991"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_2" type="revolute">
+  <parent link="j2n6s300_link_1"/>
+  <child link="j2n6s300_link_2"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-2.618" upper="2.613" velocity="1"/>
+  <origin rpy="-1.57079632679 3.1415 3.14159265359" xyz="0 0.0016 -0.11875"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<transmission name="j2n6s300_joint_2_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_2">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_2_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_3">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/forearm.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_big.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin rpy="1.57079632679 0 0" xyz="0 0.12 0"/>
+    <geometry>
+      <cylinder length="0.17" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.6763"/>
+    <origin xyz="0 0.081 -0.0086"/>
+    <inertia ixx="0.00142022431908" ixy="0" ixz="0" iyy="0.000304335" iyz="0" izz="0.00142022431908"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_3" type="revolute">
+  <parent link="j2n6s300_link_2"/>
+  <child link="j2n6s300_link_3"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-2.618" upper="2.613" velocity="1"/>
+  <origin rpy="0 3.14159265359 3.1415" xyz="0 -0.410 0"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<transmission name="j2n6s300_joint_3_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_3">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_3_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_4">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/wrist.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_small.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin rpy="0 0 0" xyz="0 -0.01 -0.02"/>
+    <geometry>
+      <cylinder length="0.01" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.1785"/>
+    <origin xyz="0 -0.037 -0.0642"/>
+    <inertia ixx="7.73496906e-05" ixy="0" ixz="0" iyy="7.73496906e-05" iyz="0" izz="0.0001428"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_4" type="continuous">
+  <parent link="j2n6s300_link_3"/>
+  <child link="j2n6s300_link_4"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-6.28318530718" upper="6.28318530718" velocity="1"/>
+  <origin rpy="-1.57079632679 0 3.14159265359" xyz="0 0.2073 -0.0114"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<transmission name="j2n6s300_joint_4_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_4">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_4_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_5">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/wrist.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_small.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.1785"/>
+    <origin xyz="0 -0.037 -0.0642"/>
+    <inertia ixx="7.73496906e-05" ixy="0" ixz="0" iyy="7.73496906e-05" iyz="0" izz="0.0001428"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_5" type="continuous">
+  <parent link="j2n6s300_link_4"/>
+  <child link="j2n6s300_link_5"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-6.28318530718" upper="6.28318530718" velocity="1"/>
+  <origin rpy="1.0471975512 0 3.14159265359" xyz="0 -0.03703 -0.06414"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<transmission name="j2n6s300_joint_5_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_5">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_5_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_6">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/hand_3finger.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_small.obj"/>
+    </geometry>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.025"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.727"/>
+    <origin xyz="0 0 -0.06"/>
+    <inertia ixx="0.0003453236187" ixy="0" ixz="0" iyy="0.0003453236187" iyz="0" izz="0.0005816"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_6" type="continuous">
+  <parent link="j2n6s300_link_5"/>
+  <child link="j2n6s300_link_6"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="2000" lower="-6.28318530718" upper="6.28318530718" velocity="1"/>
+  <origin rpy="1.0471975512 0 3.14159265359" xyz="0 -0.03703 -0.06414"/>
+  <dynamics damping="0.0" friction="0.0"/>
+</joint>
+<transmission name="j2n6s300_joint_6_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_6">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_6_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>160</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_end_effector">
+  <visual>
+    <geometry>
+      <box size="0 0 0"/>
+    </geometry>
+  </visual>
+  <collision>
+    <geometry>
+      <box size="0 0 0"/>
+    </geometry>
+  </collision>
+</link>
+<joint name="j2n6s300_joint_end_effector" type="fixed">
+  <parent link="j2n6s300_link_6"/>
+  <child link="j2n6s300_end_effector"/>
+  <axis xyz="0 0 0"/>
+  <limit effort="2000" lower="0" upper="0" velocity="1"/>
+  <origin rpy="3.14159265359 0 0" xyz="0 0 -0.1600"/>
+</joint>
+<link name="j2n6s300_link_finger_1">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_proximal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_1" type="revolute">
+  <parent link="j2n6s300_link_6"/>
+  <child link="j2n6s300_link_finger_1"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="-1.570796327 .649262481663582 1.35961148639407" xyz="0.00279 0.03126 -0.11467"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+<transmission name="j2n6s300_joint_finger_1_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_finger_1">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_finger_1_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_finger_tip_1">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_distal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_tip_1" type="fixed">
+  <parent link="j2n6s300_link_finger_1"/>
+  <child link="j2n6s300_link_finger_tip_1"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="0 0 0" xyz="0.044 -0.003 0"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+<link name="j2n6s300_link_finger_2">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_proximal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_2" type="revolute">
+  <parent link="j2n6s300_link_6"/>
+  <child link="j2n6s300_link_finger_2"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="-1.570796327 .649262481663582 -1.38614049188413" xyz="0.02226 -0.02707 -0.11482"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+<transmission name="j2n6s300_joint_finger_2_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_finger_2">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_finger_2_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_finger_tip_2">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_distal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_tip_2" type="fixed">
+  <parent link="j2n6s300_link_finger_2"/>
+  <child link="j2n6s300_link_finger_tip_2"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="0 0 0" xyz="0.044 -0.003 0"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+<link name="j2n6s300_link_finger_3">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_proximal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_3" type="revolute">
+  <parent link="j2n6s300_link_6"/>
+  <child link="j2n6s300_link_finger_3"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="-1.570796327 .649262481663582 -1.75545216211587" xyz="-0.02226 -0.02707 -0.11482"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+<transmission name="j2n6s300_joint_finger_3_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="j2n6s300_joint_finger_3">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="j2n6s300_joint_finger_3_actuator">
+    <hardwareInterface>EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+<link name="j2n6s300_link_finger_tip_3">
+  <visual>
+    <geometry>
+      <mesh filename="../../../../manipulation/models/jaco_description/meshes/finger_distal.obj"/>
+    </geometry>
+    <material name="carbon_fiber">
+      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.01" radius="0.01"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.01"/>
+    <origin xyz="0.022 0 0"/>
+    <inertia ixx=".0026" ixy="0" ixz="0" iyy=".0026" iyz="0" izz=".0026"/>
+  </inertial>
+</link>
+<joint name="j2n6s300_joint_finger_tip_3" type="fixed">
+  <parent link="j2n6s300_link_finger_3"/>
+  <child link="j2n6s300_link_finger_tip_3"/>
+  <axis xyz="0 0 1"/>
+  <origin rpy="0 0 0" xyz="0.044 -0.003 0"/>
+  <limit effort="2000" lower="0" upper="2" velocity="1"/>
+</joint>
+</robot>

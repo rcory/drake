@@ -8,6 +8,24 @@ namespace Remy {
 using systems::Context;
 using systems::BasicVector;
 
+//// ====== caster wheels version ============
+//// constexpr int kWheelQStart = 7;
+//constexpr int kWheelVStart = 6;
+//
+//constexpr int kHeadQStart = 10;
+//constexpr int kHeadVStart = 9;
+//
+//constexpr int kTorsoQStart = 9;
+//constexpr int kTorsoVStart = 8;
+//
+//constexpr int kArmQStart = 14;
+//constexpr int kArmVStart = 13;
+//
+//constexpr int kHandQStart = 20;
+//constexpr int kHandVStart = 19;
+//// ========================================
+
+// ====== caster balls version ============
 // constexpr int kWheelQStart = 7;
 constexpr int kWheelVStart = 6;
 
@@ -17,11 +35,12 @@ constexpr int kHeadVStart = 9;
 constexpr int kTorsoQStart = 9;
 constexpr int kTorsoVStart = 8;
 
-constexpr int kArmQStart = 14;
-constexpr int kArmVStart = 13;
+constexpr int kArmQStart = 18;
+constexpr int kArmVStart = 15;
 
-constexpr int kHandQStart = 20;
-constexpr int kHandVStart = 19;
+constexpr int kHandQStart = 24;
+constexpr int kHandVStart = 21;
+// ========================================
 
 template <typename T>
 FetchController<T>::FetchController(
@@ -201,12 +220,13 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
   //output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
 
   // Wheels
-  output->get_mutable_value().template head<2>() =
-      controller_.CalcWheelTorque(cache, 0.1, 0);
+  temp = controller_.CalcWheelTorque(cache, 0.15, 0.3);
+  output->get_mutable_value().template head<2>() = temp;
 
   // Hand
-  output->get_mutable_value().template tail<kNumHandDofs>() =
-      controller_.CalcHandTorque(cache, Vector3<T>::Ones());
+  temp = controller_.CalcHandTorque(cache, Vector3<T>::Ones());
+  output->get_mutable_value().template tail<kNumHandDofs>() = temp;
+
 }
 
 template class FetchController<double>;
