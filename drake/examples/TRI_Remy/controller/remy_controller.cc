@@ -1,5 +1,5 @@
 #include "drake/examples/TRI_Remy/controller/remy_controller.h"
-#include <utility>
+#include "drake/examples/TRI_Remy/remy_common.h"
 
 namespace drake {
 namespace examples {
@@ -8,63 +8,26 @@ namespace Remy {
 using systems::Context;
 using systems::BasicVector;
 
-//// ====== caster wheels version ============
-//// constexpr int kWheelQStart = 7;
-//constexpr int kWheelVStart = 6;
-//
-//constexpr int kHeadQStart = 10;
-//constexpr int kHeadVStart = 9;
-//
-//constexpr int kTorsoQStart = 9;
-//constexpr int kTorsoVStart = 8;
-//
-//constexpr int kArmQStart = 14;
-//constexpr int kArmVStart = 13;
-//
-//constexpr int kHandQStart = 20;
-//constexpr int kHandVStart = 19;
-//// ========================================
-
-// ====== caster balls version ============
-// constexpr int kWheelQStart = 7;
-constexpr int kWheelVStart = 6;
-
-constexpr int kHeadQStart = 10;
-constexpr int kHeadVStart = 9;
-
-constexpr int kTorsoQStart = 9;
-constexpr int kTorsoVStart = 8;
-
-constexpr int kArmQStart = 18;
-constexpr int kArmVStart = 15;
-
-constexpr int kHandQStart = 24;
-constexpr int kHandVStart = 21;
-// ========================================
-
 template <typename T>
-FetchController<T>::FetchController(
+RemyController<T>::RemyController(
     std::unique_ptr<RigidBodyTree<T>> full_robot)
     : full_robot_(std::move(full_robot)),
       base_link_(full_robot_->FindBody("base_link")) {
-  kp_arm_.setConstant(30);
-  kd_arm_.setConstant(15);
-
-  kp_head_.setConstant(10);
-  kd_head_.setConstant(5);
+  kp_arm_.setConstant(10);
+  kd_arm_.setConstant(5);
 
   kp_hand_.setConstant(10);
   kd_hand_.setConstant(5);
 
-  kp_torso_ = 10;
-  kd_torso_ = 5;
+  kp_lift_ = 10;
+  kd_lift_ = 5;
 
   lin_v_gain_ = 10;
   omega_v_gain_ = 10 * kWheelYOffset;
 }
 
 template <typename T>
-Vector2<T> FetchController<T>::CalcWheelTorque(const KinematicsCache<T>& cache,
+Vector2<T> RemyController<T>::CalcWheelTorque(const KinematicsCache<T>& cache,
                                                const T v_d, const T w_d) const {
   Vector6<T> V_WB =
       full_robot_->CalcBodySpatialVelocityInWorldFrame(cache, *base_link_);
@@ -88,22 +51,7 @@ Vector2<T> FetchController<T>::CalcWheelTorque(const KinematicsCache<T>& cache,
 }
 
 template <typename T>
-Vector2<T> FetchController<T>::CalcHeadAcc(const KinematicsCache<T>& cache,
-                                           const Vector2<T>& q_d,
-                                           const Vector2<T>& v_d,
-                                           const Vector2<T>& vd_d) const {
-  auto q = cache.getQ().template segment<2>(kHeadQStart);
-  auto v = cache.getV().template segment<2>(kHeadVStart);
-
-  Vector2<T> acc = (kp_head_.array() * (q_d - q).array() +
-      kd_head_.array() * (v_d - v).array())
-      .matrix() +
-      vd_d;
-  return acc;
-}
-
-template <typename T>
-Vector3<T> FetchController<T>::CalcHandTorque(const KinematicsCache<T>& cache,
+Vector3<T> RemyController<T>::CalcHandTorque(const KinematicsCache<T>& cache,
                                               const Vector3<T>& q_d) const {
   auto q = cache.getQ().template segment<3>(kHandQStart);
   auto v = cache.getV().template segment<3>(kHandVStart);
@@ -112,22 +60,21 @@ Vector3<T> FetchController<T>::CalcHandTorque(const KinematicsCache<T>& cache,
       (kp_hand_.array() * (q_d - q).array() - kd_hand_.array() * v.array())
           .matrix();
 
-  //trq.setZero();
   return trq;
 }
 
 template <typename T>
-T FetchController<T>::CalcTorsoAcc(const KinematicsCache<T>& cache, const T q_d,
+T RemyController<T>::CalcLiftAcc(const KinematicsCache<T>& cache, const T q_d,
                                    const T v_d, const T vd_d) const {
-  T q = cache.getQ()[kTorsoQStart];
-  T v = cache.getV()[kTorsoVStart];
+  T q = cache.getQ()[kLiftQStart];
+  T v = cache.getV()[kLiftVStart];
 
-  T acc = kp_torso_ * (q_d - q) + kd_torso_ * (v_d - v) + vd_d;
+  T acc = kp_lift_ * (q_d - q) + kd_lift_ * (v_d - v) + vd_d;
   return acc;
 }
 
 template <typename T>
-VectorX<T> FetchController<T>::CalcArmAcc(const KinematicsCache<T>& cache,
+VectorX<T> RemyController<T>::CalcArmAcc(const KinematicsCache<T>& cache,
                                           const VectorX<T>& q_d,
                                           const VectorX<T>& v_d,
                                           const VectorX<T>& vd_d) const {
@@ -135,22 +82,15 @@ VectorX<T> FetchController<T>::CalcArmAcc(const KinematicsCache<T>& cache,
   auto v = cache.getV().template segment<kNumArmDofs>(kArmVStart);
 
   VectorX<T> acc = (kp_arm_.array() * (q_d - q).array() +
-      kd_arm_.array() * (v_d - v).array())
-      .matrix() +
-      vd_d;
+      kd_arm_.array() * (v_d - v).array()).matrix() + vd_d;
   return acc;
 }
 
 template <typename T>
-VectorX<T> FetchController<T>::CalcTorque(const VectorX<T>& acc,
+VectorX<T> RemyController<T>::CalcTorque(const VectorX<T>& acc,
                                           KinematicsCache<T>* cache) const {
   DRAKE_DEMAND(acc.size() == full_robot_->get_num_velocities());
   eigen_aligned_std_unordered_map<RigidBody<T> const*, Vector6<T>> f_ext;
-
-//  // Just the actuated parts.
-//  VectorX<T> torque =
-//      full_robot_->inverseDynamics(*cache, f_ext, acc)
-//          .segment(kWheelVStart, full_robot_->get_num_actuators());
 
   VectorX<T> full_torque =
       full_robot_->inverseDynamics(*cache, f_ext, acc);
@@ -166,7 +106,7 @@ VectorX<T> FetchController<T>::CalcTorque(const VectorX<T>& acc,
 }
 
 template <typename T>
-FetchControllerSystem<T>::FetchControllerSystem(
+RemyControllerSystem<T>::RemyControllerSystem(
     std::unique_ptr<RigidBodyTree<T>> full_robot)
     : controller_(std::move(full_robot)) {
   const auto& robot = controller_.get_full_robot();
@@ -179,12 +119,12 @@ FetchControllerSystem<T>::FetchControllerSystem(
 
   output_port_index_control_ =
       this->DeclareVectorOutputPort(BasicVector<T>(robot.get_num_actuators()),
-                                    &FetchControllerSystem<T>::CalcOutputTorque)
+                                    &RemyControllerSystem<T>::CalcOutputTorque)
           .get_index();
 }
 
 template <typename T>
-void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
+void RemyControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
                                                 BasicVector<T>* output) const {
   /*
   output->get_mutable_value().setZero();
@@ -199,12 +139,8 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
   robot.doKinematics(cache, true);
 
   VectorX<T> vd_d = VectorX<T>::Zero(robot.get_num_velocities());
-  // Torso acc
-  vd_d[kTorsoVStart] = controller_.CalcTorsoAcc(cache, 0.1, 0, 0);
-
-//  // Head acc
-//  vd_d.template segment<2>(kHeadVStart) = controller_.CalcHeadAcc(
-//      cache, Vector2<T>::Zero(), Vector2<T>::Zero(), Vector2<T>::Zero());
+  // Lift acc
+  vd_d[kLiftVStart] = controller_.CalcLiftAcc(cache, 0.1, 0, 0);
 
   // Arms acc
   VectorX<T> arm_q = VectorX<T>::Zero(kNumArmDofs);
@@ -220,7 +156,7 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
   //output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
 
   // Wheels
-  temp = controller_.CalcWheelTorque(cache, 0.15, 0.3);
+  temp = controller_.CalcWheelTorque(cache, 0.05, 0.1);
   output->get_mutable_value().template head<2>() = temp;
 
   // Hand
@@ -229,8 +165,8 @@ void FetchControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
 
 }
 
-template class FetchController<double>;
-template class FetchControllerSystem<double>;
+template class RemyController<double>;
+template class RemyControllerSystem<double>;
 
 }  // namespace Remy
 }  // namespace examples

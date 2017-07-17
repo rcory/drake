@@ -21,6 +21,7 @@ drake_cc_library(
         "remy_controller.h",
     ],
     deps = [
+        "//drake/examples/TRI_Remy:remy_common",
         "//drake/multibody:rigid_body_tree",
         "//drake/systems/framework",
     ],

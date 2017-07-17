@@ -57,9 +57,9 @@
           filename="../meshes/right_wheel.obj" />
       </geometry>
       <material
-        name="">
+        name="Wheel Black">
         <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          rgba="0.3 0.3 0.3 1" />
       </material>
     </visual>
     <collision>
@@ -109,11 +109,7 @@
         <mesh
           filename="../meshes/left_wheel.obj" />
       </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
+      <material name="Wheel Black" />
     </visual>
     <collision>
       <origin
@@ -260,10 +256,10 @@
       </material>
     </visual>
   </link>
-  <joint name="front_caster_joint" type="fixed"> <!-- changed from cont to fixed -->
+  <joint name="front_caster_joint" type="fixed">
     <origin
       xyz="0 -0.2286 -0.0033196"
-      rpy="0.05236 -2.0274E-17 -0.33749" />
+      rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
@@ -301,17 +297,8 @@
           rgba="0.250980392156863 0.250980392156863 0.250980392156863 1" />
       </material>
     </visual>
-    <!--<collision>-->
-      <!--<origin-->
-        <!--xyz="0 0 0"-->
-        <!--rpy="0 0 0" />-->
-      <!--<geometry>-->
-        <!--<mesh-->
-          <!--filename="../meshes/front_caster_wheel.obj" />-->
-      <!--</geometry>-->
-    <!--</collision>-->
   </link>
-  <joint name="front_caster_wheel_joint" type="fixed"> <!-- changed from cont to fixed -->
+  <joint name="front_caster_wheel_joint" type="fixed">
     <origin
       xyz="0 0.0294020016396793 -0.0759667553056439"
       rpy="1.5707963267949 -0.616507014377602 -1.57079632679489" />
@@ -358,7 +345,7 @@
     type="fixed">
     <origin
       xyz="0 0.2286 -0.00331958737700475"
-      rpy="0.0523598775586215 -5.92206520112322E-17 -1.82771088172709" />
+      rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
@@ -396,15 +383,6 @@
           rgba="0.250980392156863 0.250980392156863 0.250980392156863 1" />
       </material>
     </visual>
-    <!--<collision>-->
-      <!--<origin-->
-        <!--xyz="0 0 0"-->
-        <!--rpy="0 0 0" />-->
-      <!--<geometry>-->
-        <!--<mesh-->
-          <!--filename="../meshes/back_caster_wheel.obj" />-->
-      <!--</geometry>-->
-    <!--</collision>-->
   </link>
   <joint
     name="back_caster_wheel_joint"
@@ -419,20 +397,23 @@
     <axis
       xyz="0 0 -1" />
   </joint>
-
    <!--adding ball joints to represent the caster-->
-
   <link name="front_ball_caster">
     <inertial>
       <origin rpy="0 0 0" xyz="0. 0. 0." />
       <mass value=".01" />
-      <inertia ixx=".000015" ixy=".000015" ixz=".000015" iyy=".000015" iyz=".000015" izz=".000015" />
+      <inertia
+              ixx=".000015" ixy=".000015" ixz=".000015"
+              iyy=".000015" iyz=".000015" izz=".000015" />
     </inertial>
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0" />
       <geometry>
         <sphere radius="0.046"/>
       </geometry>
+      <material name="Black">
+        <color rgba = "0.2 0.2 0.2 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0" />
@@ -441,24 +422,24 @@
       </geometry>
     </collision>
   </link>
-
   <joint name="front_ball_caster_joint" type="ball">
     <origin xyz="0 0 0"/>
     <parent link="front_caster_wheel" />
     <child link="front_ball_caster" />
   </joint>
-
   <link name="back_ball_caster">
     <inertial>
       <origin rpy="0 0 0" xyz="0. 0. 0." />
       <mass value="0.1" />
-      <inertia ixx=".000015" ixy=".000015" ixz=".000015" iyy=".000015" iyz=".000015" izz=".000015" />
+      <inertia ixx=".000015" ixy=".000015" ixz=".000015"
+               iyy=".000015" iyz=".000015" izz=".000015" />
     </inertial>
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0" />
       <geometry>
         <sphere radius="0.046"/>
       </geometry>
+      <material name="Black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0" />
@@ -467,7 +448,6 @@
       </geometry>
     </collision>
   </link>
-
   <joint name="back_ball_caster_joint" type="ball">
     <origin xyz="0 0 0"/>
     <parent link="back_caster_wheel" />
@@ -498,14 +478,14 @@
     <mechanicalReduction>1</mechanicalReduction>
   </actuator>
 </transmission>
-<!-- =================================================================================== -->
+<!-- Jaco Arm -->
 <link name="j2n6s300_link_base">
   <visual>
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/base.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    <material name="Carbon Fiber">
+      <color rgba = "0.2 0.2 0.2 1"/>
     </material>
   </visual>
   <collision>
@@ -533,9 +513,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/shoulder.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
+    <material name="Carbon Fiber"/>
   </visual>
   <visual>
     <geometry>
@@ -577,9 +555,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/arm.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
+    <material name="Carbon Fiber"/>
   </visual>
   <visual>
     <geometry>
@@ -621,9 +597,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/forearm.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
+    <material name="Carbon Fiber"/>
   </visual>
   <visual>
     <geometry>
@@ -665,9 +639,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/wrist.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
+    <material name="Carbon Fiber"/>
   </visual>
   <visual>
     <geometry>
@@ -709,9 +681,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/wrist.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
+    <material name="Carbon Fiber"/>
   </visual>
   <visual>
     <geometry>
@@ -752,10 +722,7 @@
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/hand_3finger.obj"/>
     </geometry>
-    <material name="carbon_fiber">
-      <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
-    </material>
-  </visual>
+    <material name="Carbon Fiber"/>  </visual>
   <visual>
     <geometry>
       <mesh filename="../../../../manipulation/models/jaco_description/meshes/ring_small.obj"/>

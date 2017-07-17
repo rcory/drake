@@ -11,44 +11,30 @@ namespace Remy {
 
 // See the @file docblock in remy_common.h for joint index descriptions.
 void VerifyRemyTree(const RigidBodyTree<double>& tree) {
+
   std::map<std::string, int> name_to_idx = tree.computePositionNameToIndexMap();
 
-   // cout the joint ordering
-    std::cout <<"=============================="<<std::endl;
-    for(auto& p: name_to_idx)
-      std::cout << p.first << ':' << p.second << ' '<<std::endl;
-    std::cout <<"=============================="<<std::endl;;
+  DRAKE_DEMAND(name_to_idx.count("right_wheel_joint"));
+  DRAKE_DEMAND(name_to_idx["right_wheel_joint"] == kWheelQStart);
+  DRAKE_DEMAND(name_to_idx.count("lift_joint"));
+  DRAKE_DEMAND(name_to_idx["lift_joint"] == kLiftQStart);
+  DRAKE_DEMAND(name_to_idx.count("j2n6s300_joint_1"));
+  DRAKE_DEMAND(name_to_idx["j2n6s300_joint_1"] == kArmQStart);
+  DRAKE_DEMAND(name_to_idx.count("j2n6s300_joint_finger_1"));
+  DRAKE_DEMAND(name_to_idx["j2n6s300_joint_finger_1"] == kHandQStart);
 
-//  int joint_idx = 7;  // joints 0-6 are the floating base
-//  DRAKE_DEMAND(name_to_idx.size() == kNumDofs);
-//  DRAKE_DEMAND(name_to_idx.count("r_wheel_joint"));
-//  DRAKE_DEMAND(name_to_idx["r_wheel_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("l_wheel_joint"));
-//  DRAKE_DEMAND(name_to_idx["l_wheel_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("torso_lift_joint"));
-//  DRAKE_DEMAND(name_to_idx["torso_lift_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("head_pan_joint"));
-//  DRAKE_DEMAND(name_to_idx["head_pan_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("head_tilt_joint"));
-//  DRAKE_DEMAND(name_to_idx["head_tilt_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("shoulder_pan_joint"));
-//  DRAKE_DEMAND(name_to_idx["shoulder_pan_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("shoulder_lift_joint"));
-//  DRAKE_DEMAND(name_to_idx["shoulder_lift_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("upperarm_roll_joint"));
-//  DRAKE_DEMAND(name_to_idx["upperarm_roll_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("elbow_flex_joint"));
-//  DRAKE_DEMAND(name_to_idx["elbow_flex_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("forearm_roll_joint"));
-//  DRAKE_DEMAND(name_to_idx["forearm_roll_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("wrist_flex_joint"));
-//  DRAKE_DEMAND(name_to_idx["wrist_flex_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("wrist_roll_joint"));
-//  DRAKE_DEMAND(name_to_idx["wrist_roll_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("r_gripper_finger_joint"));
-//  DRAKE_DEMAND(name_to_idx["r_gripper_finger_joint"] == joint_idx++);
-//  DRAKE_DEMAND(name_to_idx.count("l_gripper_finger_joint"));
-//  DRAKE_DEMAND(name_to_idx["l_gripper_finger_joint"] == joint_idx++);
+  // todo(rcory) Verify the velocity indices somehow
+}
+
+void PrintOutRemyTree(const RigidBodyTree<double>& tree) {
+
+  std::map<std::string, int> name_to_idx = tree.computePositionNameToIndexMap();
+
+  std::cout <<"=============================="<<std::endl;
+  for(auto& p: name_to_idx)
+    std::cout << p.first << ':' << p.second << ' '<<std::endl;
+  std::cout <<"=============================="<<std::endl;
+
 }
 
 void CreateTreeFromFloatingModelAtPose(const std::string& model_file_name,

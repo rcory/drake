@@ -15,16 +15,13 @@
 #include "drake/multibody/rigid_body_tree_construction.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
-#include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
-#include "drake/examples/TRI_Remy/controller/remy_controller.h"
 #include "drake/multibody/joints/drake_joints.h"
-#include "drake/multibody/joints/prismatic_joint.h"
-#include "drake/multibody/joints/fixed_axis_one_dof_joint.h"
 
-DEFINE_double(stiffness,20000,"stiffness");
-DEFINE_double(dissipation,10,"dissipation");
+DEFINE_double(stiffness,10000,"stiffness");
+DEFINE_double(dissipation,2,"dissipation");
+DEFINE_double(z0,0.12,"initial base height");
 
 namespace drake {
 
@@ -36,26 +33,25 @@ using systems::VectorBase;
 namespace examples {
 namespace Remy {
 
+const char* kRelUrdfPath =
+    "drake/examples/TRI_Remy/remy_description/robot/jaco_remy_spheres.urdf";
+
 int DoMain() {
   drake::lcm::DrakeLcm lcm;
   systems::DiagramBuilder<double> builder;
 
   // Adds a plant.
   RigidBodyPlant<double> *plant = nullptr;
-  FetchControllerSystem<double>* controller = nullptr;
+  RemyControllerSystem<double>* controller = nullptr;
 
   {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     drake::multibody::AddFlatTerrainToWorld(tree.get());
 
-    Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0, 0*0.3 + 0.11));
+    Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0,FLAGS_z0));
     CreateTreeFromFloatingModelAtPose(
-        FindResourceOrThrow(
-            "drake/examples/TRI_Remy/remy_description/robot/jaco_remy_spheres.urdf"),
-        tree.get(), pose);
+        FindResourceOrThrow(kRelUrdfPath), tree.get(), pose);
 
-    //const double contact_stiffness = 10000;
-    //const double contact_dissipation = 2;
     const double dynamic_friction_coeff = 0.5;
     const double static_friction_coeff = 1.0;
     const double v_stiction_tolerance = 0.05;
@@ -69,37 +65,23 @@ int DoMain() {
     plant->set_friction_contact_parameters(
         static_friction_coeff, dynamic_friction_coeff, v_stiction_tolerance);
 
-
-    controller = builder.AddSystem<FetchControllerSystem<double>>(
+    controller = builder.AddSystem<RemyControllerSystem<double>>(
         std::move(control_tree));
   }
 
   // Verifies the tree.
   const RigidBodyTree<double> &tree = plant->get_rigid_body_tree();
   VerifyRemyTree(tree);
+  //PrintOutRemyTree(tree);
 
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-//// ============ zero torque ============================
-//  // adds an open loop torque input
-//  Eigen::Matrix<double, 12, 1> input_values;
-//  input_values.setZero();
-//  input_values << 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-//
-//  auto zero_source =
-//      builder.AddSystem<systems::ConstantVectorSource<double>>(input_values);
-//  zero_source->set_name("zero_source");
-//  builder.Connect(zero_source->get_output_port(), plant->get_input_port(0));
-//// ==================================================
-
-// ====================== controller ===================================
   // Connects the controller and the plant.
   builder.Connect(controller->get_output_port_control(),
                   plant->actuator_command_input_port());
   builder.Connect(plant->get_output_port(0),
                   controller->get_input_port_full_estimated_state());
-// ===============================================================
 
   // Connects the visualizer and builds the diagram.
   builder.Connect(plant->get_output_port(0), visualizer->get_input_port(0));
@@ -114,13 +96,7 @@ int DoMain() {
   // See the @file docblock in remy_common.h for joint index descriptions.
   VectorBase<double> *x0 = remy_context.get_mutable_continuous_state_vector();
   const int kLiftJointIdx = 9;
-  //const int kShoulderForeAftIdx = 15;
-  //const int kElbowForeAftIdx = 16;
   x0->SetAtIndex(kLiftJointIdx, 0.4);
-
-  //x0->SetAtIndex(14, -1.57);
-  //x0->SetAtIndex(kShoulderForeAftIdx, -1.57);
-  //x0->SetAtIndex(kElbowForeAftIdx, 0);
 
   // set torso joint limit dynamics
   const int kJointStiff = 10000; // stiffness
@@ -135,14 +111,6 @@ int DoMain() {
   // Simulate for the desired duration.
   simulator.set_target_realtime_rate(1);
   simulator.StepTo(7);
-
-  //  // Ensures the simulation was successful.
-  //  const Context<double> &context = simulator.get_context();
-  //  const ContinuousState<double> *state = context.get_continuous_state();
-  //  const VectorBase<double> &position_vector =
-  //  state->get_generalized_position();
-  //  const VectorBase<double> &velocity_vector =
-  //  state->get_generalized_velocity();
 
   return 0;
 }
