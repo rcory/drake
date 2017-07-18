@@ -13,17 +13,13 @@ RemyController<T>::RemyController(
     std::unique_ptr<RigidBodyTree<T>> full_robot)
     : full_robot_(std::move(full_robot)),
       base_link_(full_robot_->FindBody("base_link")) {
-  kp_arm_.setConstant(10);
-  kd_arm_.setConstant(5);
+  kp_arm_.setConstant(6); kd_arm_.setConstant(6);
 
-  kp_hand_.setConstant(10);
-  kd_hand_.setConstant(5);
+  kp_hand_.setConstant(5); kd_hand_.setConstant(5);
 
-  kp_lift_ = 10;
-  kd_lift_ = 5;
+  kp_lift_ = 10; kd_lift_ = 5;
 
-  lin_v_gain_ = 10;
-  omega_v_gain_ = 10 * kWheelYOffset;
+  lin_v_gain_ = 10; omega_v_gain_ = 10 * kWheelYOffset;
 }
 
 template <typename T>
@@ -144,24 +140,22 @@ void RemyControllerSystem<T>::CalcOutputTorque(const Context<T>& context,
 
   // Arms acc
   VectorX<T> arm_q = VectorX<T>::Zero(kNumArmDofs);
-  arm_q << -2, -0.85, -1.86;
+  arm_q << 3, -1.85, -0.8, 3.14;
 
   vd_d.template segment<kNumArmDofs>(kArmVStart) = controller_.CalcArmAcc(
       cache, arm_q, VectorX<T>::Zero(kNumArmDofs),
       VectorX<T>::Zero(kNumArmDofs));
 
   // Call ID.
-  VectorX<T> temp = controller_.CalcTorque(vd_d, &cache);
-  output->get_mutable_value() = temp;
-  //output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
+  output->get_mutable_value() = controller_.CalcTorque(vd_d, &cache);
 
   // Wheels
-  temp = controller_.CalcWheelTorque(cache, 0.05, 0.1);
-  output->get_mutable_value().template head<2>() = temp;
+  output->get_mutable_value().template head<2>() =
+      controller_.CalcWheelTorque(cache, 0.05, 0.1);
 
   // Hand
-  temp = controller_.CalcHandTorque(cache, Vector3<T>::Ones());
-  output->get_mutable_value().template tail<kNumHandDofs>() = temp;
+  output->get_mutable_value().template tail<kNumHandDofs>() =
+      controller_.CalcHandTorque(cache, Vector3<T>::Ones());
 
 }
 

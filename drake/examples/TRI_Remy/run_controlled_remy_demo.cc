@@ -23,6 +23,10 @@ DEFINE_double(stiffness,10000,"stiffness");
 DEFINE_double(dissipation,2,"dissipation");
 DEFINE_double(z0,0.12,"initial base height");
 
+DEFINE_double(bx,-0.3,"blockx");
+DEFINE_double(by,-1.3,"blocky");
+DEFINE_double(bz,0.5,"blockz");
+
 namespace drake {
 
 using systems::Context;
@@ -35,6 +39,8 @@ namespace Remy {
 
 const char* kRelUrdfPath =
     "drake/examples/TRI_Remy/remy_description/robot/jaco_remy_spheres.urdf";
+const char* kRelBlockUrdfPath =
+    "drake/examples/TRI_Remy/remy_description/objects/block.urdf";
 
 int DoMain() {
   drake::lcm::DrakeLcm lcm;
@@ -51,6 +57,15 @@ int DoMain() {
     Eigen::Isometry3d pose(Eigen::Translation<double, 3>(0, 0,FLAGS_z0));
     CreateTreeFromFloatingModelAtPose(
         FindResourceOrThrow(kRelUrdfPath), tree.get(), pose);
+
+
+    pose = Eigen::Translation<double, 3>(FLAGS_bx, FLAGS_by, FLAGS_bz);
+    CreateTreeFromFloatingModelAtPose(FindResourceOrThrow(kRelBlockUrdfPath),
+                                      tree.get(), pose);
+
+    pose = Eigen::Translation<double, 3>(FLAGS_bx+0.1, FLAGS_by-.25, FLAGS_bz);
+    CreateTreeFromFloatingModelAtPose(FindResourceOrThrow(kRelBlockUrdfPath),
+                                      tree.get(), pose);
 
     const double dynamic_friction_coeff = 0.5;
     const double static_friction_coeff = 1.0;
@@ -77,9 +92,8 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   auto visualizer = builder.AddSystem<systems::DrakeVisualizer>(tree, &lcm);
 
-  // Connects the controller and the plant.
   builder.Connect(controller->get_output_port_control(),
-                  plant->actuator_command_input_port());
+                  plant->model_instance_actuator_command_input_port(0));
   builder.Connect(plant->get_output_port(0),
                   controller->get_input_port_full_estimated_state());
 

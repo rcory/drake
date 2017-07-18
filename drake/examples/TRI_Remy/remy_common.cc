@@ -49,6 +49,20 @@ void CreateTreeFromFloatingModelAtPose(const std::string& model_file_name,
       tree);
 }
 
+//int AddFloatingModelInstance(
+//    const std::string& model_path, const Eigen::Vector3d& xyz,
+//    const Eigen::Vector3d& rpy = Eigen::Vector3d::Zero(),
+//    RigidBodyTreed* tree) {
+//
+//  auto weld_to_frame = allocate_shared<RigidBodyFrame<double>>(
+//      Eigen::aligned_allocator<RigidBodyFrame<double>>(), "world",
+//      nullptr, xyz, rpy);
+//
+//  drake::parsers::urdf::AddModelInstanceFromUrdfFile(
+//      FindResourceOrThrow(model_path), drake::multibody::joints::kQuaternion,
+//      weld_to_frame, tree);
+//}
+
 }  // namespace Remy
 }  // namespace examples
 }  // namespace drake

@@ -106,6 +106,10 @@ void CreateTreeFromFloatingModelAtPose(
     const std::string& model_file_name, RigidBodyTreed* tree,
     const Eigen::Isometry3d& pose = Eigen::Isometry3d::Identity());
 
+//int AddFloatingModelInstance(
+//    const std::string& model_path, const Eigen::Vector3d& xyz,
+//    const Eigen::Vector3d& rpy = Eigen::Vector3d::Zero());
+
 }  // namespace Remy
 }  // namespace examples
 }  // namespace drake
