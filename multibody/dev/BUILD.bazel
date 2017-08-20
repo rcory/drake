@@ -4,6 +4,7 @@ load(
     "//tools:drake.bzl",
     "drake_cc_googletest",
     "drake_cc_library",
+    "drake_cc_binary",
 )
 load("//tools/skylark:test_tags.bzl", "gurobi_test_tags")
 load("//tools/lint:lint.bzl", "add_lint_tests")
@@ -133,6 +134,25 @@ drake_cc_googletest(
     ],
     deps = [
         ":global_inverse_kinematics_test_util",
+    ],
+)
+
+drake_cc_binary(
+    name = "iiwa_reachability_test",
+    srcs = ["test/iiwa_reachability_test.cc"],
+    data = [
+        "//drake/manipulation/models/iiwa_description:models",
+    ],
+    # Excluding because an assertion fails in LLVM code. Issue #6179.
+    tags = gurobi_test_tags() + ["no_tsan"],
+    deps = [
+        "//common:find_resource",
+        "//lcm",
+        "//manipulation/util:simple_tree_visualizer",
+        "//multibody:global_inverse_kinematics",
+        "//multibody:inverse_kinematics",
+        "//multibody:rigid_body_tree_construction",
+        "//multibody/parsers",
     ],
 )
 
