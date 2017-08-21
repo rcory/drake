@@ -64,7 +64,7 @@ void RunBoxRotationDemo() {
   parsers::urdf::AddModelInstanceFromUrdfFileToWorld(
       iiwa_path, multibody::joints::kFixed, tree.get());
 
-  const RigidBodyTree<double>& iiwa = *(tree.get());
+  //const RigidBodyTree<double>& iiwa = *(tree.get());
 
   MatrixX<double> keyframes = get_posture(
       "drake/examples/kuka_iiwa_arm/dev/box_rotation/simple_keyframes.txt");
@@ -79,20 +79,20 @@ void RunBoxRotationDemo() {
   }
 
 
-  std::vector<MatrixX<double>> l_knots(N, MatrixX<double>::Zero(7, 1));
-  for (int i = 0; i < N; ++i)
-    l_knots[i] = keyframes.block<1, 7>(i, 1).transpose();
-
-  std::vector<MatrixX<double>> r_knots(N, MatrixX<double>::Zero(7, 1));
-  for (int i = 0; i < N; ++i)
-    r_knots[i] = keyframes.block<1, 7>(i, 8).transpose();
-
-  std::vector<int> info(times.size(), 1);
-  robotlocomotion::robot_plan_t plan{};
-
-  *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
-
-  iiwa_callback(&plan);
+//  std::vector<MatrixX<double>> l_knots(N, MatrixX<double>::Zero(7, 1));
+//  for (int i = 0; i < N; ++i)
+//    l_knots[i] = keyframes.block<1, 7>(i, 1).transpose();
+//
+//  std::vector<MatrixX<double>> r_knots(N, MatrixX<double>::Zero(7, 1));
+//  for (int i = 0; i < N; ++i)
+//    r_knots[i] = keyframes.block<1, 7>(i, 8).transpose();
+//
+//  std::vector<int> info(times.size(), 1);
+//  robotlocomotion::robot_plan_t plan{};
+//
+//  *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
+//
+//  iiwa_callback(&plan);
 
   // lcm handle loop
   while (true) {
