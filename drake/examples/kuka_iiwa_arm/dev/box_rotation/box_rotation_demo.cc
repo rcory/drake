@@ -60,24 +60,36 @@ void RunBoxRotationDemo() {
       "drake/manipulation/models/iiwa_description/urdf/"
           "dual_iiwa14_polytope_collision.urdf");
 
+  // create the RBT
   auto tree = std::make_unique<RigidBodyTree<double>>();
+
   parsers::urdf::AddModelInstanceFromUrdfFileToWorld(
       iiwa_path, multibody::joints::kFixed, tree.get());
 
-  //const RigidBodyTree<double>& iiwa = *(tree.get());
+  // create a reference to the RBT
+  const RigidBodyTree<double>& iiwa = *(tree.get());
 
-  MatrixX<double> keyframes = get_posture(
+  MatrixX<double> allKeyFrames = get_posture(
       "drake/examples/kuka_iiwa_arm/dev/box_rotation/simple_keyframes.txt");
 
-  const int N = keyframes.rows();
+  // extract left and righ arm keyframes
+  MatrixX<double>  keyframes(12,14);
+  keyframes.block(12,7,0,0) = allKeyFrames.block(12,7,0,1);
+  keyframes.block(12,7,0,7) = allKeyFrames.block(12,7,0,8);
+  keyframes.transposeInPlace();
+
+  std::cout<<"keyframes.rows = "<<keyframes.rows()<<std::endl;
+
+  const int N = allKeyFrames.rows();
   std::vector<double> times(N);
   for (int i = 0; i < N; ++i) {
     if (i == 0)
-      times[i] = keyframes(i, 0);
+      times[i] = allKeyFrames(i, 0);
     else
-      times[i] = times[i - 1] + keyframes(i, 0);
+      times[i] = times[i - 1] + allKeyFrames(i, 0);
   }
 
+  std::cout<<"robot pos = "<<iiwa.get_num_positions()<<std::endl;
 
 //  std::vector<MatrixX<double>> l_knots(N, MatrixX<double>::Zero(7, 1));
 //  for (int i = 0; i < N; ++i)
@@ -86,13 +98,13 @@ void RunBoxRotationDemo() {
 //  std::vector<MatrixX<double>> r_knots(N, MatrixX<double>::Zero(7, 1));
 //  for (int i = 0; i < N; ++i)
 //    r_knots[i] = keyframes.block<1, 7>(i, 8).transpose();
-//
-//  std::vector<int> info(times.size(), 1);
-//  robotlocomotion::robot_plan_t plan{};
-//
-//  *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
-//
-//  iiwa_callback(&plan);
+
+  std::vector<int> info(times.size(), 1);
+  robotlocomotion::robot_plan_t plan{};
+
+  *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
+
+  iiwa_callback(&plan);
 
   // lcm handle loop
   while (true) {

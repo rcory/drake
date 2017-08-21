@@ -8,11 +8,8 @@ load(
 load("//tools:lint.bzl", "add_lint_tests")
 
 filegroup(
-    name = "models",
+    name = "keyframes",
     srcs = glob([
-        "**/*.obj",
-        "**/*.mtl",
-        "**/*.urdf",
         "**/*.txt",
     ]),
     visibility = ["//visibility:public"],
@@ -20,11 +17,10 @@ filegroup(
 
 drake_cc_binary(
     name = "box_rotation_demo",
-    srcs = [
-        "box_rotation_demo.cc",
-    ],
+    srcs = ["box_rotation_demo.cc"],
     data = [
-        "//drake/examples/kuka_iiwa_arm/dev/box_rotation:models",
+        "//drake/examples/kuka_iiwa_arm/dev/box_rotation:keyframes",
+        "//drake/manipulation/models/iiwa_description:models",
     ],
     deps = [
         "//drake/common:find_resource",
