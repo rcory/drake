@@ -1,0 +1,37 @@
+digraph _94840489940032 {
+rankdir=LR
+subgraph cluster94840489940032diagram {
+color=black
+concentrate=true
+label="94840489940032";
+subgraph cluster94840489940032inputports {
+rank=same
+color=lightgrey
+style=filled
+label="input ports"
+}
+subgraph cluster94840489940032outputports {
+rank=same
+color=lightgrey
+style=filled
+label="output ports"
+}
+subgraph cluster94840489940032subsystems {
+color=white
+label=""
+94840489525200 [shape=record, label="plan_sub|{{} | {<y0>y0}}"];
+94840489852080 [shape=record, label="plan_source|{{<u0>u0|<u1>u1} | {<y0>y0|<y1>y1}}"];
+94840489907344 [shape=record, label="status_sub|{{} | {<y0>y0}}"];
+94840489908688 [shape=record, label="status_receiver|{{<u0>u0} | {<y0>y0|<y1>y1}}"];
+94840489941184 [shape=record, label="target_demux|{{<u0>u0} | {<y0>y0|<y1>y1}}"];
+94840489947152 [shape=record, label="command_pub|{{<u0>u0} | {}}"];
+94840489960592 [shape=record, label="command_sender|{{<u0>u0|<u1>u1} | {<y0>y0}}"];
+94840489525200:y0 -> 94840489852080:u0;
+94840489908688:y0 -> 94840489852080:u1;
+94840489907344:y0 -> 94840489908688:u0;
+94840489852080:y0 -> 94840489941184:u0;
+94840489960592:y0 -> 94840489947152:u0;
+94840489941184:y0 -> 94840489960592:u0;
+}
+}
+}
