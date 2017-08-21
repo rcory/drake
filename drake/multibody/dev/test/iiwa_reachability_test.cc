@@ -114,16 +114,33 @@ int DoMain() {
   link6_orient_des << 1, 0, 0, 0, 0, 1, 0, -1, 0;
   const Eigen::Quaterniond link6_quat_des(link6_orient_des);
 
-  Eigen::VectorXd q0 = Eigen::VectorXd::Zero(7);
   Eigen::VectorXd q_sol;
   int nonlinear_ik_info;
-
-  SolveNonlinearIK(tree.get(), link6_idx, Eigen::Vector3d(0, 0.5, 0.5),
-                   link6_quat_des, q0, &nonlinear_ik_info, &q_sol);
-  visualizer.visualize(q_sol);
+  
 
   GlobalInverseKinematics global_ik(*tree);
-
+  for (int i = 1; i < tree->get_num_bodies(); ++i) {
+    const auto &body_R = global_ik.body_rotation_matrix(i);
+    Eigen::Matrix<symbolic::Expression, 5, 1> cone_expr;
+    cone_expr(0) = 1.0;
+    cone_expr(1) = 3.0;
+    cone_expr.tail<3>() = body_R.col(0) + body_R.col(1) + body_R.col(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.col(0) + body_R.col(1) - body_R.col(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.col(0) - body_R.col(1) + body_R.col(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.col(0) - body_R.col(1) - body_R.col(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.row(0) + body_R.row(1) + body_R.row(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.row(0) + body_R.row(1) - body_R.row(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.row(0) - body_R.row(1) + body_R.row(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+    cone_expr.tail<3>() = body_R.row(0) - body_R.row(1) - body_R.row(2);
+    global_ik.AddRotatedLorentzConeConstraint(cone_expr);
+  }
   const std::string output_file_name{"iiwa_reachability_global_ik.txt"};
   RemoveFileIfExist(output_file_name);
   std::fstream output_file;
@@ -140,9 +157,20 @@ int DoMain() {
   global_ik.AddBoundingBoxConstraint(link6_rotmat_des_flat,
                                      link6_rotmat_des_flat, link6_R_flat);
   int pos_sample_count = 0;
+  std::array<Eigen::VectorXd, 50> q0s;
+  q0s[0] = Eigen::VectorXd::Zero(7);
+  for (int i = 1; i < 50; ++i) {
+    q0s[i] = Eigen::VectorXd::Random(7);
+  }
   for (const auto& pos_sample : ee_pos_samples) {
-    SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des, q0,
-                     &nonlinear_ik_info, &q_sol);
+    nonlinear_ik_info = 13;
+    for (const auto& q0: q0s) {
+      SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des, q0,
+                       &nonlinear_ik_info, &q_sol);
+      if (nonlinear_ik_info <= 10) {
+        break;
+      }
+    }
     solvers::SolutionResult global_ik_result{
         solvers::SolutionResult::kSolutionFound};
     int nonlinear_ik_resolve_info = 0;

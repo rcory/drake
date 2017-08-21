@@ -6,11 +6,9 @@ import bot_core as lcmbotcore
 def receiveMessage(msg):
     drake_path = '/home/hongkai/drake-distro'
 
-    #robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/drake/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
-    #jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))
+    robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/drake/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
+    jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))
 
-    #ee_pose = np.array([0, 0, 0, 0, 0, 0, 0])
-    #ee_joint_controller.setPose('ee posture', ee_pose)
     folderName = 'my data'
 
     # remove the folder completely
