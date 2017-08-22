@@ -1,6 +1,5 @@
 /**
- * @file This file implements a state machine that drives the kuka iiwa arm to
- * pick up a block from one table to place it on another repeatedly.
+ * @file This file implements the box rotation demo.
  */
 
 #include <iostream>
@@ -48,7 +47,8 @@ MatrixX<double> get_posture(const std::string& name) {
 void RunBoxRotationDemo() {
   lcm::LCM lcm;
 
-  typedef std::function<void(const robotlocomotion::robot_plan_t*)> IiwaPublishCallback;
+  typedef std::function<void(
+      const robotlocomotion::robot_plan_t*)> IiwaPublishCallback;
 
   // creates the publisher
   IiwaPublishCallback iiwa_callback =
@@ -74,14 +74,14 @@ void RunBoxRotationDemo() {
 
   // extract left and righ arm keyframes
   MatrixX<double>  keyframes(12,14);
-  keyframes.block(12,7,0,0) = allKeyFrames.block(12,7,0,1);
-  keyframes.block(12,7,0,7) = allKeyFrames.block(12,7,0,8);
+  keyframes.block<12,7>(0,0) = allKeyFrames.block<12,7>(0,1);
+  keyframes.block<12,7>(0,7) = allKeyFrames.block<12,7>(0,8);
   keyframes.transposeInPlace();
 
   std::cout<<"keyframes.rows = "<<keyframes.rows()<<std::endl;
 
-  const int N = allKeyFrames.rows();
-  std::vector<double> times(N);
+  const int N = (int)allKeyFrames.rows();
+  std::vector<double> times((ulong)N);
   for (int i = 0; i < N; ++i) {
     if (i == 0)
       times[i] = allKeyFrames(i, 0);
@@ -89,21 +89,12 @@ void RunBoxRotationDemo() {
       times[i] = times[i - 1] + allKeyFrames(i, 0);
   }
 
-  std::cout<<"robot pos = "<<iiwa.get_num_positions()<<std::endl;
-
-//  std::vector<MatrixX<double>> l_knots(N, MatrixX<double>::Zero(7, 1));
-//  for (int i = 0; i < N; ++i)
-//    l_knots[i] = keyframes.block<1, 7>(i, 1).transpose();
-//
-//  std::vector<MatrixX<double>> r_knots(N, MatrixX<double>::Zero(7, 1));
-//  for (int i = 0; i < N; ++i)
-//    r_knots[i] = keyframes.block<1, 7>(i, 8).transpose();
+  //std::cout<<"robot pos = "<<iiwa.get_num_positions()<<std::endl;
 
   std::vector<int> info(times.size(), 1);
   robotlocomotion::robot_plan_t plan{};
 
   *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
-
   iiwa_callback(&plan);
 
   // lcm handle loop
