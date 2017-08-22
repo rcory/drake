@@ -78,7 +78,7 @@ void RunBoxRotationDemo() {
   keyframes.block<12,7>(0,7) = allKeyFrames.block<12,7>(0,8);
   keyframes.transposeInPlace();
 
-  std::cout<<"keyframes.rows = "<<keyframes.rows()<<std::endl;
+  //std::cout<<"keyframes.rows = "<<keyframes.rows()<<std::endl;
 
   const int N = (int)allKeyFrames.rows();
   std::vector<double> times((ulong)N);
