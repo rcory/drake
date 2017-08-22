@@ -1,19 +1,21 @@
 #include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_util.h"
 
-#include "drake/common/drake_path.h"
-#include "drake/multibody/shapes/geometry.h"
-#include "drake/multibody/parsers/urdf_parser.h"
-#include "drake/multibody/parsers/sdf_parser.h"
-#include "drake/multibody/joints/fixed_joint.h"
+#include "drake/common/find_resource.h"
 #include "drake/lcm/drake_lcm.h"
-#include "drake/multibody/rigid_body_plant/viewer_draw_translator.h"
-#include "drake/multibody/rigid_body_plant/create_load_robot_message.h"
 #include "drake/lcmtypes/drake/lcmt_viewer_load_robot.hpp"
+#include "drake/multibody/joints/fixed_joint.h"
+#include "drake/multibody/parsers/sdf_parser.h"
+#include "drake/multibody/parsers/urdf_parser.h"
+#include "drake/multibody/rigid_body_plant/create_load_robot_message.h"
+#include "drake/multibody/rigid_body_plant/viewer_draw_translator.h"
+#include "drake/multibody/shapes/geometry.h"
 
 namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
-void AddSphereToBody(RigidBodyTreed* tree, int link_idx, const Eigen::Vector3d& pt, const std::string& name, double radius) {
+void AddSphereToBody(RigidBodyTreed* tree, int link_idx,
+                     const Eigen::Vector3d& pt, const std::string& name,
+                     double radius) {
   auto sphere_body = std::make_unique<RigidBody<double>>();
   sphere_body->set_name(name);
   sphere_body->set_mass(0.001);
@@ -22,7 +24,8 @@ void AddSphereToBody(RigidBodyTreed* tree, int link_idx, const Eigen::Vector3d& 
   const DrakeShapes::Sphere shape(radius);
   const Eigen::Vector4d material(1, 0, 0, 1);
 
-  const DrakeShapes::VisualElement visual_element(shape, Eigen::Isometry3d::Identity(), material);
+  const DrakeShapes::VisualElement visual_element(
+      shape, Eigen::Isometry3d::Identity(), material);
 
   sphere_body->AddVisualElement(visual_element);
 
@@ -39,31 +42,45 @@ void AddSphereToBody(RigidBodyTreed* tree, int link_idx, const Eigen::Vector3d& 
 std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox() {
   std::unique_ptr<RigidBodyTree<double>> rigid_body_tree =
       std::make_unique<RigidBodyTree<double>>();
-  const std::string model_path = drake::GetDrakePath() +
-      "/manipulation/models/iiwa_description/urdf/"
-          "dual_iiwa14_polytope_collision.urdf";
+  const std::string model_path = FindResourceOrThrow(
+      "drake/manipulation/models/iiwa_description/urdf/"
+      "dual_iiwa14_polytope_collision.urdf");
 
   parsers::urdf::AddModelInstanceFromUrdfFile(model_path,
                                               drake::multibody::joints::kFixed,
                                               nullptr, rigid_body_tree.get());
 
-  const std::string box_path =
-      drake::GetDrakePath() +
-          "/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/box.urdf";
+  const std::string box_path = FindResourceOrThrow(
+      "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/box.urdf");
 
   parsers::urdf::AddModelInstanceFromUrdfFile(
       box_path, drake::multibody::joints::kRollPitchYaw, nullptr,
       rigid_body_tree.get());
 
-  //AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0, 0), "left_iiwa_link_4_pt0", 0.01);
-  //AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0, 0.1), "left_iiwa_link_4_pt1", 0.01);
-  //AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0.08, 0.1), "left_iiwa_link_4_pt2", 0.01);
-  //AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0.05, 0), "left_iiwa_link_4_pt3", 0.01);
-  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("left_iiwa_link_ee_kuka"), Eigen::Vector3d(0, 0, 0.03), "left_iiwa_link_ee_kuka_pt1", 0.01);
-  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"), Eigen::Vector3d(0.28, 0, 0), "box_+x_center", 0.01);
-  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"), Eigen::Vector3d(-0.28, 0, 0), "box_-x_center", 0.01);
-  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"), Eigen::Vector3d(0, 0.28, 0), "box_+y_center", 0.01);
-  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"), Eigen::Vector3d(0, -0.28, 0), "box_-y_center", 0.01);
+  // AddSphereToBody(rigid_body_tree.get(),
+  // rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0,
+  // 0), "left_iiwa_link_4_pt0", 0.01);
+  // AddSphereToBody(rigid_body_tree.get(),
+  // rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0, 0,
+  // 0.1), "left_iiwa_link_4_pt1", 0.01);
+  // AddSphereToBody(rigid_body_tree.get(),
+  // rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0,
+  // 0.08, 0.1), "left_iiwa_link_4_pt2", 0.01);
+  // AddSphereToBody(rigid_body_tree.get(),
+  // rigid_body_tree->FindBodyIndex("left_iiwa_link_4"), Eigen::Vector3d(0,
+  // 0.05, 0), "left_iiwa_link_4_pt3", 0.01);
+  AddSphereToBody(rigid_body_tree.get(),
+                  rigid_body_tree->FindBodyIndex("left_iiwa_link_ee_kuka"),
+                  Eigen::Vector3d(0, 0, 0.03), "left_iiwa_link_ee_kuka_pt1",
+                  0.01);
+  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"),
+                  Eigen::Vector3d(0.28, 0, 0), "box_+x_center", 0.01);
+  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"),
+                  Eigen::Vector3d(-0.28, 0, 0), "box_-x_center", 0.01);
+  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"),
+                  Eigen::Vector3d(0, 0.28, 0), "box_+y_center", 0.01);
+  AddSphereToBody(rigid_body_tree.get(), rigid_body_tree->FindBodyIndex("box"),
+                  Eigen::Vector3d(0, -0.28, 0), "box_-y_center", 0.01);
   return rigid_body_tree;
 }
 

@@ -46,6 +46,7 @@ drake_cc_library(
         "dual_arms_box_util.h",
     ],
     deps = [
+        "//drake/common:find_resource",
         "//drake/lcm",
         "//drake/multibody:rigid_body_tree",
         "//drake/multibody/parsers",
@@ -58,7 +59,7 @@ drake_cc_binary(
     srcs = ["dual_arms_box_ik_planner.cc"],
     deps = [
         "dual_arms_box_util",
-        "//drake/examples/kuka_iiwa_arm/dev/tools:simple_tree_visualizer",
+        "//drake/manipulation/util:simple_tree_visualizer",
         "//drake/multibody:inverse_kinematics",
     ],
 )
