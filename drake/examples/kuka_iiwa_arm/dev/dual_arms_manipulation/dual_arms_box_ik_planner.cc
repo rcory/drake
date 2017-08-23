@@ -425,7 +425,7 @@ void RemoveFileIfExist(const std::string& file_name) {
 }
 
 int DoMain() {
-  auto tree = ConstructDualArmAndBox();
+  auto tree = ConstructDualArmAndBox(RotateBox::HomeDepotPaper);
   std::vector<Eigen::VectorXd> q;
   q.push_back(Eigen::VectorXd::Zero(20));
   for (int i = 1; i < 13; ++i) {

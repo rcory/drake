@@ -63,6 +63,8 @@ drake_cc_library(
         "dual_arms_box_ik_planner_util.h",
     ],
     deps = [
+        "dual_arms_box_util",
+        "//drake/multibody:inverse_kinematics",
         "//drake/multibody:rigid_body_constraint",
         "//drake/multibody:rigid_body_tree",
     ],

@@ -1,5 +1,6 @@
 #include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_ik_planner_util.h"
 #include "drake/multibody/rigid_body_ik.h"
+#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_util.h"
 
 namespace drake {
 namespace examples {
@@ -43,7 +44,7 @@ Eigen::VectorXd GrabbingBoxFromTwoSides(RigidBodyTreed* tree, const Eigen::Vecto
   tree->doKinematics(cache);
   int box_idx = tree->FindBodyIndex("box");
   const auto box_pose = tree->relativeTransform(cache, 0, box_idx);
-  const Eigen::Matrix<double, 6, 1> q_box = q.bottomRows<6>();
+  std::cout << "box_pose:\n" << box_pose.matrix() << std::endl;
   int l_hand_idx = tree->FindBodyIndex("left_iiwa_link_ee_kuka");
   int r_hand_idx = tree->FindBodyIndex("right_iiwa_link_ee_kuka");
 
@@ -94,35 +95,44 @@ Eigen::VectorXd GrabbingBoxFromTwoSides(RigidBodyTreed* tree, const Eigen::Vecto
 
   const double palm_radius = 0.05;
   // left palm contact region
-  Eigen::Matrix<double, 3, 4> left_palm_contact_region = (box_pose.translation() + (box_size / 2 + palm_radius) * box_left_face_normal) * Eigen::RowVector4d::Ones();
+  Eigen::Matrix<double, 3, 4> left_palm_contact_region = ((box_size / 2 + palm_radius) * box_left_face_normal) * Eigen::RowVector4d::Ones();
   left_palm_contact_region.col(0) += -box_size / 2 * box_top_face_normal;
   left_palm_contact_region.col(1) += box_size / 2 * box_top_face_normal;
   left_palm_contact_region.col(2) = left_palm_contact_region.col(0) - box_size / 2 * box_front_face_normal;
   left_palm_contact_region.col(3) = left_palm_contact_region.col(1) - box_size / 2 * box_front_face_normal;
+  //AddSphereToBody(tree, box_idx, left_palm_contact_region.col(0), "left_region_pt0", 0.01);
+  //AddSphereToBody(tree, box_idx, left_palm_contact_region.col(1), "left_region_pt1", 0.01);
+  //AddSphereToBody(tree, box_idx, left_palm_contact_region.col(2), "left_region_pt2", 0.01);
+  //AddSphereToBody(tree, box_idx, left_palm_contact_region.col(3), "left_region_pt3", 0.01);
 
   Eigen::Vector3d left_palm_contact_region_lb = left_palm_contact_region.rowwise().minCoeff();
   Eigen::Vector3d left_palm_contact_region_ub = left_palm_contact_region.rowwise().maxCoeff();
-  WorldPositionInFrameConstraint left_palm_contact_constraint(tree, l_hand_idx, Eigen::Vector3d::Zero(), box_pose.inverse().matrix(), left_palm_contact_region_lb, left_palm_contact_region_ub);
+  WorldPositionInFrameConstraint left_palm_contact_constraint(tree, l_hand_idx, Eigen::Vector3d::Zero(), box_pose.matrix(), left_palm_contact_region_lb, left_palm_contact_region_ub);
 
   // right palm contact region
-  Eigen::Matrix<double, 3, 4> right_palm_contact_region = (box_pose.translation() + (box_size / 2 + palm_radius) * box_right_face_normal) * Eigen::RowVector4d::Ones();
+  Eigen::Matrix<double, 3, 4> right_palm_contact_region = ((box_size / 2 + palm_radius) * box_right_face_normal) * Eigen::RowVector4d::Ones();
   right_palm_contact_region.col(0) += -box_size / 2 * box_top_face_normal;
   right_palm_contact_region.col(1) += box_size / 2 * box_top_face_normal;
   right_palm_contact_region.col(2) = right_palm_contact_region.col(0) - box_size / 2 * box_front_face_normal;
   right_palm_contact_region.col(3) = right_palm_contact_region.col(1) - box_size / 2 * box_front_face_normal;
+  //AddSphereToBody(tree, box_idx, right_palm_contact_region.col(0), "right_region_pt0", 0.01);
+  //AddSphereToBody(tree, box_idx, right_palm_contact_region.col(1), "right_region_pt1", 0.01);
+  //AddSphereToBody(tree, box_idx, right_palm_contact_region.col(2), "right_region_pt2", 0.01);
+  //AddSphereToBody(tree, box_idx, right_palm_contact_region.col(3), "right_region_pt3", 0.01);
 
   Eigen::Vector3d right_palm_contact_region_lb = right_palm_contact_region.rowwise().minCoeff();
   Eigen::Vector3d right_palm_contact_region_ub = right_palm_contact_region.rowwise().maxCoeff();
-  WorldPositionInFrameConstraint right_palm_contact_constraint(tree, r_hand_idx, Eigen::Vector3d::Zero(), box_pose.inverse().matrix(), right_palm_contact_region_lb, right_palm_contact_region_ub);
+  WorldPositionInFrameConstraint right_palm_contact_constraint(tree, r_hand_idx, Eigen::Vector3d::Zero(), box_pose.matrix(), right_palm_contact_region_lb, right_palm_contact_region_ub);
 
   const std::vector<const RigidBodyConstraint*> cnstr_array{&box_fixed_pose, &left_palm_axis_cnstr, &left_palm_contact_constraint, &right_palm_axis_cnstr, &right_palm_contact_constraint};
 
-  Eigen::VectorXd q_sol;
+  Eigen::VectorXd q_sol(20);
   int info;
   std::vector<std::string> infeasible_cnstr;
   IKoptions ik_options(tree);
 
   inverseKin(tree, q, q, cnstr_array.size(), cnstr_array.data(), ik_options, &q_sol, &info, &infeasible_cnstr);
+  std::cout << info << std::endl;
   return q_sol;
 }
 }  // namespace kuka_iiwa_arm

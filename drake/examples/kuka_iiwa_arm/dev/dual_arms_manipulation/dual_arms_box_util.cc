@@ -39,7 +39,7 @@ void AddSphereToBody(RigidBodyTreed* tree, int link_idx,
   tree->bodies.push_back(std::move(sphere_body));
 }
 
-std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox() {
+std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(RotateBox box_type) {
   std::unique_ptr<RigidBodyTree<double>> rigid_body_tree =
       std::make_unique<RigidBodyTree<double>>();
   const std::string model_path = FindResourceOrThrow(
@@ -50,8 +50,16 @@ std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox() {
                                               drake::multibody::joints::kFixed,
                                               nullptr, rigid_body_tree.get());
 
-  const std::string box_path = FindResourceOrThrow(
-      "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/box.urdf");
+  std::string box_path;
+  switch (box_type) {
+    case RotateBox::HomeDepotPaper :
+      box_path = FindResourceOrThrow(
+          "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/box.urdf");
+      break;
+    case RotateBox::AmazonRubber :
+      box_path = FindResourceOrThrow("drake/examples/kuka_iiwa_arm/models/objects/block_amazon_rubber.urdf");
+      break;
+  }
 
   parsers::urdf::AddModelInstanceFromUrdfFile(
       box_path, drake::multibody::joints::kRollPitchYaw, nullptr,

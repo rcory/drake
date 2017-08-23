@@ -3,7 +3,16 @@
 namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
-std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox();
+enum class RotateBox {
+  HomeDepotPaper,
+  AmazonRubber
+};
+
+std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(RotateBox box_type = RotateBox::HomeDepotPaper);
+
+void AddSphereToBody(RigidBodyTreed* tree, int link_idx,
+                     const Eigen::Vector3d& pt, const std::string& name,
+                     double radius);
 
 void VisualizePosture(RigidBodyTreed* tree,
                       const Eigen::Ref<const Eigen::VectorXd>& q_kuka1,
