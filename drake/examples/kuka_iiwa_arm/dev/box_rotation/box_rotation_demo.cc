@@ -6,12 +6,12 @@
 #include <list>
 #include <memory>
 #include <fstream>
+#include <gflags/gflags.h>
 
 #include <lcm/lcm-cpp.hpp>
 #include "bot_core/robot_state_t.hpp"
 
 #include "drake/examples/kuka_iiwa_arm/iiwa_common.h"
-
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
@@ -22,11 +22,16 @@
 #include "external/lcmtypes_robotlocomotion/lcmtypes/robotlocomotion/robot_plan_t.hpp"
 
 
+DEFINE_string(keyframes, "", "Name of keyframe file to load");
+
 namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
 namespace box_rotation {
 namespace {
+
+const char* const kKeyFramePath = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
+    "simple_keyframes.txt";
 
 MatrixX<double> get_posture(const std::string& name) {
   std::fstream fs;
@@ -69,8 +74,10 @@ void RunBoxRotationDemo() {
   // create a reference to the RBT
   const RigidBodyTree<double>& iiwa = *(tree.get());
 
-  MatrixX<double> allKeyFrames = get_posture(
-      "drake/examples/kuka_iiwa_arm/dev/box_rotation/simple_keyframes.txt");
+  const std::string framesFile = (!FLAGS_keyframes.empty() ? FLAGS_keyframes :
+                               FindResourceOrThrow(kKeyFramePath));
+
+  MatrixX<double> allKeyFrames = get_posture(framesFile);
 
   // extract left and righ arm keyframes
   MatrixX<double>  keyframes(12,14);
@@ -111,7 +118,8 @@ void RunBoxRotationDemo() {
 }  // namespace examples
 }  // namespace drake
 
-int main() {
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   drake::examples::kuka_iiwa_arm::box_rotation::RunBoxRotationDemo();
   return 0;
 }

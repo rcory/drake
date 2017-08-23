@@ -3,6 +3,7 @@
 
 load(
     "//tools:drake.bzl",
+    "drake_cc_library",
     "drake_cc_binary",
 )
 load("//tools:lint.bzl", "add_lint_tests")
@@ -11,7 +12,7 @@ filegroup(
     name = "mydata",
     srcs = glob([
         "**/*.urdf",
-        "**/*.txt",
+        "simple_keyframes.txt",
     ]),
     visibility = ["//visibility:public"],
 )
@@ -29,6 +30,32 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm:iiwa_lcm",
         "//drake/examples/kuka_iiwa_arm/pick_and_place",
         "//drake/util:lcm_util",
+        "@com_github_gflags_gflags//:gflags",
+    ],
+)
+
+drake_cc_library(
+    name = "iiwa_box_diagram_factory",
+    srcs = [
+        "iiwa_box_diagram_factory.cc",
+    ],
+    hdrs = [
+        "iiwa_box_diagram_factory.h",
+    ],
+    visibility = ["//drake/examples/kuka_iiwa_arm:__subpackages__"],
+    deps = [
+        "//drake/examples/kuka_iiwa_arm:iiwa_common",
+        "//drake/examples/kuka_iiwa_arm:oracular_state_estimator",
+        "//drake/examples/kuka_iiwa_arm:sim_diagram_builder",
+        "//drake/examples/kuka_iiwa_arm/iiwa_world:world_sim_tree_builder",
+        "//drake/manipulation/schunk_wsg:schunk_wsg_constants",
+        "//drake/multibody/rigid_body_plant",
+        "//drake/systems/controllers:inverse_dynamics_controller",
+        "//drake/systems/controllers:pid_controller",
+        "//drake/systems/framework:diagram",
+        "//drake/systems/framework:diagram_builder",
+        "//drake/systems/primitives:constant_vector_source",
+        "//drake/systems/primitives:matrix_gain",
     ],
 )
 
@@ -47,7 +74,7 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm:iiwa_common",
         "//drake/examples/kuka_iiwa_arm:iiwa_lcm",
         "//drake/examples/kuka_iiwa_arm:oracular_state_estimator",
-        "//drake/examples/kuka_iiwa_arm/iiwa_world:iiwa_wsg_diagram_factory",
+        "//drake/examples/kuka_iiwa_arm/dev/box_rotation:iiwa_box_diagram_factory",
         "//drake/examples/kuka_iiwa_arm/iiwa_world:world_sim_tree_builder",
         "//drake/lcm",
         "//drake/manipulation/schunk_wsg:schunk_wsg_constants",
