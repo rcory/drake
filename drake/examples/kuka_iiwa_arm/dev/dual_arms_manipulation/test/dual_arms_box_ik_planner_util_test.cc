@@ -17,8 +17,8 @@ int DoMain() {
   q_kuka0 << 0, 0.5, 0.3, 0.3, 0.4, 0.5, 0.6;
   q0.topRows<7>() = q_kuka0;
   q0.middleRows<7>(7) = q_kuka0;
-  Eigen::Vector3d box_pos(0.5, 0.4, 0.3);
-  Eigen::Vector3d box_rpy(0, 0, 0);
+  Eigen::Vector3d box_pos(0.5, 0.45, 0.3);
+  Eigen::Vector3d box_rpy(0, 0, 0.3);
   q0.middleRows<3>(14) = box_pos;
   q0.bottomRows<3>() = box_rpy;
 
