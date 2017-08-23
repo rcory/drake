@@ -3,6 +3,7 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/manipulation/util/simple_tree_visualizer.h"
 #include "drake/multibody/rigid_body_ik.h"
+#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_ik_planner_util.h"
 
 #include <fstream>
 #include <iostream>
@@ -12,38 +13,6 @@
 namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
-PostureConstraint FixRobotJoints(RigidBodyTreed* tree, const Eigen::VectorXd& q,
-                                 bool fix_kuka1, bool fix_kuka2, bool fix_box) {
-  PostureConstraint posture_cnstr(tree);
-  Eigen::VectorXd q_lb = Eigen::Matrix<double, 20, 1>::Constant(
-      -std::numeric_limits<double>::infinity());
-  Eigen::VectorXd q_ub = Eigen::Matrix<double, 20, 1>::Constant(
-      std::numeric_limits<double>::infinity());
-  if (fix_kuka1) {
-    for (int i = 0; i < 7; ++i) {
-      q_lb(i) = q(i);
-      q_ub(i) = q(i);
-    }
-  }
-  if (fix_kuka2) {
-    for (int i = 7; i < 14; ++i) {
-      q_lb(i) = q(i);
-      q_ub(i) = q(i);
-    }
-  }
-  if (fix_box) {
-    for (int i = 14; i < 20; ++i) {
-      q_lb(i) = q(i);
-      q_ub(i) = q(i);
-    }
-  }
-  Eigen::VectorXi q_idx(20);
-  for (int i = 0; i < 20; ++i) {
-    q_idx(i) = i;
-  }
-  posture_cnstr.setJointLimits(q_idx, q_lb, q_ub);
-  return posture_cnstr;
-}
 /**
  * Plan the posture of the dual arms and box
  * @param posture_id 0, 1, 2, 3, .... Each ID represent a desired keyframe

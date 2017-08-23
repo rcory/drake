@@ -54,12 +54,37 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "dual_arms_box_ik_planner_util",
+    srcs = [
+        "dual_arms_box_ik_planner_util.cc",
+    ],
+    hdrs = [
+        "dual_arms_box_ik_planner_util.h",
+    ],
+    deps = [
+        "//drake/multibody:rigid_body_constraint",
+        "//drake/multibody:rigid_body_tree",
+    ],
+)
+
 drake_cc_binary(
     name = "dual_arms_box_ik_planner",
     srcs = ["dual_arms_box_ik_planner.cc"],
     deps = [
+        "dual_arms_box_ik_planner_util",
         "dual_arms_box_util",
         "//drake/manipulation/util:simple_tree_visualizer",
         "//drake/multibody:inverse_kinematics",
+    ],
+)
+
+drake_cc_binary(
+    name = "dual_arms_box_ik_planner_util_test",
+    srcs = ["test/dual_arms_box_ik_planner_util_test.cc"],
+    deps = [
+        "dual_arms_box_ik_planner_util",
+        "dual_arms_box_util",
+        "//drake/manipulation/util:simple_tree_visualizer",
     ],
 )
