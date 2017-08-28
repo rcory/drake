@@ -39,16 +39,21 @@ void AddSphereToBody(RigidBodyTreed* tree, int link_idx,
   tree->bodies.push_back(std::move(sphere_body));
 }
 
-std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(RotateBox box_type) {
+std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(
+    RotateBox box_type, const Eigen::Isometry3d& right_kuka_base_offset) {
   std::unique_ptr<RigidBodyTree<double>> rigid_body_tree =
       std::make_unique<RigidBodyTree<double>>();
   const std::string model_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
       "dual_iiwa14_polytope_collision.urdf");
 
-  parsers::urdf::AddModelInstanceFromUrdfFile(model_path,
-                                              drake::multibody::joints::kFixed,
-                                              nullptr, rigid_body_tree.get());
+  auto right_kuka_base_frame = std::make_shared<RigidBodyFrame<double>>(
+      "right_kuka_base_offset", rigid_body_tree->get_mutable_body(0),
+      right_kuka_base_offset);
+
+  parsers::urdf::AddModelInstanceFromUrdfFile(
+      model_path, drake::multibody::joints::kFixed, right_kuka_base_frame,
+      rigid_body_tree.get());
 
   std::string box_path;
   switch (box_type) {

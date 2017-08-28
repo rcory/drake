@@ -46,7 +46,8 @@ Eigen::VectorXd GrabbingBoxFromTwoSides(RigidBodyTreed* tree,
   tree->doKinematics(cache);
   int box_idx = tree->FindBodyIndex("box");
   const auto box_pose = tree->relativeTransform(cache, 0, box_idx);
-  std::cout << "box_pose:\n" << box_pose.matrix() << std::endl;
+  int right_iiwa_base_idx = tree->FindBodyIndex("right_iiwa_link_0");
+  const auto right_iiwa_base_pose = tree->relativeTransform(cache, 0, right_iiwa_base_idx);
   int l_hand_idx = tree->FindBodyIndex("left_iiwa_link_ee_kuka");
   int r_hand_idx = tree->FindBodyIndex("right_iiwa_link_ee_kuka");
   int l_iiwa_link6_idx = tree->FindBodyIndex("left_iiwa_link_6");
@@ -79,9 +80,9 @@ Eigen::VectorXd GrabbingBoxFromTwoSides(RigidBodyTreed* tree,
 
   // Now determines which face of the box faces the robot. The normal on this
   // face should be approximately equal to [1; 0; 0], if box_pose.translation(0)
-  // < 0.
+  // < right_iiwa_base_pose.translation(0)
   Eigen::Matrix<double, 1, 6> front_face_normal_angle;
-  if (box_pose.translation()(0) < 0) {
+  if (box_pose.translation()(0) -  right_iiwa_base_pose.translation()(0) < 0) {
     front_face_normal_angle =
         Eigen::Vector3d(1, 0, 0).transpose() * box_pose.linear() * box_normals;
   } else {
@@ -270,6 +271,56 @@ Eigen::VectorXd GrabbingBoxFromTwoSides(RigidBodyTreed* tree,
   IKoptions ik_options(tree);
 
   inverseKin(tree, q, q, cnstr_array.size(), cnstr_array.data(), ik_options,
+             &q_sol, &info, &infeasible_cnstr);
+  std::cout << info << std::endl;
+  return q_sol;
+}
+
+Eigen::VectorXd MoveBox(RigidBodyTreed* tree, const Eigen::VectorXd& q,
+                        const Eigen::Isometry3d& T_WB,
+                        const std::vector<int>& kuka_box_fixed_link_indices) {
+  int box_idx = tree->FindBodyIndex("box");
+  // First constrain the box pose.
+  const Eigen::Vector3d box_space_xyz_euler = math::rotmat2rpy(T_WB.linear());
+  PostureConstraint box_pose_cnstr{tree};
+  Eigen::Matrix<int, 6, 1> box_pos_idx;
+  box_pos_idx << 14, 15, 16, 17, 18, 19;
+  Eigen::Matrix<double, 6, 1> box_pos_des;
+  box_pos_des << T_WB.translation(), box_space_xyz_euler;
+  box_pose_cnstr.setJointLimits(box_pos_idx, box_pos_des, box_pos_des);
+
+  // Now constrains some kuka links to move with the box.
+  KinematicsCache<double> cache = tree->CreateKinematicsCache();
+  cache.initialize(q);
+  tree->doKinematics(cache);
+
+  std::vector<std::unique_ptr<RigidBodyConstraint>> fix_kuka_links_to_box_constraints;
+  fix_kuka_links_to_box_constraints.reserve(kuka_box_fixed_link_indices.size());
+  // Compute the transform from the iiwa links to the box
+  for (int kuka_link_idx : kuka_box_fixed_link_indices) {
+    const auto T_boxlink = tree->relativeTransform(cache, box_idx, kuka_link_idx);
+    Eigen::Matrix<double, 7, 1> identity_transform;
+    identity_transform << 0, 0, 0, 1, 0, 0, 0;
+    const Eigen::Vector3d p_boxlink = tree->transformPoints(cache, Eigen::Vector3d::Zero(), kuka_link_idx, box_idx);
+    const Eigen::Vector4d quat_boxlink = math::rotmat2quat(T_boxlink.linear());
+    const Eigen::Vector2d tspan(NAN, NAN);
+    std::unique_ptr<RigidBodyConstraint> fix_kuka_link_to_box_position_cnstr = std::make_unique<RelativePositionConstraint>(tree, Eigen::Vector3d::Zero(), p_boxlink, p_boxlink, kuka_link_idx, box_idx, identity_transform, tspan);
+    std::unique_ptr<RigidBodyConstraint> fix_kuka_link_to_box_orient_cnstr = std::make_unique<RelativeQuatConstraint>(tree, kuka_link_idx, box_idx, quat_boxlink, 0, tspan);
+    fix_kuka_links_to_box_constraints.push_back(std::move(fix_kuka_link_to_box_position_cnstr));
+    fix_kuka_links_to_box_constraints.push_back(std::move(fix_kuka_link_to_box_orient_cnstr));
+  }
+
+  std::vector<RigidBodyConstraint*> cnstr;
+  cnstr.push_back(&box_pose_cnstr);
+  for (const auto& fix_kuka_links_to_box_cnstr : fix_kuka_links_to_box_constraints) {
+    cnstr.push_back(fix_kuka_links_to_box_cnstr.get());
+  }
+  Eigen::VectorXd q_sol(20);
+  int info;
+  std::vector<std::string> infeasible_cnstr;
+  IKoptions ik_options(tree);
+
+  inverseKin(tree, q, q, cnstr.size(), cnstr.data(), ik_options,
              &q_sol, &info, &infeasible_cnstr);
   std::cout << info << std::endl;
   return q_sol;

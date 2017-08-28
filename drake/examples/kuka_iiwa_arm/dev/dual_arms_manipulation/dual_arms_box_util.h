@@ -8,7 +8,10 @@ enum class RotateBox {
   AmazonRubber
 };
 
-std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(RotateBox box_type = RotateBox::HomeDepotPaper);
+std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(
+    RotateBox box_type = RotateBox::HomeDepotPaper,
+    const Eigen::Isometry3d& right_kuka_base_offset =
+        Eigen::Isometry3d::Identity());
 
 void AddSphereToBody(RigidBodyTreed* tree, int link_idx,
                      const Eigen::Vector3d& pt, const std::string& name,
