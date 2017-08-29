@@ -97,6 +97,8 @@ drake_cc_binary(
     deps = [
         "dual_arms_box_ik_planner_util",
         "dual_arms_box_util",
+        "//drake/examples/kuka_iiwa_arm:iiwa_common",
+        "//drake/examples/kuka_iiwa_arm/pick_and_place",
         "//drake/manipulation/util:simple_tree_visualizer",
         "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
     ],
