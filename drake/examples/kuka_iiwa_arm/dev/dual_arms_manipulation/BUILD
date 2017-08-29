@@ -90,3 +90,14 @@ drake_cc_binary(
         "//drake/manipulation/util:simple_tree_visualizer",
     ],
 )
+
+drake_cc_binary(
+    name = "dual_arms_box_planner_demo",
+    srcs = ["test/dual_arms_box_planner_demo.cc"],
+    deps = [
+        "dual_arms_box_ik_planner_util",
+        "dual_arms_box_util",
+        "//drake/manipulation/util:simple_tree_visualizer",
+        "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
+    ],
+)
