@@ -106,14 +106,28 @@ int DoMain() {
   Eigen::VectorXd q1 = planner.GrabbingBoxFromTwoSides(q0, 0.7);
   Eigen::VectorXd q2 = planner.GrabbingBoxFromTwoSides(q1, 0.5);
 
+  while (true) {
+    if (handler.get_received_channel() == "OPTITRACK_FRAMES") {
+      box_pose = handler.GetBoxPose();
+      right_kuka_pose = handler.GetRightKukaPose();
+      drake_lcm.StopReceiveThread();
+      break;
+    }
+  }
+  Eigen::Isometry3d box_up_pose;
+  box_up_pose.setIdentity();
+  box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.4, 0.5, 0.4);
+  Eigen::VectorXd q3 = planner.MoveBox(q2, box_up_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
-  Eigen::MatrixXd keyframes(14, 4);
+
+  Eigen::MatrixXd keyframes(14, 5);
   keyframes.col(0) = q0.topRows<14>();
   keyframes.col(1) = q0.topRows<14>();
   keyframes.col(2) = q1.topRows<14>();
   keyframes.col(3) = q2.topRows<14>();
+  keyframes.col(4) = q3.topRows<14>();
 
-  std::vector<double> times{0, 2, 4, 4.5};
+  std::vector<double> times{0, 2, 4, 4.5, 5.5};
 
   robotlocomotion::robot_plan_t plan{};
 
@@ -130,7 +144,7 @@ int DoMain() {
 
 
   manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
-  visualizer.visualize(q2);
+  visualizer.visualize(q3);
   KinematicsCache<double> cache = tree->CreateKinematicsCache();
   cache.initialize(q2);
   tree->doKinematics(cache);
