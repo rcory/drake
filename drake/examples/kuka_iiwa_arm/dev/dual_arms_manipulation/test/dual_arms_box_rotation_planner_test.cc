@@ -1,4 +1,4 @@
-#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_ik_planner_util.h"
+#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_rotation_planner.h"
 
 #include "drake/lcm/drake_lcm.h"
 #include "drake/manipulation/util/simple_tree_visualizer.h"
@@ -12,7 +12,7 @@ int DoMain() {
   Eigen::Isometry3d right_kuka_base_offset;
   right_kuka_base_offset.setIdentity();
   right_kuka_base_offset.translation() = Eigen::Vector3d(-1, 0.5, 1);
-  auto tree = ConstructDualArmAndBox(RotateBox::AmazonRubber, right_kuka_base_offset);
+  DualArmsBoxRotationPlanner planner(RotateBox::AmazonRubber, right_kuka_base_offset);
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(20);
 
   // zero configuration is a bad initial guess for Kuka.
@@ -25,25 +25,25 @@ int DoMain() {
   q0.middleRows<3>(14) = box_pos;
   q0.bottomRows<3>() = box_rpy;
 
-  Eigen::VectorXd q_sol = GrabbingBoxFromTwoSides(tree.get(), q0, 0.5);
-  manipulation::SimpleTreeVisualizer visualizer(*tree, &lcm);
+  Eigen::VectorXd q_sol = planner.GrabbingBoxFromTwoSides(q0, 0.5);
+  manipulation::SimpleTreeVisualizer visualizer(*(planner.tree()), &lcm);
   visualizer.visualize(q_sol);
 
 
-  KinematicsCache<double> cache = tree->CreateKinematicsCache();
+  KinematicsCache<double> cache = planner.tree()->CreateKinematicsCache();
   cache.initialize(q_sol);
-  tree->doKinematics(cache);
-  Eigen::Isometry3d base_pose = tree->relativeTransform(cache, 0, 1);
-  std::cout << tree->get_body(1).get_name() << std::endl;
+  planner.tree()->doKinematics(cache);
+  Eigen::Isometry3d base_pose = planner.tree()->relativeTransform(cache, 0, 1);
+  std::cout << planner.tree()->get_body(1).get_name() << std::endl;
   std::cout << base_pose.matrix() << std::endl;
 
-  int right_iiwa_link6_idx = tree->FindBodyIndex("right_iiwa_link_6");
-  int left_iiwa_link6_idx = tree->FindBodyIndex("left_iiwa_link_6");
+
   Eigen::Isometry3d box_pose_des;
   box_pose_des.setIdentity();
   box_pose_des.translation() = right_kuka_base_offset.translation() + Eigen::Vector3d(0.5, 0.4, 0.4);
-  q_sol = MoveBox(tree.get(), q_sol, box_pose_des, {right_iiwa_link6_idx, left_iiwa_link6_idx});
+  q_sol = planner.MoveBox(q_sol, box_pose_des, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
   visualizer.visualize(q_sol);
+
   return 0;
 }
 }  // namespace

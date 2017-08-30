@@ -1,3 +1,5 @@
+#pragma once
+
 #include "drake/multibody/rigid_body_tree.h"
 
 namespace drake {
