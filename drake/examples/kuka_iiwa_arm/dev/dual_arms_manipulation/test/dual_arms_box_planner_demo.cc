@@ -69,6 +69,7 @@ int DoMain() {
 
   Eigen::Isometry3d box_pose;
   Eigen::Isometry3d right_kuka_pose;
+  std::cout << "listening to OPTITRACK_FRAMES" << std::endl;
   while (true) {
     if (handler.get_received_channel() == "OPTITRACK_FRAMES") {
       box_pose = handler.GetBoxPose();
@@ -77,6 +78,7 @@ int DoMain() {
       break;
     }
   }
+  std::cout << "Get optitrack_frame_t message from LCM" << std::endl;
   std::cout << "box_pose:\n" << box_pose.matrix() << std::endl;
   std::cout << "right_kuka_pose:\n" << right_kuka_pose.matrix() << std::endl;
 
@@ -84,7 +86,7 @@ int DoMain() {
 
   pick_and_place::PickAndPlaceStateMachine::IiwaPublishCallback iiwa_callback =
       ([&](const robotlocomotion::robot_plan_t* plan) {
-        lcm.publish("CANDIDATE_ROBOT_PLAN", plan);
+        lcm.publish("CANDIDATE_MANIP_PLAN", plan);
       });
 
   auto tree = ConstructDualArmAndBox(RotateBox::AmazonRubber, right_kuka_pose);
@@ -92,7 +94,7 @@ int DoMain() {
 
   // zero configuration is a bad initial guess for Kuka.
   Eigen::Matrix<double, 7, 1> q_kuka0;
-  q_kuka0 << 0, 0.5, 0.3, 0.3, 0.4, 0.5, 0.6;
+  q_kuka0 << 0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
   q0.topRows<7>() = q_kuka0;
   q0.middleRows<7>(7) = q_kuka0;
   Eigen::Vector3d box_pos = box_pose.translation();
@@ -104,12 +106,13 @@ int DoMain() {
   Eigen::VectorXd q2 = GrabbingBoxFromTwoSides(tree.get(), q1, 0.5);
 
 
-  Eigen::MatrixXd keyframes(14, 3);
+  Eigen::MatrixXd keyframes(14, 4);
   keyframes.col(0) = q0.topRows<14>();
-  keyframes.col(1) = q1.topRows<14>();
-  keyframes.col(2) = q2.topRows<14>();
+  keyframes.col(1) = q0.topRows<14>();
+  keyframes.col(2) = q1.topRows<14>();
+  keyframes.col(3) = q2.topRows<14>();
 
-  std::vector<double> times{0, 2, 2.5};
+  std::vector<double> times{0, 2, 4, 4.5};
 
   robotlocomotion::robot_plan_t plan{};
 
