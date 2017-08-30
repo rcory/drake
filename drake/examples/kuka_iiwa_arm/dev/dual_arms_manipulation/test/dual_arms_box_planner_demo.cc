@@ -1,4 +1,4 @@
-#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_ik_planner_util.h"
+#include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_rotation_planner.h"
 
 #include <lcm/lcm-cpp.hpp>
 
@@ -89,7 +89,8 @@ int DoMain() {
         lcm.publish("CANDIDATE_MANIP_PLAN", plan);
       });
 
-  auto tree = ConstructDualArmAndBox(RotateBox::AmazonRubber, right_kuka_pose);
+  DualArmsBoxRotationPlanner planner(RotateBox::AmazonRubber, right_kuka_pose);
+  auto tree = planner.tree();
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(20);
 
   // zero configuration is a bad initial guess for Kuka.
@@ -102,8 +103,8 @@ int DoMain() {
   q0.middleRows<3>(14) = box_pos;
   q0.bottomRows<3>() = box_rpy;
 
-  Eigen::VectorXd q1 = GrabbingBoxFromTwoSides(tree.get(), q0, 0.7);
-  Eigen::VectorXd q2 = GrabbingBoxFromTwoSides(tree.get(), q1, 0.5);
+  Eigen::VectorXd q1 = planner.GrabbingBoxFromTwoSides(q0, 0.7);
+  Eigen::VectorXd q2 = planner.GrabbingBoxFromTwoSides(q1, 0.5);
 
 
   Eigen::MatrixXd keyframes(14, 4);

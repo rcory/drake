@@ -65,22 +65,6 @@ drake_cc_library(
     ],
 )
 
-drake_cc_library(
-    name = "dual_arms_box_ik_planner_util",
-    srcs = [
-        "dual_arms_box_ik_planner_util.cc",
-    ],
-    hdrs = [
-        "dual_arms_box_ik_planner_util.h",
-    ],
-    deps = [
-        "dual_arms_box_util",
-        "//drake/multibody:inverse_kinematics",
-        "//drake/multibody:rigid_body_constraint",
-        "//drake/multibody:rigid_body_tree",
-    ],
-)
-
 drake_cc_binary(
     name = "dual_arms_box_ik_planner",
     srcs = ["dual_arms_box_ik_planner.cc"],
@@ -89,16 +73,6 @@ drake_cc_binary(
         "dual_arms_box_util",
         "//drake/manipulation/util:simple_tree_visualizer",
         "//drake/multibody:inverse_kinematics",
-    ],
-)
-
-drake_cc_binary(
-    name = "dual_arms_box_ik_planner_util_test",
-    srcs = ["test/dual_arms_box_ik_planner_util_test.cc"],
-    deps = [
-        "dual_arms_box_ik_planner_util",
-        "dual_arms_box_util",
-        "//drake/manipulation/util:simple_tree_visualizer",
     ],
 )
 
@@ -116,7 +90,7 @@ drake_cc_binary(
     name = "dual_arms_box_planner_demo",
     srcs = ["test/dual_arms_box_planner_demo.cc"],
     deps = [
-        "dual_arms_box_ik_planner_util",
+        "dual_arms_box_rotation_planner",
         "dual_arms_box_util",
         "//drake/examples/kuka_iiwa_arm:iiwa_common",
         "//drake/examples/kuka_iiwa_arm/pick_and_place",
