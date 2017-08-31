@@ -114,20 +114,28 @@ int DoMain() {
       break;
     }
   }
+  // Lift up the box
   Eigen::Isometry3d box_up_pose;
   box_up_pose.setIdentity();
   box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.4, 0.5, 0.4);
   Eigen::VectorXd q3 = planner.MoveBox(q2, box_up_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
+  // Put down the box
+  Eigen::Isometry3d box_down_pose;
+  box_down_pose.setIdentity();
+  box_down_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.27);
+  Eigen::VectorXd q4 = planner.MoveBox(q3, box_down_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
-  Eigen::MatrixXd keyframes(14, 5);
+
+  Eigen::MatrixXd keyframes(14, 6);
   keyframes.col(0) = q0.topRows<14>();
   keyframes.col(1) = q0.topRows<14>();
   keyframes.col(2) = q1.topRows<14>();
   keyframes.col(3) = q2.topRows<14>();
   keyframes.col(4) = q3.topRows<14>();
+  keyframes.col(5) = q4.topRows<14>();
 
-  std::vector<double> times{0, 2, 4, 4.5, 5.5};
+  std::vector<double> times{0, 2, 4, 4.5, 5.5, 6.5};
 
   robotlocomotion::robot_plan_t plan{};
 
@@ -144,7 +152,7 @@ int DoMain() {
 
 
   manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
-  visualizer.visualize(q3);
+  visualizer.visualize(q4);
   KinematicsCache<double> cache = tree->CreateKinematicsCache();
   cache.initialize(q2);
   tree->doKinematics(cache);
