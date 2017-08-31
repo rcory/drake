@@ -82,7 +82,8 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
 
   // First determine which face of the box should be grabbed by the left kuka.
   // The normal on this face should be approximately equal to [0;1;0]
-  std::array<int, 3> xyz_box_normal_idx = BoxNormalIndicesFacingWorldXYZ(box_pose);
+  std::array<int, 3> xyz_box_normal_idx =
+      BoxNormalIndicesFacingWorldXYZ(box_pose);
   int box_plusY_face_normal_idx = xyz_box_normal_idx[1];
   const Eigen::Vector3d box_left_face_normal =
       box_normals_.col(box_plusY_face_normal_idx);
@@ -127,10 +128,14 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
   Eigen::Matrix<double, 3, 4> left_palm_contact_region =
       ((box_size / 2 + palm_radius) * box_left_face_normal) *
       Eigen::RowVector4d::Ones();
-  left_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
-  left_palm_contact_region.col(1) +=  box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
-  left_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
-  left_palm_contact_region.col(3) +=  box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal +
+                                     box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(1) += box_size * 0.2 * box_top_face_normal +
+                                     box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal -
+                                     box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(3) += box_size * 0.2 * box_top_face_normal -
+                                     box_size * 0.2 * box_front_face_normal;
 
   Eigen::Vector3d left_palm_contact_region_lb =
       left_palm_contact_region.rowwise().minCoeff();
@@ -165,10 +170,14 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
   Eigen::Matrix<double, 3, 4> right_palm_contact_region =
       ((box_size / 2 + palm_radius) * box_right_face_normal) *
       Eigen::RowVector4d::Ones();
-  right_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
-  right_palm_contact_region.col(1) +=  box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
-  right_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
-  right_palm_contact_region.col(3) +=  box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal +
+                                      box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(1) += box_size * 0.2 * box_top_face_normal +
+                                      box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal -
+                                      box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(3) += box_size * 0.2 * box_top_face_normal -
+                                      box_size * 0.2 * box_front_face_normal;
 
   // The surface of the right palm should touch the box right face.
   Eigen::Vector3d right_palm_contact_region_lb =
@@ -289,10 +298,12 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::MoveBox(
   return q_sol;
 }
 
-Eigen::Matrix3d DualArmsBoxRotationPlanner::BoxNormalFacingWorldXYZ(const Eigen::Isometry3d& box_pose) const {
+Eigen::Matrix3d DualArmsBoxRotationPlanner::BoxNormalFacingWorldXYZ(
+    const Eigen::Isometry3d& box_pose) const {
   std::array<int, 3> box_normal_idx = BoxNormalIndicesFacingWorldXYZ(box_pose);
   Eigen::Matrix3d xyz_box_normals;
-  xyz_box_normals << box_normals_.col(box_normal_idx[0]), box_normals_(box_normal_idx[1]), box_normals_(box_normal_idx[2]);
+  xyz_box_normals << box_normals_.col(box_normal_idx[0]),
+      box_normals_.col(box_normal_idx[1]), box_normals_.col(box_normal_idx[2]);
   return xyz_box_normals;
 }
 
@@ -308,8 +319,8 @@ std::array<int, 3> DualArmsBoxRotationPlanner::BoxNormalIndicesFacingWorldXYZ(
 
   Eigen::Matrix<double, 1, 6> x_face_normal_angle;
 
-  x_face_normal_angle = Eigen::Vector3d(1, 0, 0).transpose() *
-      box_pose.linear() * box_normals_;
+  x_face_normal_angle =
+      Eigen::Vector3d(1, 0, 0).transpose() * box_pose.linear() * box_normals_;
   int x_face_normal_idx;
   x_face_normal_angle.maxCoeff(&x_face_normal_idx);
 
@@ -320,7 +331,8 @@ std::array<int, 3> DualArmsBoxRotationPlanner::BoxNormalIndicesFacingWorldXYZ(
   int z_face_normal_idx;
   z_face_normal_angle.maxCoeff(&z_face_normal_idx);
 
-  std::array<int, 3> box_normal_idx{{x_face_normal_idx, y_face_normal_idx, z_face_normal_idx}};
+  std::array<int, 3> box_normal_idx{
+      {x_face_normal_idx, y_face_normal_idx, z_face_normal_idx}};
 
   return box_normal_idx;
 }

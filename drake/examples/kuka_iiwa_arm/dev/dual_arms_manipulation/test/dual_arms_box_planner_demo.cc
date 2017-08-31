@@ -2,16 +2,16 @@
 
 #include <lcm/lcm-cpp.hpp>
 
-#include "drake/util/lcmUtil.h"
-#include "drake/common/find_resource.h"
-#include "drake/multibody/parsers/urdf_parser.h"
-#include "drake/lcm/drake_lcm.h"
+#include "external/lcmtypes_robotlocomotion/lcmtypes/robotlocomotion/robot_plan_t.hpp"
 #include "optitrack/optitrack_frame_t.hpp"
-#include "drake/manipulation/util/simple_tree_visualizer.h"
+#include "drake/common/find_resource.h"
 #include "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/dual_arms_box_util.h"
 #include "drake/examples/kuka_iiwa_arm/iiwa_common.h"
-#include "external/lcmtypes_robotlocomotion/lcmtypes/robotlocomotion/robot_plan_t.hpp"
 #include "drake/examples/kuka_iiwa_arm/pick_and_place/pick_and_place_state_machine.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/manipulation/util/simple_tree_visualizer.h"
+#include "drake/multibody/parsers/urdf_parser.h"
+#include "drake/util/lcmUtil.h"
 
 namespace drake {
 namespace examples {
@@ -21,7 +21,8 @@ class MessageHandler : public lcm::DrakeLcmMessageHandlerInterface {
  public:
   MessageHandler() : received_msg_{} {}
 
-  void HandleMessage(const std::string& channel, const void* message_buffer, int message_size) override {
+  void HandleMessage(const std::string& channel, const void* message_buffer,
+                     int message_size) override {
     std::lock_guard<std::mutex> lock(message_mutex_);
     received_msg_.decode(message_buffer, 0, message_size);
     received_channel_ = channel;
@@ -33,8 +34,16 @@ class MessageHandler : public lcm::DrakeLcmMessageHandlerInterface {
     for (int i = 0; i < received_msg_.num_rigid_bodies; ++i) {
       if (received_msg_.rigid_bodies[i].id == 2) {
         // The box ID is 2.
-        box_pose.linear() = Eigen::Quaterniond(received_msg_.rigid_bodies[i].quat[3], received_msg_.rigid_bodies[i].quat[0], received_msg_.rigid_bodies[i].quat[1], received_msg_.rigid_bodies[i].quat[2]).toRotationMatrix();
-        box_pose.translation() = Eigen::Vector3d(received_msg_.rigid_bodies[i].xyz[0], received_msg_.rigid_bodies[i].xyz[1], received_msg_.rigid_bodies[i].xyz[2]);
+        box_pose.linear() =
+            Eigen::Quaterniond(received_msg_.rigid_bodies[i].quat[3],
+                               received_msg_.rigid_bodies[i].quat[0],
+                               received_msg_.rigid_bodies[i].quat[1],
+                               received_msg_.rigid_bodies[i].quat[2])
+                .toRotationMatrix();
+        box_pose.translation() =
+            Eigen::Vector3d(received_msg_.rigid_bodies[i].xyz[0],
+                            received_msg_.rigid_bodies[i].xyz[1],
+                            received_msg_.rigid_bodies[i].xyz[2]);
       }
     }
     return box_pose;
@@ -45,14 +54,16 @@ class MessageHandler : public lcm::DrakeLcmMessageHandlerInterface {
     right_kuka_pose.setIdentity();
     for (int i = 0; i < received_msg_.num_rigid_bodies; ++i) {
       if (received_msg_.rigid_bodies[i].id == 3) {
-
-        right_kuka_pose.translation() = Eigen::Vector3d(received_msg_.rigid_bodies[i].xyz[0], received_msg_.rigid_bodies[i].xyz[1], received_msg_.rigid_bodies[i].xyz[2] - 0.03);
+        right_kuka_pose.translation() =
+            Eigen::Vector3d(received_msg_.rigid_bodies[i].xyz[0],
+                            received_msg_.rigid_bodies[i].xyz[1],
+                            received_msg_.rigid_bodies[i].xyz[2] - 0.03);
       }
     }
     return right_kuka_pose;
   }
 
-  std::string get_received_channel() const {return received_channel_;}
+  std::string get_received_channel() const { return received_channel_; }
 
  private:
   std::mutex message_mutex_;
@@ -119,21 +130,28 @@ int DoMain() {
     }
   }
   // Lift up the box
-  Eigen::Matrix3d box_normal_facing_world_xyz = planner.BoxNormalFacingWorldXYZ(box_pose);
+  Eigen::Matrix3d box_normal_facing_world_xyz =
+      planner.BoxNormalFacingWorldXYZ(box_pose);
   std::cout << "Lift up the box.\n";
   Eigen::Isometry3d box_up_pose;
   box_up_pose.setIdentity();
   box_up_pose.linear() = box_normal_facing_world_xyz.transpose();
-  box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.4);
-  Eigen::VectorXd q3 = planner.MoveBox(q2, box_up_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
+  box_up_pose.translation() =
+      right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.4);
+  Eigen::VectorXd q3 = planner.MoveBox(
+      q2, box_up_pose,
+      {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
   // Put down the box
   std::cout << "Put down the box.\n";
   Eigen::Isometry3d box_down_pose;
   box_down_pose.setIdentity();
   box_down_pose.linear() = box_normal_facing_world_xyz.transpose();
-  box_down_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.27);
-  Eigen::VectorXd q4 = planner.MoveBox(q3, box_down_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
+  box_down_pose.translation() =
+      right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.27);
+  Eigen::VectorXd q4 = planner.MoveBox(
+      q3, box_down_pose,
+      {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
   // Release the box
   std::cout << "Release the box.\n";
@@ -155,14 +173,14 @@ int DoMain() {
   auto iiwa_tree = std::make_unique<RigidBodyTree<double>>();
   const std::string iiwa_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
-          "dual_iiwa14_polytope_collision.urdf");
-  parsers::urdf::AddModelInstanceFromUrdfFileToWorld(iiwa_path, multibody::joints::kFixed, iiwa_tree.get());
+      "dual_iiwa14_polytope_collision.urdf");
+  parsers::urdf::AddModelInstanceFromUrdfFileToWorld(
+      iiwa_path, multibody::joints::kFixed, iiwa_tree.get());
   const RigidBodyTree<double>& iiwa = *(iiwa_tree.get());
 
   std::vector<int> info(times.size(), 1);
   *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
   iiwa_callback(&plan);
-
 
   manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
   visualizer.visualize(q3);
@@ -179,6 +197,4 @@ int DoMain() {
 }  // namespace examples
 }  // namespace drake
 
-int main() {
-  return drake::examples::kuka_iiwa_arm::DoMain();
-}
+int main() { return drake::examples::kuka_iiwa_arm::DoMain(); }
