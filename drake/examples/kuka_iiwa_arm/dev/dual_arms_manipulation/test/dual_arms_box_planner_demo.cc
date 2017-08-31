@@ -104,7 +104,7 @@ int DoMain() {
   q0.bottomRows<3>() = box_rpy;
 
   Eigen::VectorXd q1 = planner.GrabbingBoxFromTwoSides(q0, 0.7);
-  Eigen::VectorXd q2 = planner.GrabbingBoxFromTwoSides(q1, 0.5);
+  Eigen::VectorXd q2 = planner.GrabbingBoxFromTwoSides(q1, 0.46);
 
   while (true) {
     if (handler.get_received_channel() == "OPTITRACK_FRAMES") {

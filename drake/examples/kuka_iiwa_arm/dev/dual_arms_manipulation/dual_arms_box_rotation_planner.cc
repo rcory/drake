@@ -139,12 +139,10 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
   Eigen::Matrix<double, 3, 4> left_palm_contact_region =
       ((box_size / 2 + palm_radius) * box_left_face_normal) *
       Eigen::RowVector4d::Ones();
-  left_palm_contact_region.col(0) += -box_size * 0.4 * box_top_face_normal;
-  left_palm_contact_region.col(1) += box_size * 0.4 * box_top_face_normal;
-  left_palm_contact_region.col(2) =
-      left_palm_contact_region.col(0) - box_size * 0.45 * box_front_face_normal;
-  left_palm_contact_region.col(3) =
-      left_palm_contact_region.col(1) - box_size * 0.45 * box_front_face_normal;
+  left_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(1) +=  box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
+  left_palm_contact_region.col(3) +=  box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
 
   Eigen::Vector3d left_palm_contact_region_lb =
       left_palm_contact_region.rowwise().minCoeff();
@@ -179,12 +177,10 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
   Eigen::Matrix<double, 3, 4> right_palm_contact_region =
       ((box_size / 2 + palm_radius) * box_right_face_normal) *
       Eigen::RowVector4d::Ones();
-  right_palm_contact_region.col(0) += -box_size * 0.4 * box_top_face_normal;
-  right_palm_contact_region.col(1) += box_size * 0.4 * box_top_face_normal;
-  right_palm_contact_region.col(2) = right_palm_contact_region.col(0) -
-                                     box_size * 0.45 * box_front_face_normal;
-  right_palm_contact_region.col(3) = right_palm_contact_region.col(1) -
-                                     box_size * 0.45 * box_front_face_normal;
+  right_palm_contact_region.col(0) += -box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(1) +=  box_size * 0.2 * box_top_face_normal + box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(2) += -box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
+  right_palm_contact_region.col(3) +=  box_size * 0.2 * box_top_face_normal - box_size * 0.2 * box_front_face_normal;
 
   // The surface of the right palm should touch the box right face.
   Eigen::Vector3d right_palm_contact_region_lb =
