@@ -103,7 +103,11 @@ int DoMain() {
   q0.middleRows<3>(14) = box_pos;
   q0.bottomRows<3>() = box_rpy;
 
+  // Pre-grasping
+  std::cout << "Pre-grasping\n";
   Eigen::VectorXd q1 = planner.GrabbingBoxFromTwoSides(q0, 0.7);
+  // Grasping
+  std::cout << "Grasping\n";
   Eigen::VectorXd q2 = planner.GrabbingBoxFromTwoSides(q1, 0.46);
 
   while (true) {
@@ -115,18 +119,21 @@ int DoMain() {
     }
   }
   // Lift up the box
+  std::cout << "Lift up the box.\n";
   Eigen::Isometry3d box_up_pose;
   box_up_pose.setIdentity();
-  box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.4, 0.5, 0.4);
+  box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.4);
   Eigen::VectorXd q3 = planner.MoveBox(q2, box_up_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
   // Put down the box
+  std::cout << "Put down the box.\n";
   Eigen::Isometry3d box_down_pose;
   box_down_pose.setIdentity();
   box_down_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.27);
   Eigen::VectorXd q4 = planner.MoveBox(q3, box_down_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
   // Release the box
+  std::cout << "Release the box.\n";
   Eigen::VectorXd q5 = planner.GrabbingBoxFromTwoSides(q4, 0.6);
 
   Eigen::MatrixXd keyframes(14, 7);
