@@ -82,42 +82,30 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
 
   // First determine which face of the box should be grabbed by the left kuka.
   // The normal on this face should be approximately equal to [0;1;0]
-  // box_pose.linear() * box_left_face_normal approximately equals to [0;1;0]
-  Eigen::Matrix<double, 1, 6> left_face_normal_angle =
-      Eigen::Vector3d(0, 1, 0).transpose() * box_pose.linear() * box_normals_;
-  int box_left_face_normal_idx;
-  left_face_normal_angle.maxCoeff(&box_left_face_normal_idx);
+  std::array<int, 3> xyz_box_normal_idx = BoxNormalIndicesFacingWorldXYZ(box_pose);
+  int box_plusY_face_normal_idx = xyz_box_normal_idx[1];
   const Eigen::Vector3d box_left_face_normal =
-      box_normals_.col(box_left_face_normal_idx);
+      box_normals_.col(box_plusY_face_normal_idx);
 
   // Now determines which face of the box should be grabbed by the right kuka.
   // The normal on this face should be approximately equal to [0; -1; 0]
-  Eigen::Matrix<double, 1, 6> right_face_normal_angle =
-      Eigen::Vector3d(0, -1, 0).transpose() * box_pose.linear() * box_normals_;
-  int box_right_face_normal_idx;
-  right_face_normal_angle.maxCoeff(&box_right_face_normal_idx);
-  const Eigen::Vector3d box_right_face_normal =
-      box_normals_.col(box_right_face_normal_idx);
 
-  Eigen::Matrix<double, 1, 6> front_face_normal_angle;
-  if (box_pose.translation()(0) - right_iiwa_base_pose.translation()(0) < 0) {
-    front_face_normal_angle =
-        Eigen::Vector3d(1, 0, 0).transpose() * box_pose.linear() * box_normals_;
-  } else {
-    front_face_normal_angle = Eigen::Vector3d(-1, 0, 0).transpose() *
-                              box_pose.linear() * box_normals_;
-  }
+  int box_minusY_face_normal_idx = (xyz_box_normal_idx[1] + 3) % 6;
+  const Eigen::Vector3d box_right_face_normal =
+      box_normals_.col(box_minusY_face_normal_idx);
+
   int box_front_face_normal_idx;
-  front_face_normal_angle.maxCoeff(&box_front_face_normal_idx);
+  if (box_pose.translation()(0) - right_iiwa_base_pose.translation()(0) < 0) {
+    box_front_face_normal_idx = xyz_box_normal_idx[0];
+  } else {
+    box_front_face_normal_idx = (xyz_box_normal_idx[0] + 3) % 6;
+  }
   const Eigen::Vector3d box_front_face_normal =
       box_normals_.col(box_front_face_normal_idx);
 
   // Now determines which face of the box faces upward. The normal on that
   // face should be approximately equal to [0;0;1].
-  Eigen::Matrix<double, 1, 6> top_face_normal_angle =
-      Eigen::Vector3d(0, 0, 1).transpose() * box_pose.linear() * box_normals_;
-  int box_top_face_normal_idx;
-  top_face_normal_angle.maxCoeff(&box_top_face_normal_idx);
+  int box_top_face_normal_idx = xyz_box_normal_idx[2];
   const Eigen::Vector3d box_top_face_normal =
       box_normals_.col(box_top_face_normal_idx);
 
@@ -156,11 +144,11 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
       Eigen::Matrix<double, 3, 4>::Constant(NAN);
   Eigen::Matrix<double, 3, 4> left_face_nonpenetration_ub =
       Eigen::Matrix<double, 3, 4>::Constant(NAN);
-  if (box_left_face_normal_idx < 3) {
-    left_face_nonpenetration_lb.row(box_left_face_normal_idx) =
+  if (box_plusY_face_normal_idx < 3) {
+    left_face_nonpenetration_lb.row(box_plusY_face_normal_idx) =
         Eigen::RowVector4d::Constant(box_size / 2);
   } else {
-    left_face_nonpenetration_ub.row(box_left_face_normal_idx - 3) =
+    left_face_nonpenetration_ub.row(box_plusY_face_normal_idx - 3) =
         Eigen::RowVector4d::Constant(-box_size / 2);
   }
   WorldPositionInFrameConstraint l_iiwa_link6_nonpenetration_cnstr(
@@ -196,11 +184,11 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::GrabbingBoxFromTwoSides(
       Eigen::Matrix<double, 3, 4>::Constant(NAN);
   Eigen::Matrix<double, 3, 4> right_face_nonpenetration_ub =
       Eigen::Matrix<double, 3, 4>::Constant(NAN);
-  if (box_right_face_normal_idx < 3) {
-    right_face_nonpenetration_lb.row(box_right_face_normal_idx) =
+  if (box_minusY_face_normal_idx < 3) {
+    right_face_nonpenetration_lb.row(box_minusY_face_normal_idx) =
         Eigen::RowVector4d::Constant(box_size / 2);
   } else {
-    right_face_nonpenetration_ub.row(box_right_face_normal_idx - 3) =
+    right_face_nonpenetration_ub.row(box_minusY_face_normal_idx - 3) =
         Eigen::RowVector4d::Constant(-box_size / 2);
   }
   WorldPositionInFrameConstraint r_iiwa_link5_nonpenetration_cnstr{
@@ -299,6 +287,42 @@ Eigen::VectorXd DualArmsBoxRotationPlanner::MoveBox(
              &info, &infeasible_cnstr);
   std::cout << info << std::endl;
   return q_sol;
+}
+
+Eigen::Matrix3d DualArmsBoxRotationPlanner::BoxNormalFacingWorldXYZ(const Eigen::Isometry3d& box_pose) const {
+  std::array<int, 3> box_normal_idx = BoxNormalIndicesFacingWorldXYZ(box_pose);
+  Eigen::Matrix3d xyz_box_normals;
+  xyz_box_normals << box_normals_.col(box_normal_idx[0]), box_normals_(box_normal_idx[1]), box_normals_(box_normal_idx[2]);
+  return xyz_box_normals;
+}
+
+std::array<int, 3> DualArmsBoxRotationPlanner::BoxNormalIndicesFacingWorldXYZ(
+    const Eigen::Isometry3d& box_pose) const {
+  // First determine which face of the box should be grabbed by the left kuka.
+  // The normal on this face should be approximately equal to [0;1;0]
+  // box_pose.linear() * box_left_face_normal approximately equals to [0;1;0]
+  Eigen::Matrix<double, 1, 6> y_face_normal_angle =
+      Eigen::Vector3d(0, 1, 0).transpose() * box_pose.linear() * box_normals_;
+  int y_face_normal_idx;
+  y_face_normal_angle.maxCoeff(&y_face_normal_idx);
+
+  Eigen::Matrix<double, 1, 6> x_face_normal_angle;
+
+  x_face_normal_angle = Eigen::Vector3d(1, 0, 0).transpose() *
+      box_pose.linear() * box_normals_;
+  int x_face_normal_idx;
+  x_face_normal_angle.maxCoeff(&x_face_normal_idx);
+
+  // Now determines which face of the box faces upward. The normal on that
+  // face should be approximately equal to [0;0;1].
+  Eigen::Matrix<double, 1, 6> z_face_normal_angle =
+      Eigen::Vector3d(0, 0, 1).transpose() * box_pose.linear() * box_normals_;
+  int z_face_normal_idx;
+  z_face_normal_angle.maxCoeff(&z_face_normal_idx);
+
+  std::array<int, 3> box_normal_idx{{x_face_normal_idx, y_face_normal_idx, z_face_normal_idx}};
+
+  return box_normal_idx;
 }
 }  // namespace kuka_iiwa_arm
 }  // namespace examples

@@ -36,7 +36,13 @@ class DualArmsBoxRotationPlanner {
 
   const std::array<int, 8>& right_iiwa_link_idx() const {return right_iiwa_link_idx_;}
 
+  // Return the normal vector (in the box frame) of the box face, that faces the
+  // world +x, +y and +z direction.
+  Eigen::Matrix3d BoxNormalFacingWorldXYZ(const Eigen::Isometry3d& box_pose) const;
+
  private:
+  std::array<int, 3> BoxNormalIndicesFacingWorldXYZ(const Eigen::Isometry3d& box_pose) const;
+
   std::unique_ptr<RigidBodyTreed> tree_;
   int box_idx_;
   int l_hand_idx_;

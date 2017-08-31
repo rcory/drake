@@ -119,9 +119,11 @@ int DoMain() {
     }
   }
   // Lift up the box
+  Eigen::Matrix3d box_normal_facing_world_xyz = planner.BoxNormalFacingWorldXYZ(box_pose);
   std::cout << "Lift up the box.\n";
   Eigen::Isometry3d box_up_pose;
   box_up_pose.setIdentity();
+  box_up_pose.linear() = box_normal_facing_world_xyz.transpose();
   box_up_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.4);
   Eigen::VectorXd q3 = planner.MoveBox(q2, box_up_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
@@ -129,6 +131,7 @@ int DoMain() {
   std::cout << "Put down the box.\n";
   Eigen::Isometry3d box_down_pose;
   box_down_pose.setIdentity();
+  box_down_pose.linear() = box_normal_facing_world_xyz.transpose();
   box_down_pose.translation() = right_kuka_pose.translation() + Eigen::Vector3d(0.5, 0.5, 0.27);
   Eigen::VectorXd q4 = planner.MoveBox(q3, box_down_pose, {planner.left_iiwa_link_idx()[6], planner.right_iiwa_link_idx()[6]});
 
@@ -162,7 +165,7 @@ int DoMain() {
 
 
   manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
-  visualizer.visualize(q5);
+  visualizer.visualize(q3);
   KinematicsCache<double> cache = tree->CreateKinematicsCache();
   cache.initialize(q2);
   tree->doKinematics(cache);
