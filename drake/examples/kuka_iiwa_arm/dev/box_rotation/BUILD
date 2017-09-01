@@ -68,6 +68,7 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm:models",
         "//drake/manipulation/models/iiwa_description:models",
         "//drake/manipulation/models/wsg_50_description:models",
+        "//drake/multibody/rigid_body_plant:contact_results_to_lcm",
     ],
     test_rule_args = ["--simulation_sec=0.01"],
     deps = [
@@ -77,6 +78,8 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm/dev/box_rotation:iiwa_box_diagram_factory",
         "//drake/examples/kuka_iiwa_arm/iiwa_world:world_sim_tree_builder",
         "//drake/lcm",
+        "//drake/lcmtypes:contact_info_for_viz",
+        "//drake/lcmtypes:contact_results_for_viz",
         "//drake/manipulation/schunk_wsg:schunk_wsg_constants",
         "//drake/manipulation/schunk_wsg:schunk_wsg_controller",
         "//drake/manipulation/schunk_wsg:schunk_wsg_lcm",
@@ -88,6 +91,8 @@ drake_cc_binary(
         "//drake/systems/primitives:matrix_gain",
         "//drake/util:lcm_util",
         "@com_github_gflags_gflags//:gflags",
+        "@lcmtypes_bot_core",
+        "@lcmtypes_robotlocomotion",
     ],
 )
 

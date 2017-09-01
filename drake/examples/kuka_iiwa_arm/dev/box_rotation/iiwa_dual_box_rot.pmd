@@ -14,7 +14,7 @@
 
 #group "2.1.iiwa-sim" {
 #    cmd "0.kuka-sim" {
-#        exec = "$SPARTAN_BUILD_DIR/drake/drake/examples/kuka_iiwa_arm/kuka_simulation --urdf $SPARTAN_SOURCE_DIR/drake/drake/manipulation/models/iiwa_description/urdf/dual_iiwa14_polytope_collision.urdf";
+#        exec = "$SPARTAN_BUILD_DIR/drake/drake/examples/kuka_iiwa_arm/kuka_simulation --urdf $SPARTAN_SOURCE_DIR/drake/drake/manipulation/models/iiwa_description/urdf/dual_iiwa14_primitive_collision.urdf";
 #        host = "localhost";
 #    }
 #}
@@ -75,7 +75,7 @@ group "2.1.iiwa-sim" {
 
 group "2.2.iiwa-plan-interface" {
     cmd "1.iiwa_controller" {
-        exec = "/home/rickcory/dev/drake-distro/bazel-bin/drake/examples/kuka_iiwa_arm/iiwa_controller --urdf /home/rickcory/dev/drake-distro/drake/manipulation/models/iiwa_description/urdf/dual_iiwa14_polytope_collision.urdf";
+        exec = "/home/rickcory/dev/drake-distro/bazel-bin/drake/examples/kuka_iiwa_arm/iiwa_controller --urdf /home/rickcory/dev/drake-distro/drake/manipulation/models/iiwa_description/urdf/dual_iiwa14_primitive_collision.urdf";
         host = "localhost";
     }
 

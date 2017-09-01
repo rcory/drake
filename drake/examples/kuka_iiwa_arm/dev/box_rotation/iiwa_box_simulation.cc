@@ -20,10 +20,13 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_iiwa_command.hpp"
 #include "drake/lcmt_iiwa_status.hpp"
+#include "drake/lcmtypes/drake/lcmt_contact_results_for_viz.hpp"
+#include "drake/multibody/rigid_body_plant/contact_results_to_lcm.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_plant/drake_visualizer.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
 #include "drake/systems/analysis/simulator.h"
+#include "drake/systems/analysis/runge_kutta2_integrator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -53,7 +56,7 @@ using systems::Simulator;
 
 const char *const kIiwaUrdf =
     "drake/manipulation/models/iiwa_description/urdf/"
-        "dual_iiwa14_polytope_collision.urdf";
+        "dual_iiwa14_primitive_collision.urdf";
 
 // TODO(naveen): refactor this to reduce duplicate code.
 template<typename T>
@@ -67,21 +70,24 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   tree_builder->StoreModel("table",
                            "drake/examples/kuka_iiwa_arm/models/table/"
                                "extra_heavy_duty_table_surface_only_collision.sdf");
+  tree_builder->StoreModel("large_table",
+                           "drake/examples/kuka_iiwa_arm/models/table/"
+                               "large_extra_heavy_duty_table_surface_only_collision.sdf");
   tree_builder->StoreModel("box",
                            "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
                                "box.urdf");
 
   // Build a world with two fixed tables.  A box is placed one on
   // table, and the iiwa arm is fixed to the other.
-  tree_builder->AddFixedModelInstance("table",
-                                      Eigen::Vector3d::Zero() /* xyz */,
-                                      Eigen::Vector3d::Zero() /* rpy */);
-  tree_builder->AddFixedModelInstance("table",
-                                      Eigen::Vector3d(0, 0.96, 0) /* xyz */,
-                                      Eigen::Vector3d::Zero() /* rpy */);
-  tree_builder->AddFixedModelInstance("table",
-                                      Eigen::Vector3d(0.72, 0.96/2,0) /* xyz */,
-                                      Eigen::Vector3d::Zero() /* rpy */);
+//  tree_builder->AddFixedModelInstance("table", /* right arm */
+//                                      Eigen::Vector3d::Zero() /* xyz */,
+//                                      Eigen::Vector3d::Zero() /* rpy */);
+//  tree_builder->AddFixedModelInstance("table", /* left arm */
+//                                      Eigen::Vector3d(0, 0.96, 0) /* xyz */,
+//                                      Eigen::Vector3d::Zero() /* rpy */);
+//  tree_builder->AddFixedModelInstance("large_table", /* box */
+//                                      Eigen::Vector3d(0.72, 0.96/2,0) /* xyz */,
+//                                      Eigen::Vector3d::Zero() /* rpy */);
 
   tree_builder->AddGround();
 
@@ -90,7 +96,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // 'surface' collision element in the SDF. This element uses a box of height
   // 0.057m thus giving the surface height (`z`) in world coordinates as
   // 0.736 + 0.057 / 2.
-  const double kTableTopZInWorld = 0.736 + 0.057 / 2;
+  const double kTableTopZInWorld = 0; //0.736 + 0.057 / 2;
 
   // Coordinates for kRobotBase originally from iiwa_world_demo.cc.
   // The intention is to center the robot on the table.
@@ -119,6 +125,16 @@ int DoMain() {
   std::unique_ptr<systems::RigidBodyPlant<double>> model_ptr =
       BuildCombinedPlant<double>(&iiwa_instance, &box_instance);
   model_ptr->set_name("plant");
+
+  // Arbitrary contact parameters.
+  const double kStiffness = 3000;
+  const double kDissipation = 5;
+  const double kStaticFriction = 10;
+  const double kDynamicFriction = 1;
+  const double kVStictionTolerance = 0.1;
+  model_ptr->set_normal_contact_parameters(kStiffness, kDissipation);
+  model_ptr->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
+                                         kVStictionTolerance);
 
   auto model =
       builder.template AddSystem<IiwaAndBoxPlantWithStateEstimator<double>>(
@@ -200,10 +216,30 @@ int DoMain() {
                   box_state_pub->get_input_port(0));
   box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
+
+// Add contact viz.
+  auto contact_viz =
+      builder->AddSystem<systems::ContactResultsToLcmSystem<double>>(
+          model->get_rigid_body_tree());
+  contact_viz->set_name("contact_viz");
+
+  auto contact_results_publisher = builder.AddSystem(
+      systems::lcm::LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
+          "CONTACT_RESULTS", &lcm));
+  contact_results_publisher->set_name("contact_results_publisher");
+
+  builder.Connect(model->contact_results_output_port(),
+                           contact_viz->get_input_port(0));
+  builder.Connect(contact_viz->get_output_port(0),
+                           contact_results_publisher->get_input_port(0));
+
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);
 
+  simulator.reset_integrator<systems::RungeKutta2Integrator<double>>(*sys, 1e-3, simulator.get_mutable_context());
+
   lcm.StartReceiveThread();
+  simulator.set_target_realtime_rate(1);
   simulator.Initialize();
   simulator.set_publish_every_time_step(false);
   simulator.StepTo(FLAGS_simulation_sec);

@@ -31,7 +31,7 @@ namespace box_rotation {
 namespace {
 
 const char* const kKeyFramePath = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
-    "simple_keyframes.txt";
+    "working_keyframes.txt";
 
 MatrixX<double> get_posture(const std::string& name) {
   std::fstream fs;
@@ -63,7 +63,7 @@ void RunBoxRotationDemo() {
 
   const std::string iiwa_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
-          "dual_iiwa14_polytope_collision.urdf");
+          "dual_iiwa14_primitive_collision.urdf");
 
   // create the RBT
   auto tree = std::make_unique<RigidBodyTree<double>>();
