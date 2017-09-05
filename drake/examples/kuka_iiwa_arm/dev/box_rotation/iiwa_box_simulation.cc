@@ -15,7 +15,7 @@
 #include "drake/examples/kuka_iiwa_arm/iiwa_common.h"
 #include "drake/examples/kuka_iiwa_arm/iiwa_lcm.h"
 #include "drake/examples/kuka_iiwa_arm/dev/box_rotation/iiwa_box_diagram_factory.h"
-#include "drake/examples/kuka_iiwa_arm/iiwa_world/world_sim_tree_builder.h"
+#include "drake/manipulation/util/world_sim_tree_builder.h"
 #include "drake/examples/kuka_iiwa_arm/oracular_state_estimator.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_iiwa_command.hpp"
@@ -61,8 +61,8 @@ const char *const kIiwaUrdf =
 // TODO(naveen): refactor this to reduce duplicate code.
 template<typename T>
 std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
-    ModelInstanceInfo<T> *iiwa_instance, ModelInstanceInfo<T> *box_instance) {
-  auto tree_builder = std::make_unique<WorldSimTreeBuilder<double>>();
+    manipulation::util::ModelInstanceInfo<T> *iiwa_instance, manipulation::util::ModelInstanceInfo<T> *box_instance) {
+  auto tree_builder = std::make_unique<manipulation::util::WorldSimTreeBuilder<double>>();
 
   // Adds models to the simulation builder. Instances of these models can be
   // subsequently added to the world.
@@ -120,7 +120,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
 int DoMain() {
   systems::DiagramBuilder<double> builder;
 
-  ModelInstanceInfo<double> iiwa_instance, box_instance;
+  manipulation::util::ModelInstanceInfo<double> iiwa_instance, box_instance;
 
   std::unique_ptr<systems::RigidBodyPlant<double>> model_ptr =
       BuildCombinedPlant<double>(&iiwa_instance, &box_instance);

@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "drake/examples/kuka_iiwa_arm/iiwa_world/world_sim_tree_builder.h"
+#include "drake/manipulation/util/world_sim_tree_builder.h"
 #include "drake/examples/kuka_iiwa_arm/oracular_state_estimator.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
@@ -44,8 +44,8 @@ class IiwaAndBoxPlantWithStateEstimator : public systems::Diagram<T> {
   /// and the box object respectively.
   IiwaAndBoxPlantWithStateEstimator(
       std::unique_ptr<systems::RigidBodyPlant<T>> combined_plant,
-      const ModelInstanceInfo<T> &iiwa_info,
-      const ModelInstanceInfo<T> &box_info);
+      const manipulation::util::ModelInstanceInfo<T> &iiwa_info,
+      const manipulation::util::ModelInstanceInfo<T> &box_info);
 
   const systems::RigidBodyPlant<T> &get_plant() const { return *plant_; }
 

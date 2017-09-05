@@ -7,9 +7,9 @@
 #include <utility>
 
 #include "drake/examples/kuka_iiwa_arm/iiwa_common.h"
-#include "drake/examples/kuka_iiwa_arm/iiwa_world/world_sim_tree_builder.h"
+#include "drake/manipulation/util/world_sim_tree_builder.h"
 #include "drake/examples/kuka_iiwa_arm/oracular_state_estimator.h"
-#include "drake/examples/kuka_iiwa_arm/sim_diagram_builder.h"
+#include "drake/manipulation/util/sim_diagram_builder.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
@@ -36,11 +36,11 @@ namespace box_rotation {
 template<typename T>
 IiwaAndBoxPlantWithStateEstimator<T>::IiwaAndBoxPlantWithStateEstimator(
     std::unique_ptr<RigidBodyPlant<T>> combined_plant,
-    const ModelInstanceInfo<T> &iiwa_info,
-    const ModelInstanceInfo<T> &box_info) {
+    const manipulation::util::ModelInstanceInfo<T> &iiwa_info,
+    const manipulation::util::ModelInstanceInfo<T> &box_info) {
   this->set_name("IiwaAndBoxPlantWithStateEstimator");
 
-  SimDiagramBuilder<T> builder;
+  manipulation::util::SimDiagramBuilder<T> builder;
   DiagramBuilder<T> *base_builder = builder.get_mutable_builder();
 
   plant_ = builder.AddPlant(std::move(combined_plant));
