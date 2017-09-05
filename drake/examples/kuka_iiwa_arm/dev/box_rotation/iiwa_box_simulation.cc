@@ -188,8 +188,6 @@ int DoMain() {
   builder.Connect(model->get_output_port_iiwa_state(),
                   iiwa_status_sender->get_state_input_port());
 
-  std::cout<<"here\n";
-
   builder.Connect(iiwa_command_receiver->get_output_port(0),
                   iiwa_status_sender->get_command_input_port());
 
@@ -217,10 +215,10 @@ int DoMain() {
   box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
 
-// Add contact viz.
+//// Add contact viz.
   auto contact_viz =
-      builder->AddSystem<systems::ContactResultsToLcmSystem<double>>(
-          model->get_rigid_body_tree());
+      builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
+          model->get_tree());
   contact_viz->set_name("contact_viz");
 
   auto contact_results_publisher = builder.AddSystem(
@@ -228,10 +226,11 @@ int DoMain() {
           "CONTACT_RESULTS", &lcm));
   contact_results_publisher->set_name("contact_results_publisher");
 
-  builder.Connect(model->contact_results_output_port(),
+  builder.Connect(model->get_output_port_contact_results(),
                            contact_viz->get_input_port(0));
   builder.Connect(contact_viz->get_output_port(0),
                            contact_results_publisher->get_input_port(0));
+  contact_results_publisher->set_publish_period(.01);
 
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);
