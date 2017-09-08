@@ -23,6 +23,7 @@
 
 
 DEFINE_string(keyframes, "", "Name of keyframe file to load");
+DEFINE_string(urdf, "", "Name of keyframe file to load");
 
 namespace drake {
 namespace examples {
@@ -32,6 +33,9 @@ namespace {
 
 const char* const kKeyFramePath = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
     "working_keyframes.txt";
+const char* const kIiwaUrdf =
+    "drake/manipulation/models/iiwa_description/urdf/"
+        "dual_iiwa14.urdf";
 
 MatrixX<double> get_posture(const std::string& name) {
   std::fstream fs;
@@ -61,9 +65,12 @@ void RunBoxRotationDemo() {
         lcm.publish("COMMITTED_ROBOT_PLAN", plan);
       });
 
-  const std::string iiwa_path = FindResourceOrThrow(
-      "drake/manipulation/models/iiwa_description/urdf/"
-          "dual_iiwa14_primitive_collision.urdf");
+//  const std::string iiwa_path = FindResourceOrThrow(
+//      "drake/manipulation/models/iiwa_description/urdf/"
+//          "dual_iiwa14_primitive_collision.urdf");
+
+  const std::string iiwa_path =
+      (!FLAGS_urdf.empty() ? FLAGS_urdf : FindResourceOrThrow(kIiwaUrdf));
 
   // create the RBT
   auto tree = std::make_unique<RigidBodyTree<double>>();

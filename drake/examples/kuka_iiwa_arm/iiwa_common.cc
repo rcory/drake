@@ -112,7 +112,7 @@ void SetPositionControlledIiwaGains(Eigen::VectorXd* Kp,
   // torques. These are set to high values to ensure good tracking. These gains
   // are picked arbitrarily.
   Kp->resize(7);
-  *Kp << 100, 100, 100, 100, 100, 100, 100;
+  *Kp << 5000, 5000, 5000, 5000, 5000, 5000, 5000;
   Kd->resize(Kp->size());
   for (int i = 0; i < Kp->size(); i++) {
     // Critical damping gains.

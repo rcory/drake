@@ -13,6 +13,9 @@ filegroup(
     srcs = glob([
         "**/*.urdf",
         "simple_keyframes.txt",
+        "working_keyframes.txt",
+        "zero_keyframes.txt",
+        "test_keyframes.txt",
     ]),
     visibility = ["//visibility:public"],
 )
@@ -71,6 +74,7 @@ drake_cc_binary(
     ],
     test_rule_args = ["--simulation_sec=0.01"],
     deps = [
+        "//drake/common:find_resource",
         "//drake/examples/kuka_iiwa_arm:iiwa_common",
         "//drake/examples/kuka_iiwa_arm:iiwa_lcm",
         "//drake/examples/kuka_iiwa_arm:oracular_state_estimator",

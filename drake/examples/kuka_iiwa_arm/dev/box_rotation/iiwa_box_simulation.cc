@@ -35,9 +35,19 @@
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/matrix_gain.h"
 #include "drake/util/drakeGeometryUtil.h"
+#include "drake/systems/analysis/implicit_euler_integrator.h"
+#include "drake/common/find_resource.h"
 
+DEFINE_string(urdf, "", "Name of keyframe file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
               "Number of seconds to simulate.");
+
+DEFINE_double(stiffness, 3000, "Contact Stiffness");
+DEFINE_double(dissipation, 5, "Contact Dissipation");
+DEFINE_double(static_friction, 0.5, "Static Friction");
+DEFINE_double(dynamic_friction, 0.2, "Dynamic Friction");
+DEFINE_double(v_stiction_tol, 0.01, "v Stiction Tol");
+
 
 namespace drake {
 namespace examples {
@@ -56,17 +66,22 @@ using systems::Simulator;
 
 const char *const kIiwaUrdf =
     "drake/manipulation/models/iiwa_description/urdf/"
-        "dual_iiwa14_primitive_collision.urdf";
+        "dual_iiwa14_primitive_visual_collision.urdf";
 
 // TODO(naveen): refactor this to reduce duplicate code.
 template<typename T>
 std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
     manipulation::util::ModelInstanceInfo<T> *iiwa_instance, manipulation::util::ModelInstanceInfo<T> *box_instance) {
+
+  const std::string iiwa_path =
+      (!FLAGS_urdf.empty() ? FLAGS_urdf : kIiwaUrdf);
+      //(!FLAGS_urdf.empty() ? FLAGS_urdf : FindResourceOrThrow(kIiwaUrdf));
+
   auto tree_builder = std::make_unique<manipulation::util::WorldSimTreeBuilder<double>>();
 
   // Adds models to the simulation builder. Instances of these models can be
   // subsequently added to the world.
-  tree_builder->StoreModel("iiwa", kIiwaUrdf);
+  tree_builder->StoreModel("iiwa", iiwa_path);
   tree_builder->StoreModel("table",
                            "drake/examples/kuka_iiwa_arm/models/table/"
                                "extra_heavy_duty_table_surface_only_collision.sdf");
@@ -86,7 +101,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
 //                                      Eigen::Vector3d(0, 0.96, 0) /* xyz */,
 //                                      Eigen::Vector3d::Zero() /* rpy */);
 //  tree_builder->AddFixedModelInstance("large_table", /* box */
-//                                      Eigen::Vector3d(0.72, 0.96/2,0) /* xyz */,
+//                                      Eigen::Vector3d(0.72, 0.8/2,0) /* xyz */,
 //                                      Eigen::Vector3d::Zero() /* rpy */);
 
   tree_builder->AddGround();
@@ -104,7 +119,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // Start the box slightly above the table.  If we place it at
   // the table top exactly, it may start colliding the table (which is
   // not good, as it will likely shoot off into space).
-  const Eigen::Vector3d kBoxBase(0.7, 0.96/2 , kTableTopZInWorld + 0.56/2);
+  const Eigen::Vector3d kBoxBase(0.7, 0.9/2 , kTableTopZInWorld + 0.56/2);
 
   int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase);
   *iiwa_instance = tree_builder->get_model_info_for_instance(id);
@@ -126,15 +141,19 @@ int DoMain() {
       BuildCombinedPlant<double>(&iiwa_instance, &box_instance);
   model_ptr->set_name("plant");
 
-  // Arbitrary contact parameters.
-  const double kStiffness = 3000;
-  const double kDissipation = 5;
-  const double kStaticFriction = 10;
-  const double kDynamicFriction = 1;
-  const double kVStictionTolerance = 0.1;
-  model_ptr->set_normal_contact_parameters(kStiffness, kDissipation);
-  model_ptr->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
-                                         kVStictionTolerance);
+//  // Arbitrary contact parameters.
+//  const double kStiffness = 3000;
+//  const double kDissipation = 5;
+//  const double kStaticFriction = 10;
+//  const double kDynamicFriction = 1;
+//  const double kVStictionTolerance = 0.1;//1e-4;//0.1;
+//  model_ptr->set_normal_contact_parameters(kStiffness, kDissipation);
+//  model_ptr->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
+//                                         kVStictionTolerance);
+
+  model_ptr->set_normal_contact_parameters(FLAGS_stiffness, FLAGS_dissipation);
+  model_ptr->set_friction_contact_parameters(FLAGS_static_friction, FLAGS_dynamic_friction,
+                                             FLAGS_v_stiction_tol);
 
   auto model =
       builder.template AddSystem<IiwaAndBoxPlantWithStateEstimator<double>>(
@@ -215,7 +234,7 @@ int DoMain() {
   box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
 
-//// Add contact viz.
+// Add contact viz.
   auto contact_viz =
       builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
           model->get_tree());
@@ -236,6 +255,10 @@ int DoMain() {
   Simulator<double> simulator(*sys);
 
   simulator.reset_integrator<systems::RungeKutta2Integrator<double>>(*sys, 1e-3, simulator.get_mutable_context());
+
+//  simulator.reset_integrator<systems::ImplicitEulerIntegrator<double>>(*sys, simulator.get_mutable_context());
+//  simulator.get_mutable_integrator()->set_target_accuracy(1e-2);
+//  simulator.get_mutable_integrator()->request_initial_step_size_target(1e-3);
 
   lcm.StartReceiveThread();
   simulator.set_target_realtime_rate(1);

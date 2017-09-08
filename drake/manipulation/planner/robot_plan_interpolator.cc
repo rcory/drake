@@ -214,8 +214,10 @@ void RobotPlanInterpolator::DoCalcUnrestrictedUpdate(
 
       const Eigen::MatrixXd knot_dot =
           Eigen::MatrixXd::Zero(tree_.get_num_velocities(), 1);
-      plan.pp = PiecewisePolynomial<double>::Cubic(
-          input_time, knots, knot_dot, knot_dot);
+//      plan.pp = PiecewisePolynomial<double>::Cubic(
+//          input_time, knots, knot_dot, knot_dot);
+      plan.pp = PiecewisePolynomial<double>::FirstOrderHold(
+          input_time, knots);
       plan.pp_deriv = plan.pp.derivative();
       plan.pp_double_deriv = plan.pp_deriv.derivative();
     }
