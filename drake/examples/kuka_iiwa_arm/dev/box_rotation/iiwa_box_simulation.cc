@@ -141,16 +141,6 @@ int DoMain() {
       BuildCombinedPlant<double>(&iiwa_instance, &box_instance);
   model_ptr->set_name("plant");
 
-//  // Arbitrary contact parameters.
-//  const double kStiffness = 3000;
-//  const double kDissipation = 5;
-//  const double kStaticFriction = 10;
-//  const double kDynamicFriction = 1;
-//  const double kVStictionTolerance = 0.1;//1e-4;//0.1;
-//  model_ptr->set_normal_contact_parameters(kStiffness, kDissipation);
-//  model_ptr->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
-//                                         kVStictionTolerance);
-
   model_ptr->set_normal_contact_parameters(FLAGS_stiffness, FLAGS_dissipation);
   model_ptr->set_friction_contact_parameters(FLAGS_static_friction, FLAGS_dynamic_friction,
                                              FLAGS_v_stiction_tol);
