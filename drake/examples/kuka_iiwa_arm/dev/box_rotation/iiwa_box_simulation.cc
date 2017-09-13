@@ -38,7 +38,7 @@
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/common/find_resource.h"
 
-DEFINE_string(urdf, "", "Name of keyframe file to load");
+DEFINE_string(urdf, "", "Name of urdf file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
               "Number of seconds to simulate.");
 
@@ -94,15 +94,15 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
 
   // Build a world with two fixed tables.  A box is placed one on
   // table, and the iiwa arm is fixed to the other.
-//  tree_builder->AddFixedModelInstance("table", /* right arm */
-//                                      Eigen::Vector3d::Zero() /* xyz */,
-//                                      Eigen::Vector3d::Zero() /* rpy */);
-//  tree_builder->AddFixedModelInstance("table", /* left arm */
-//                                      Eigen::Vector3d(0, 0.96, 0) /* xyz */,
-//                                      Eigen::Vector3d::Zero() /* rpy */);
-//  tree_builder->AddFixedModelInstance("large_table", /* box */
-//                                      Eigen::Vector3d(0.72, 0.8/2,0) /* xyz */,
-//                                      Eigen::Vector3d::Zero() /* rpy */);
+  tree_builder->AddFixedModelInstance("table", /* right arm */
+                                      Eigen::Vector3d::Zero() /* xyz */,
+                                      Eigen::Vector3d::Zero() /* rpy */);
+  tree_builder->AddFixedModelInstance("table", /* left arm */
+                                      Eigen::Vector3d(0, 0.9, 0) /* xyz */,
+                                      Eigen::Vector3d::Zero() /* rpy */);
+  tree_builder->AddFixedModelInstance("large_table", /* box */
+                                      Eigen::Vector3d(0.72, 0.9/2,0) /* xyz */,
+                                      Eigen::Vector3d::Zero() /* rpy */);
 
   tree_builder->AddGround();
 
@@ -111,7 +111,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // 'surface' collision element in the SDF. This element uses a box of height
   // 0.057m thus giving the surface height (`z`) in world coordinates as
   // 0.736 + 0.057 / 2.
-  const double kTableTopZInWorld = 0; //0.736 + 0.057 / 2;
+  const double kTableTopZInWorld = 0.736 + 0.057 / 2;
 
   // Coordinates for kRobotBase originally from iiwa_world_demo.cc.
   // The intention is to center the robot on the table.
@@ -119,7 +119,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // Start the box slightly above the table.  If we place it at
   // the table top exactly, it may start colliding the table (which is
   // not good, as it will likely shoot off into space).
-  const Eigen::Vector3d kBoxBase(0.7, 0.9/2 , kTableTopZInWorld + 0.56/2);
+  const Eigen::Vector3d kBoxBase(0.7, 0.9/2 , kTableTopZInWorld + 0.565/2);
 
   int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase);
   *iiwa_instance = tree_builder->get_model_info_for_instance(id);

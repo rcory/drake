@@ -37,12 +37,14 @@ const char* const kIiwaUrdf =
     "drake/manipulation/models/iiwa_description/urdf/"
         "dual_iiwa14.urdf";
 
+const int kNumKeyFrames=26;
+
 MatrixX<double> get_posture(const std::string& name) {
   std::fstream fs;
   fs.open(name, std::fstream::in);
   DRAKE_DEMAND(fs.is_open());
 
-  MatrixX<double> ret(12, 21);
+  MatrixX<double> ret(kNumKeyFrames, 21);
   for (int i = 0; i < ret.rows(); ++i) {
     for (int j = 0; j < ret.cols(); ++j) {
       fs >> ret(i, j);
@@ -87,9 +89,9 @@ void RunBoxRotationDemo() {
   MatrixX<double> allKeyFrames = get_posture(framesFile);
 
   // extract left and righ arm keyframes
-  MatrixX<double>  keyframes(12,14);
-  keyframes.block<12,7>(0,0) = allKeyFrames.block<12,7>(0,1);
-  keyframes.block<12,7>(0,7) = allKeyFrames.block<12,7>(0,8);
+  MatrixX<double>  keyframes(kNumKeyFrames,14);
+  keyframes.block<kNumKeyFrames,7>(0,0) = allKeyFrames.block<kNumKeyFrames,7>(0,1);
+  keyframes.block<kNumKeyFrames,7>(0,7) = allKeyFrames.block<kNumKeyFrames,7>(0,8);
   keyframes.transposeInPlace();
 
   //std::cout<<"keyframes.rows = "<<keyframes.rows()<<std::endl;

@@ -359,17 +359,31 @@
       <!--0.3 Original Drake URDF value-->
       <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
     </inertial>
+    <!--<visual>-->
+      <!--<origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>-->
+      <!--<geometry>-->
+        <!--<sphere radius="0.05285650291"/>-->
+      <!--</geometry>-->
+      <!--<material name="Grey"/>-->
+    <!--</visual>-->
     <visual>
-      <origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.05285650291"/>
+        <mesh filename="../meshes/collision/link_7_polytope.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
+    <!--<collision>-->
+      <!--<origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>-->
+      <!--<geometry>-->
+        <!--<sphere radius="0.05285650291"/>-->
+      <!--</geometry>-->
+      <!--<material name="Grey"/>-->
+    <!--</collision>-->
     <collision>
-      <origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.05285650291"/>
+        <mesh filename="../meshes/collision/link_7_polytope.obj"/>
       </geometry>
       <material name="Grey"/>
     </collision>
@@ -838,20 +852,34 @@
       <!--0.3 Original Drake URDF value-->
       <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
     </inertial>
+    <!--<visual>-->
+      <!--<origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>-->
+      <!--<geometry>-->
+        <!--<sphere radius="0.05285650291"/>-->
+      <!--</geometry>-->
+      <!--<material name="Grey"/>-->
+    <!--</visual>-->
     <visual>
-      <origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.05285650291"/>
+        <mesh filename="../meshes/collision/link_7_polytope.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
     <collision>
-      <origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.05285650291"/>
+        <mesh filename="../meshes/collision/link_7_polytope.obj"/>
       </geometry>
       <material name="Grey"/>
     </collision>
+    <!--<collision>-->
+      <!--<origin rpy="0 0 0" xyz="-3.533832164e-019 -0.001260393754 -0.001625199191"/>-->
+      <!--<geometry>-->
+        <!--<sphere radius="0.05285650291"/>-->
+      <!--</geometry>-->
+      <!--<material name="Grey"/>-->
+    <!--</collision>-->
   </link>
   <joint name="right_iiwa_joint_ee" type="fixed">
     <parent link="right_iiwa_link_7"/>

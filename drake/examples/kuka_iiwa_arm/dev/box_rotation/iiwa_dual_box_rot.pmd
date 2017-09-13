@@ -20,7 +20,7 @@
 #}
 
 cmd "0.drake_visualizer" {
-    exec = "/home/rickcory/dev/drake-distro/build/install/bin/drake-visualizer --script /home/rickcory/dev/drake-distro/drake/multibody/rigid_body_plant/visualization/contact_viz.py";
+    exec = "/home/rickcory/dev/drake-distro/build/install/bin/drake-visualizer --script /home/rickcory/dev/drake-distro/drake/multibody/rigid_body_plant/visualization/contact_viz.py --script /home/rickcory/dev/drake-distro/drake/multibody/rigid_body_plant/visualization/show_time.py";
     host = "localhost";
 }
 
@@ -99,7 +99,7 @@ cmd "0.drake_visualizer" {
 
 #group "2.3.iiwa-box-demo" {
     cmd "3.iiwa_box_demo" {
-	exec = "/home/rickcory/dev/drake-distro/bazel-bin/drake/examples/kuka_iiwa_arm/dev/box_rotation/box_rotation_demo --keyframes /home/rickcory/dev/drake-distro/drake/examples/kuka_iiwa_arm/dev/box_rotation/working_keyframes.txt --urdf /home/rickcory/dev/drake-distro/drake/manipulation/models/iiwa_description/urdf/${URDF}"; 
+	exec = "/home/rickcory/dev/drake-distro/bazel-bin/drake/examples/kuka_iiwa_arm/dev/box_rotation/box_rotation_demo --keyframes /home/rickcory/dev/drake-distro/drake/examples/kuka_iiwa_arm/dev/box_rotation/robot_keyframes.txt --urdf /home/rickcory/dev/drake-distro/drake/manipulation/models/iiwa_description/urdf/${URDF}"; 
 	host = "localhost";
     }
 #}

@@ -18,6 +18,9 @@
   <material name="Brown">
     <color rgba="0.870588235294 0.811764705882 0.764705882353 1.0"/>
   </material>
+  <material name="Tan">
+    <color rgba="0.823 0.706 0.549 1.0"/>
+  </material>
   <material name="Red">
     <color rgba="0.8 0.0 0.0 1.0"/>
   </material>
@@ -36,7 +39,7 @@
 		<geometry>
 			<box size="0.565 0.565 0.565"/>
 		</geometry>
-		<material name="Blue"/>
+		<material name="Tan"/>
   </visual>
 
         <!--collision box-->
