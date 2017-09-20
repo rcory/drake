@@ -41,10 +41,12 @@ drake_cc_library(
     deps = [
         ":iiwa_common",
         "//drake/common/trajectories:piecewise_polynomial_trajectory",
+        "//drake/examples/kuka_iiwa_arm/dev/box_rotation:optitrack_sim",
         "//drake/lcmtypes:iiwa",
         "//drake/multibody:inverse_kinematics",
         "//drake/multibody:rigid_body_tree",
         "//drake/systems/framework:leaf_system",
+        "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
     ],
 )
 

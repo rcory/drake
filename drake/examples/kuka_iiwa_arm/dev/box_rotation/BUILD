@@ -79,6 +79,7 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm:iiwa_lcm",
         "//drake/examples/kuka_iiwa_arm:oracular_state_estimator",
         "//drake/examples/kuka_iiwa_arm/dev/box_rotation:iiwa_box_diagram_factory",
+        "//drake/examples/kuka_iiwa_arm/dev/box_rotation:optitrack_sim",
         "//drake/lcm",
         "//drake/lcmtypes:contact_info_for_viz",
         "//drake/lcmtypes:contact_results_for_viz",
@@ -97,6 +98,20 @@ drake_cc_binary(
         "@com_github_gflags_gflags//:gflags",
         "@lcmtypes_bot2_core",
         "@lcmtypes_robotlocomotion",
+        "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
+    ],
+)
+
+drake_cc_library(
+    name = "optitrack_sim",
+    srcs = ["optitrack_sim.cc"],
+    hdrs = ["optitrack_sim.h"],
+    visibility = ["//drake/examples/kuka_iiwa_arm:__subpackages__"],
+    deps = [
+        "//drake/multibody:rigid_body_tree",
+        "//drake/multibody/rigid_body_plant",
+        "//drake/systems/framework:leaf_system",
+        "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
     ],
 )
 

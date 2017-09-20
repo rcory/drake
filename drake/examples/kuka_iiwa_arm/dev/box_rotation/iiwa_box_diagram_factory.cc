@@ -92,6 +92,7 @@ IiwaAndBoxPlantWithStateEstimator<T>::IiwaAndBoxPlantWithStateEstimator(
 
   output_port_plant_state_ =
       base_builder->ExportOutput(plant_->get_output_port(0));
+      // Note: I think plant_->get_output_port(0) is plant_->state_output_port()
 
   // Sets up a "state estimator" for iiwa that generates
   // bot_core::robot_state_t messages.
@@ -122,6 +123,9 @@ IiwaAndBoxPlantWithStateEstimator<T>::IiwaAndBoxPlantWithStateEstimator(
 
   output_port_contact_results_t_ =
       base_builder->ExportOutput(plant_->contact_results_output_port());
+
+  output_port_kinematics_results_t_ =
+      base_builder->ExportOutput(plant_->kinematics_results_output_port());
 
   builder.BuildInto(this);
 }

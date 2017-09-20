@@ -37,6 +37,8 @@
 #include "drake/util/drakeGeometryUtil.h"
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/common/find_resource.h"
+#include "drake/examples/kuka_iiwa_arm/dev/box_rotation/optitrack_sim.h"
+//#include "external/optitrack_driver/lcmtypes/optitrack/optitrack_frame_t.hpp"
 
 DEFINE_string(urdf, "", "Name of urdf file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
@@ -66,7 +68,7 @@ using systems::Simulator;
 
 const char *const kIiwaUrdf =
     "drake/manipulation/models/iiwa_description/urdf/"
-        "dual_iiwa14_primitive_visual_collision.urdf";
+        "dual_iiwa14_primitive_sphere_visual_collision.urdf";
 
 // TODO(naveen): refactor this to reduce duplicate code.
 template<typename T>
@@ -152,6 +154,11 @@ int DoMain() {
 
   const RigidBodyTree<double> &tree = model->get_plant().get_rigid_body_tree();
 
+//  // print the name to index map
+//  std::map<std::string,int> mymap = tree.computePositionNameToIndexMap();
+//  for (std::map<std::string,int>::iterator it = mymap.begin(); it != mymap.end(); ++it)
+//    std::cout << "Name: " << it->first << " | Index: " << it->second << '\n';
+
   drake::lcm::DrakeLcm lcm;
   DrakeVisualizer *visualizer = builder.AddSystem<DrakeVisualizer>(tree, &lcm);
   visualizer->set_name("visualizer");
@@ -174,6 +181,17 @@ int DoMain() {
   iiwa_status_pub->set_publish_period(kIiwaLcmStatusPeriod);
   auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(14);
   iiwa_status_sender->set_name("iiwa_status_sender");
+
+  // optitrack stuff
+  auto optitrack_pub = builder.AddSystem(
+      systems::lcm::LcmPublisherSystem::Make<optitrack::optitrack_frame_t>("OPTITRACK_FRAMES",&lcm));
+  optitrack_pub->set_name("optitrack frame publisher");
+  optitrack_pub->set_publish_period(.01);
+  auto optitrack_sender = builder.AddSystem<OptitrackFrameSender>();
+  optitrack_sender->set_name("optitrack frame sender");
+
+  auto optitrack_sim = builder.AddSystem<OptitrackSim>(tree);
+  optitrack_sim->set_name("optitrack sim");
 
   // TODO(siyuan): Connect this to kuka_planner runner once it generates
   // reference acceleration.
@@ -202,6 +220,14 @@ int DoMain() {
 
   builder.Connect(iiwa_status_sender->get_output_port(0),
                   iiwa_status_pub->get_input_port(0));
+
+  // more optitrack stuff
+  builder.Connect(model->get_output_port_kinematics_results(),
+                  optitrack_sim->get_kinematics_input_port());
+  builder.Connect(optitrack_sim->get_pose_output_port(),
+                  optitrack_sender->get_pose_input_port());
+  builder.Connect(optitrack_sender->get_lcm_output_port(),
+                  optitrack_pub->get_input_port(0));
 
   auto iiwa_state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
