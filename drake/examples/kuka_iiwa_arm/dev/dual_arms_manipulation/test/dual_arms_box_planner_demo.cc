@@ -171,9 +171,12 @@ int DoMain() {
   robotlocomotion::robot_plan_t plan{};
 
   auto iiwa_tree = std::make_unique<RigidBodyTree<double>>();
+//  const std::string iiwa_path = FindResourceOrThrow(
+//      "drake/manipulation/models/iiwa_description/urdf/"
+//      "dual_iiwa14_polytope_collision.urdf");
   const std::string iiwa_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
-      "dual_iiwa14_polytope_collision.urdf");
+          "dual_iiwa14_primitive_sphere_visual_collision.urdf");
   parsers::urdf::AddModelInstanceFromUrdfFileToWorld(
       iiwa_path, multibody::joints::kFixed, iiwa_tree.get());
   const RigidBodyTree<double>& iiwa = *(iiwa_tree.get());
