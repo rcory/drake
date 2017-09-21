@@ -114,7 +114,7 @@
     </geometry>
   </collision>
 
-<!--seperater-->
+<!--separator-->
         <visual>
             <origin xyz="0.2825 0.2825 0.2825" rpy="0 0 0"/>
             <geometry>
