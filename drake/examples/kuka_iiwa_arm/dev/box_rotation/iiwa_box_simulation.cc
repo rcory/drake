@@ -49,6 +49,7 @@ DEFINE_double(dissipation, 5, "Contact Dissipation");
 DEFINE_double(static_friction, 0.5, "Static Friction");
 DEFINE_double(dynamic_friction, 0.2, "Dynamic Friction");
 DEFINE_double(v_stiction_tol, 0.01, "v Stiction Tol");
+DEFINE_bool(use_visualizer, true, "Use Drake Visualizer?");
 
 
 namespace drake {
@@ -160,11 +161,15 @@ int DoMain() {
 //    std::cout << "Name: " << it->first << " | Index: " << it->second << '\n';
 
   drake::lcm::DrakeLcm lcm;
-  DrakeVisualizer *visualizer = builder.AddSystem<DrakeVisualizer>(tree, &lcm);
-  visualizer->set_name("visualizer");
-  builder.Connect(model->get_output_port_plant_state(),
-                  visualizer->get_input_port(0));
-  visualizer->set_publish_period(kIiwaLcmStatusPeriod);
+
+  if (FLAGS_use_visualizer) {
+    DrakeVisualizer
+        *visualizer = builder.AddSystem<DrakeVisualizer>(tree, &lcm);
+    visualizer->set_name("visualizer");
+    builder.Connect(model->get_output_port_plant_state(),
+                    visualizer->get_input_port(0));
+    visualizer->set_publish_period(kIiwaLcmStatusPeriod);
+  }
 
   // Create the command subscriber and status publisher.
   auto iiwa_command_sub = builder.AddSystem(
@@ -251,21 +256,23 @@ int DoMain() {
 
 
 // Add contact viz.
-  auto contact_viz =
-      builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
-          model->get_tree());
-  contact_viz->set_name("contact_viz");
+  if (FLAGS_use_visualizer) {
+    auto contact_viz =
+        builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
+            model->get_tree());
+    contact_viz->set_name("contact_viz");
 
-  auto contact_results_publisher = builder.AddSystem(
-      systems::lcm::LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
-          "CONTACT_RESULTS", &lcm));
-  contact_results_publisher->set_name("contact_results_publisher");
+    auto contact_results_publisher = builder.AddSystem(
+        systems::lcm::LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
+            "CONTACT_RESULTS", &lcm));
+    contact_results_publisher->set_name("contact_results_publisher");
 
-  builder.Connect(model->get_output_port_contact_results(),
-                           contact_viz->get_input_port(0));
-  builder.Connect(contact_viz->get_output_port(0),
-                           contact_results_publisher->get_input_port(0));
-  contact_results_publisher->set_publish_period(.01);
+    builder.Connect(model->get_output_port_contact_results(),
+                    contact_viz->get_input_port(0));
+    builder.Connect(contact_viz->get_output_port(0),
+                    contact_results_publisher->get_input_port(0));
+    contact_results_publisher->set_publish_period(.01);
+  }
 
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);

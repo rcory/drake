@@ -45,7 +45,7 @@ std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(
       std::make_unique<RigidBodyTree<double>>();
   const std::string model_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
-      "dual_iiwa14_polytope_collision.urdf");
+      "dual_iiwa14_primitive_sphere_visual_collision.urdf");
 
   auto right_kuka_base_frame = std::make_shared<RigidBodyFrame<double>>(
       "right_kuka_base_offset", rigid_body_tree->get_mutable_body(0),
@@ -59,7 +59,7 @@ std::unique_ptr<RigidBodyTreed> ConstructDualArmAndBox(
   switch (box_type) {
     case RotateBox::HomeDepotPaper :
       box_path = FindResourceOrThrow(
-          "drake/examples/kuka_iiwa_arm/dev/dual_arms_manipulation/box.urdf");
+          "drake/examples/kuka_iiwa_arm/dev/box_rotation/box.urdf");
       break;
     case RotateBox::AmazonRubber :
       box_path = FindResourceOrThrow("drake/examples/kuka_iiwa_arm/models/objects/block_amazon_rubber.urdf");

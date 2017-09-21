@@ -56,6 +56,7 @@ drake_cc_library(
     hdrs = [
         "dual_arms_box_util.h",
     ],
+    data = ["//drake/examples/kuka_iiwa_arm/dev/box_rotation:mydata"],
     deps = [
         "//drake/common:find_resource",
         "//drake/lcm",
@@ -89,6 +90,9 @@ drake_cc_binary(
 drake_cc_binary(
     name = "dual_arms_box_planner_demo",
     srcs = ["test/dual_arms_box_planner_demo.cc"],
+    data = [
+        "//drake/manipulation/models/iiwa_description:models",
+    ],
     deps = [
         "dual_arms_box_rotation_planner",
         "dual_arms_box_util",

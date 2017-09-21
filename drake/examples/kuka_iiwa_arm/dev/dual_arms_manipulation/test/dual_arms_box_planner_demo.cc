@@ -97,10 +97,10 @@ int DoMain() {
 
   pick_and_place::PickAndPlaceStateMachine::IiwaPublishCallback iiwa_callback =
       ([&](const robotlocomotion::robot_plan_t* plan) {
-        lcm.publish("CANDIDATE_MANIP_PLAN", plan);
+        lcm.publish("COMMITTED_ROBOT_PLAN", plan);
       });
 
-  DualArmsBoxRotationPlanner planner(RotateBox::AmazonRubber, right_kuka_pose);
+  DualArmsBoxRotationPlanner planner(RotateBox::HomeDepotPaper, right_kuka_pose);
   auto tree = planner.tree();
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(20);
 
@@ -171,9 +171,6 @@ int DoMain() {
   robotlocomotion::robot_plan_t plan{};
 
   auto iiwa_tree = std::make_unique<RigidBodyTree<double>>();
-//  const std::string iiwa_path = FindResourceOrThrow(
-//      "drake/manipulation/models/iiwa_description/urdf/"
-//      "dual_iiwa14_polytope_collision.urdf");
   const std::string iiwa_path = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
           "dual_iiwa14_primitive_sphere_visual_collision.urdf");
@@ -185,8 +182,8 @@ int DoMain() {
   *(&plan) = EncodeKeyFrames(iiwa, times, info, keyframes);
   iiwa_callback(&plan);
 
-  manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
-  visualizer.visualize(q3);
+//  manipulation::SimpleTreeVisualizer visualizer(*tree, &drake_lcm);
+//  visualizer.visualize(q3);
   KinematicsCache<double> cache = tree->CreateKinematicsCache();
   cache.initialize(q2);
   tree->doKinematics(cache);
