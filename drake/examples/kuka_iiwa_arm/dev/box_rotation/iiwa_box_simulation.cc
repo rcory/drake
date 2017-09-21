@@ -38,7 +38,7 @@
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/common/find_resource.h"
 #include "drake/examples/kuka_iiwa_arm/dev/box_rotation/optitrack_sim.h"
-//#include "external/optitrack_driver/lcmtypes/optitrack/optitrack_frame_t.hpp"
+#include "external/optitrack_driver/lcmtypes/optitrack/optitrack_frame_t.hpp"
 
 DEFINE_string(urdf, "", "Name of urdf file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
