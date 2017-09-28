@@ -98,7 +98,7 @@ void RunPickAndPlaceDemo() {
   const std::string iiwa_end_effector_name = "iiwa_link_ee";
 
   // Makes a WorldState, and sets up LCM subscriptions.
-  WorldState env_state(iiwaLcmSubscriberSystem_path, iiwa_end_effector_name);
+  WorldState env_state(iiwa_path, iiwa_end_effector_name);
   WorldStateSubscriber env_state_subscriber(&lcm, &env_state);
 
   // Spins until at least one message is received from every LCM channel.

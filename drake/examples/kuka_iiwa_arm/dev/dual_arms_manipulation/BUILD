@@ -9,18 +9,21 @@ load(
     "drake_cc_googletest",
 )
 
-drake_cc_library(
-    name = "dual_arms_rotate_box_planner",
-    srcs = ["dual_arms_rotate_box_planner.cc"],
-    hdrs = ["dual_arms_rotate_box_planner.h"],
-    deps = [
-        "//drake/lcm",
-        "//drake/multibody:rigid_body_tree",
-        "//drake/multibody/parsers",
-        "//drake/multibody/rigid_body_plant:drake_visualizer",
-        "//drake/solvers:mathematical_program",
-    ],
-)
+#drake_cc_library(
+#    name = "dual_arms_rotate_box_planner",
+#    srcs = ["dual_arms_rotate_box_planner.cc"],
+#    hdrs = [
+#        "dual_arms_rotate_box_planner.h",
+#    ],
+#    deps = [
+#        "//drake/common:drake_path",
+#        "//drake/lcm",
+#        "//drake/multibody:rigid_body_tree",
+#        "//drake/multibody/parsers",
+#        "//drake/multibody/rigid_body_plant:drake_visualizer",
+#        "//drake/solvers:mathematical_program",
+#    ],
+#)
 
 drake_cc_library(
     name = "dual_arms_box_rotation_planner",
@@ -33,20 +36,12 @@ drake_cc_library(
     ],
 )
 
-drake_cc_binary(
-    name = "dual_arms_rotate_box_demo",
-    srcs = ["dual_arms_rotate_box_demo.cc"],
-    deps = [
-        "dual_arms_rotate_box_planner",
-    ],
-)
-
-drake_cc_googletest(
-    name = "dual_arms_rotate_box_planner_test",
-    deps = [
-        ":dual_arms_rotate_box_planner",
-    ],
-)
+#drake_cc_googletest(
+#    name = "dual_arms_rotate_box_planner_test",
+#    deps = [
+#        ":dual_arms_rotate_box_planner",
+#    ],
+#)
 
 drake_cc_library(
     name = "dual_arms_box_util",
@@ -66,25 +61,25 @@ drake_cc_library(
     ],
 )
 
-drake_cc_binary(
-    name = "dual_arms_box_ik_planner",
-    srcs = ["dual_arms_box_ik_planner.cc"],
-    deps = [
-        "dual_arms_box_util",
-        "//drake/manipulation/util:simple_tree_visualizer",
-        "//drake/multibody:inverse_kinematics",
-    ],
-)
-
-drake_cc_binary(
-    name = "dual_arms_box_rotation_planner_test",
-    srcs = ["test/dual_arms_box_rotation_planner_test.cc"],
-    deps = [
-        "dual_arms_box_rotation_planner",
-        "dual_arms_box_util",
-        "//drake/manipulation/util:simple_tree_visualizer",
-    ],
-)
+#drake_cc_binary(
+#    name = "dual_arms_box_ik_planner",
+#    srcs = ["dual_arms_box_ik_planner.cc"],
+#    deps = [
+#        "dual_arms_box_util",
+#        "//drake/manipulation/util:simple_tree_visualizer",
+#        "//drake/multibody:inverse_kinematics",
+#    ],
+#)
+#
+#drake_cc_binary(
+#    name = "dual_arms_box_rotation_planner_test",
+#    srcs = ["test/dual_arms_box_rotation_planner_test.cc"],
+#    deps = [
+#        "dual_arms_box_rotation_planner",
+#        "dual_arms_box_util",
+#        "//drake/manipulation/util:simple_tree_visualizer",
+#    ],
+#)
 
 drake_cc_binary(
     name = "dual_arms_box_planner_demo",
