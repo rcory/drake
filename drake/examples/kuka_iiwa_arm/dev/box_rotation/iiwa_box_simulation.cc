@@ -35,6 +35,8 @@
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/util/drakeGeometryUtil.h"
+#include "drake/manipulation/perception/optitrack_sim.h"
+#include "external/optitrack_driver/lcmtypes/optitrack/optitrack_frame_t.hpp"
 
 DEFINE_string(urdf, "", "Name of urdf file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
@@ -61,6 +63,7 @@ using systems::InputPortDescriptor;
 using systems::OutputPort;
 using systems::RigidBodyPlant;
 using systems::Simulator;
+using manipulation::perception::OptitrackSim;
 
 const char *const kIiwaUrdf = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
     "models/dual_iiwa14_primitive_sphere_visual_collision.urdf";
@@ -181,6 +184,30 @@ int DoMain() {
   iiwa_status_pub->set_publish_period(kIiwaLcmStatusPeriod);
   auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(14);
   iiwa_status_sender->set_name("iiwa_status_sender");
+
+  /// OptitrackSim stuff
+  auto optitrack_pub = builder.AddSystem(
+      systems::lcm::LcmPublisherSystem::Make<optitrack::optitrack_frame_t>("OPTITRACK_FRAMES",&lcm));
+  optitrack_pub->set_name("optitrack frame publisher");
+  optitrack_pub->set_publish_period(.01);
+  auto optitrack_sender = builder.AddSystem<OptitrackFrameSender>(3);
+  optitrack_sender->set_name("optitrack frame sender");
+
+  /// create the objects to track
+  std::map<std::string, int> optitrack_bodies;
+  optitrack_bodies["left_iiwa_link_0"] = 4;
+  optitrack_bodies["right_iiwa_link_0"] = 3;
+  optitrack_bodies["box"] = 2;
+  auto optitrack_sim = builder.AddSystem<OptitrackSim>(tree, optitrack_bodies);
+  optitrack_sim->set_name("optitrack sim");
+
+  /// More optitrack stuff
+  builder.Connect(model->get_output_port_kinematics_results(),
+                  optitrack_sim->get_kinematics_input_port());
+  builder.Connect(optitrack_sim->get_optitrack_output_port(),
+                  optitrack_sender->get_optitrack_input_port());
+  builder.Connect(optitrack_sender->get_lcm_output_port(),
+                  optitrack_pub->get_input_port(0));
 
   // TODO(rcory): Do we need this accel source?
   auto iiwa_zero_acceleration_source =
