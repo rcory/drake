@@ -185,7 +185,7 @@ int DoMain() {
   auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(14);
   iiwa_status_sender->set_name("iiwa_status_sender");
 
-  /// OptitrackSim stuff
+  /// optitrack_frame_t sender/publisher stuff
   auto optitrack_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<optitrack::optitrack_frame_t>("OPTITRACK_FRAMES",&lcm));
   optitrack_pub->set_name("optitrack frame publisher");
@@ -193,15 +193,29 @@ int DoMain() {
   auto optitrack_sender = builder.AddSystem<OptitrackFrameSender>(3);
   optitrack_sender->set_name("optitrack frame sender");
 
-  /// create the objects to track
+  /// OptitrackSim stuff. Creates the objects to track
   std::map<std::string, int> optitrack_bodies;
   optitrack_bodies["left_iiwa_link_0"] = 4;
   optitrack_bodies["right_iiwa_link_0"] = 3;
   optitrack_bodies["box"] = 2;
-  auto optitrack_sim = builder.AddSystem<OptitrackSim>(tree, optitrack_bodies);
+
+  /// Version 1: create OptitrackSim from body names
+//  auto optitrack_sim = builder.AddSystem<OptitrackSim>(tree, optitrack_bodies);
+//  optitrack_sim->set_name("optitrack sim");
+
+  /// Version 2: create OptitrackSim from RB frames
+  /// create and store the related frames
+  std::map<RigidBodyFrame<double>*, int> optitrack_frames;
+  Eigen::Isometry3d frame_pose = Eigen::Isometry3d::Identity();
+  for (auto it = optitrack_bodies.begin(); it != optitrack_bodies.end(); ++it) {
+    RigidBody<double>* body = tree.FindBody(it->first);
+    optitrack_frames[new RigidBodyFrame<double>(it->first, body, frame_pose)] = it->second;
+  }
+  auto optitrack_sim = builder.AddSystem<OptitrackSim>(tree, optitrack_frames);
   optitrack_sim->set_name("optitrack sim");
 
-  /// More optitrack stuff
+
+  /// Connect optitrack systems
   builder.Connect(model->get_output_port_kinematics_results(),
                   optitrack_sim->get_kinematics_input_port());
   builder.Connect(optitrack_sim->get_optitrack_output_port(),
