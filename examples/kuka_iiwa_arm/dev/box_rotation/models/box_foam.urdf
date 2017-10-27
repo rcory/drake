@@ -1,0 +1,171 @@
+<?xml version="1.0" ?>
+<robot name = "box_foam">
+  <material name="Black">
+    <color rgba="0.0 0.0 0.0 1.0"/>
+  </material>
+  <material name="Blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  <material name="Green">
+    <color rgba="0.0 0.8 0.0 1.0"/>
+  </material>
+  <material name="Grey">
+    <color rgba="0.4 0.4 0.4 1.0"/>
+  </material>
+  <material name="Orange">
+    <color rgba="1.0 0.423529411765 0.0392156862745 1.0"/>
+  </material>
+  <material name="Brown">
+    <color rgba="0.870588235294 0.811764705882 0.764705882353 1.0"/>
+  </material>
+  <material name="Tan">
+    <color rgba="0.823 0.706 0.549 1.0"/>
+  </material>
+  <material name="Red">
+    <color rgba="0.8 0.0 0.0 1.0"/>
+  </material>
+  <material name="White">
+    <color rgba="1.0 1.0 1.0 1.0"/>
+  </material>
+	<link name = "box">
+		<inertial>
+			<origin xyz="0 0 0"/>
+			<mass value="4.5"/>
+            <!-- I = (5/18)*M*a^2 -->
+			<inertia ixx="0.3226" ixy="0" ixz="0" iyy="0.3226" iyz="0" izz="0.3226"/>
+		</inertial>
+	<visual>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<box size="0.508 0.508 0.508"/>
+		</geometry>
+		<material name="Tan"/>
+  </visual>
+
+        <!--collision box-->
+
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0.0"/>
+            <geometry>
+                <box size="0.5 0.5 0.5"/>
+            </geometry>
+        </visual>
+
+	<collision>
+		<origin rpy="0 0 0" xyz="0 0 0.0"/>
+		<geometry>
+			<box size="0.5 0.5 0.5"/>
+		</geometry>
+  </collision>
+
+        <!--collision box-->
+
+    <visual>
+        <origin xyz="-0.25 -0.25 -0.25" rpy="0 0 0"/>
+        <geometry>
+            <sphere radius="1e-3"/>
+        </geometry>
+    </visual>
+  <collision>
+    <origin xyz="-0.25 -0.25 -0.25" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="1e-3"/>
+    </geometry>
+  </collision>
+
+        <visual>
+            <origin xyz="-0.25 0.25 -0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+  <collision>
+    <origin xyz="-0.25 0.25 -0.25" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="1e-3"/>
+    </geometry>
+  </collision>
+
+
+        <visual>
+            <origin xyz="0.25 -0.25 -0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+
+  <collision>
+    <origin xyz="0.25 -0.25 -0.25" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="1e-3"/>
+    </geometry>
+  </collision>
+
+  <visual>
+    <origin xyz="0.25 0.25 -0.25" rpy="0 0 0"/>
+    <geometry>
+        <sphere radius="1e-3"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin xyz="0.25 0.25 -0.25" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="1e-3"/>
+    </geometry>
+  </collision>
+
+<!--separator-->
+        <visual>
+            <origin xyz="0.25 0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0.25 0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </collision>
+
+        <visual>
+            <origin xyz="0.25 -0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0.25 -0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </collision>
+
+        <visual>
+            <origin xyz="-0.25 -0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="-0.25 -0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </collision>
+
+        <visual>
+            <origin xyz="-0.25 0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="-0.25 0.25 0.25" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="1e-3"/>
+            </geometry>
+        </collision>
+
+	</link>
+</robot>

@@ -96,7 +96,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
       "large_extra_heavy_duty_table_surface_only_collision.sdf");
   tree_builder->StoreDrakeModel(
       "box",
-      "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/box.urdf");
+      "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/box_foam.urdf");
 
   // Build a world with three fixed tables.  A box is placed one on
   // table, and the iiwa arms are fixed to the other two tables.
