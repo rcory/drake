@@ -6,6 +6,7 @@ from director import objectmodel as om
 from director import visualization as vis
 from director.debugVis import DebugData
 import numpy as np
+sys.path.append("/Users/rickcory/dev/drake/bazel-bin/tools/drake_visualizer.runfiles/drake/lcmtypes")
 import drake as lcmdrakemsg
 
 
