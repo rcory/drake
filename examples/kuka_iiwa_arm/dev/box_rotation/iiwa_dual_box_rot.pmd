@@ -33,6 +33,11 @@ cmd "3.iiwa_box_demo" {
 }
 
 cmd "4.lcm-spy" {
-    exec = "${DRAKE_WORKSPACE}/bazel-bin/lcmtypes/drake-lcm-spy";
+    exec = "${DRAKE_WORKSPACE}/bazel-bin/lcmtypes/drake-lcm-spy --jvm_flag=-Djava.net.preferIPv4Stack=true";
+    host = "localhost";
+}
+
+cmd "5.director" {
+    exec = "${DRAKE_WORKSPACE}/examples/kuka_iiwa_arm/dev/box_rotation/director_app.sh" ;
     host = "localhost";
 }

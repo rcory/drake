@@ -266,9 +266,12 @@ int DoMain() {
   builder.Connect(iiwa_status_sender->get_output_port(0),
                   iiwa_status_pub->get_input_port());
 
+//  auto iiwa_state_pub = builder.AddSystem(
+//      systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
+//          "IIWA_STATE_EST", &lcm));
   auto iiwa_state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
-          "IIWA_STATE_EST", &lcm));
+          "EST_ROBOT_STATE", &lcm));
   iiwa_state_pub->set_name("iiwa_state_publisher");
   iiwa_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
