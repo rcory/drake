@@ -39,10 +39,14 @@
 #include "drake/systems/sensors/optitrack_encoder.h"
 #include "drake/systems/sensors/optitrack_sender.h"
 #include "drake/util/drakeGeometryUtil.h"
+#include "drake/lcmt_drake_signal.hpp"
+#include "drake/systems/lcm/lcmt_drake_signal_translator.h"
+
 
 DEFINE_string(urdf, "", "Name of urdf file to load");
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
               "Number of seconds to simulate (s)");
+// Set default material properties for aluminum.
 DEFINE_double(youngs_modulus, 6.9e10, "Default material's Young's modulus (Pa)");
 DEFINE_double(dissipation, 5, "Contact Dissipation (s/m)");
 DEFINE_double(static_friction, 0.5, "Static Friction");
@@ -224,6 +228,23 @@ int DoMain() {
   auto optitrack_encoder =
       builder.AddSystem<OptitrackEncoder>(frame_name_to_id_map);
   optitrack_encoder->set_name("optitrack encoder");
+
+  // --- Remove this drake signal version (and it's headers/BUILD dependencies)
+  // --- once I submit the PR to update iiwa_lcm.h/.cc
+//  // Create the computed torque publisher system
+//  systems::lcm::LcmtDrakeSignalTranslator torque_translator(14);
+//  auto torque_pub = builder.AddSystem(
+//      std::make_unique<systems::lcm::LcmPublisherSystem>(
+//          "COMPUTED_TORQUE", torque_translator, &lcm));
+//  torque_pub->set_publish_period(0.01);
+//
+//  // Connect the torque output to the publisher.
+//  builder.Connect(
+//      model->get_output_port_computed_torque(), torque_pub->get_input_port(0));
+
+  // Connect the computed torque output to iiwa_status_sender
+  builder.Connect(model->get_output_port_computed_torque(),
+                  iiwa_status_sender->get_torque_command_input_port());
 
   // Connect the systems related to tracking bodies.
   builder.Connect(model->get_output_port_kinematics_results(),
