@@ -25,7 +25,7 @@ namespace box_rotation {
 namespace {
 
 const char* const kKeyFramePath = "drake/examples/kuka_iiwa_arm/dev/"
-    "box_rotation/robot_keyframes.txt";
+    "box_rotation/robot_keyframes_foam_box.txt";
 const char* const kIiwaUrdf =
     "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
         "models/dual_iiwa14_primitive_sphere_visual_collision.urdf";

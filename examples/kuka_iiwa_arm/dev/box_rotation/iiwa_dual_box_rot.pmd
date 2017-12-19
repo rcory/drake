@@ -26,7 +26,7 @@ cmd "2.iiwa_controller" {
 }
 
 cmd "3.iiwa_box_demo" {
-	exec = "${DRAKE_WORKSPACE}/bazel-bin/examples/kuka_iiwa_arm/dev/box_rotation/box_rotation_demo --keyframes ${DRAKE_WORKSPACE}/examples/kuka_iiwa_arm/dev/box_rotation/robot_keyframes.txt --urdf ${DRAKE_WORKSPACE}/examples/kuka_iiwa_arm/dev/box_rotation/models/${URDF}"; 
+	exec = "${DRAKE_WORKSPACE}/bazel-bin/examples/kuka_iiwa_arm/dev/box_rotation/box_rotation_demo --keyframes ${DRAKE_WORKSPACE}/examples/kuka_iiwa_arm/dev/box_rotation/robot_keyframes_foam_box.txt --urdf ${DRAKE_WORKSPACE}/examples/kuka_iiwa_arm/dev/box_rotation/models/${URDF}"; 
 	host = "localhost";
 }
 

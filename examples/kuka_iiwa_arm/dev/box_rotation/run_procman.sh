@@ -15,8 +15,8 @@
 #
 #export URDF=dual_iiwa14_primitive_cylinder_visual_collision.urdf
 #export URDF=dual_iiwa14_primitive_cylinder_collision_only.urdf
-export URDF=dual_iiwa14_primitive_sphere_collision_only.urdf
-#export URDF=dual_iiwa14_primitive_sphere_visual_collision.urdf
+#export URDF=dual_iiwa14_primitive_sphere_collision_only.urdf
+export URDF=dual_iiwa14_primitive_sphere_visual_collision.urdf
 #export URDF=dual_iiwa14_visual_only
 
 # Run procman
