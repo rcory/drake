@@ -70,8 +70,6 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm:iiwa_lcm",
         "//drake/examples/kuka_iiwa_arm:oracular_state_estimator",
         "//drake/lcm",
-        "//drake/lcmtypes:drake_signal",
-        "//drake/systems/lcm:lcmt_drake_signal_translator",
         "//drake/lcmtypes:contact_info_for_viz",
         "//drake/lcmtypes:contact_results_for_viz",
         "//drake/manipulation/util:frame_pose_tracker",
