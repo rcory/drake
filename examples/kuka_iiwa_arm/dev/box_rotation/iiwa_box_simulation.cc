@@ -110,11 +110,11 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
       Eigen::Vector3d::Zero() /* rpy */);
   tree_builder->AddFixedModelInstance(
       "table", /* left arm */
-      Eigen::Vector3d(0, 0.9, 0) /* xyz */,
+      Eigen::Vector3d(0, 0.8746, 0) /* xyz */,
       Eigen::Vector3d::Zero() /* rpy */);
   tree_builder->AddFixedModelInstance(
       "large_table", /* box */
-      Eigen::Vector3d(0.72, 0.9/2, 0) /* xyz */,
+      Eigen::Vector3d(0.72, 0.8746/2, 0) /* xyz */,
       Eigen::Vector3d::Zero() /* rpy */);
 
   tree_builder->AddGround();
@@ -132,9 +132,9 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // TODO(rcory): Could I grab the arm distance from the URDF directly?
   const Eigen::Vector3d kRobotBase(0, 0, kTableTopZInWorld);
   // Start the box on the table and place it between the two arms.
-  // The distance between the two arms is y=0.9m. Each edge of the box measures
+  // The distance between the two arms is y=0.8746m. Each edge of the box measures
   // 0.565 m.
-  const Eigen::Vector3d kBoxBase(0.7, 0.9/2 , kTableTopZInWorld + 0.565/2);
+  const Eigen::Vector3d kBoxBase(0.7, 0.8746/2 , kTableTopZInWorld + 0.508/2);
 
   int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase);
   *iiwa_instance = tree_builder->get_model_info_for_instance(id);
