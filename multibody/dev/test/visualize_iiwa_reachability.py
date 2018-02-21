@@ -6,8 +6,8 @@ import bot_core as lcmbotcore
 def receiveMessage(msg):
     drake_path = '/home/hongkai/drake-distro'
 
-    robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/drake/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
-    jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))
+    #robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
+    #jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))
 
     folderName = 'my data'
 
@@ -21,8 +21,6 @@ def receiveMessage(msg):
     data = pickle.loads(msg.data)
 
     d_reachable = DebugData()
-    d_unreachable = DebugData()
-    d_unknown = DebugData()
 
     file = open(drake_path + '/iiwa_reachability_global_ik.txt', 'r')
 
@@ -30,15 +28,26 @@ def receiveMessage(msg):
 
     line_number = 0
 
+    num_orient = 5
+    orient_count = 0
+    num_reachable_orient = 0
     while line_number < len(lines):
         line = lines[line_number]
-        if line.startswith("position:"):
+        if line.startswith("pos count:"):
+            pos_count_str = lines[line_number].split(':')
+            pos_count = int(pos_count_str[1])
+        elif line.startswith("orient count:"):
+            orient_count_str = lines[line_number].split(':')
+            orient_count = int(orient_count_str[1])
+        elif line.startswith("position:"):
             line_number = line_number + 1
             pos_str = lines[line_number].split()
             pos = [float(pos_str[0]), float(pos_str[1]), float(pos_str[2])]
         elif line.startswith("nonlinear ik info:"):
             nonlinear_ik_status_str = line.split(':')
             nonlinear_ik_status = int(nonlinear_ik_status_str[1])
+            if (nonlinear_ik_status <= 10):
+                num_reachable_orient = num_reachable_orient + 1
         elif line.startswith("global_ik info:"):
             global_ik_status_str = line.split(':')
             global_ik_status = int(global_ik_status_str[1])
@@ -46,17 +55,15 @@ def receiveMessage(msg):
             nonlinear_ik_resolve_status_str = line.split(':')
             nonlinear_ik_resolve_status = int(nonlinear_ik_status_str[1])
 
-            if nonlinear_ik_resolve_status <= 10 or nonlinear_ik_resolve_status <= 10 :
-                d_reachable.addSphere(pos, radius = 0.01, color = [0, 1, 0])
-            elif global_ik_status == -2:
-                d_unreachable.addSphere(pos, radius = 0.01, color = [1, 0, 0])
-            else:
-                d_unknown.addSphere(pos, radius = 0.01, color = [0, 0, 1])
+            if orient_count == 4:
+                print num_reachable_orient
+                reachable_color = [(num_orient - num_reachable_orient) / num_orient, num_reachable_orient / num_orient, 0]
+                d_reachable.addSphere(pos, radius = 0.01, color = reachable_color)
+                # reset num_reachable_orient
+                num_reachable_orient = 0
         line_number = line_number + 1
 
     vis.showPolyData(d_reachable.getPolyData(), 'reachable', parent = folder, colorByName = 'RGB255')
-    vis.showPolyData(d_unreachable.getPolyData(), 'unreachable', parent = folder, colorByName = 'RGB255')
-    vis.showPolyData(d_unknown.getPolyData(), 'unknown', parent = folder, colorByName = 'RGB255')
 
 
 def publishData():

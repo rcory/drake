@@ -51,7 +51,7 @@ std::array<Eigen::Vector3d, kNumSampleX * kNumSampleY * kNumSampleZ>
 GenerateEEposition() {
   constexpr int kNumSample = kNumSampleX * kNumSampleY * kNumSampleZ;
   Eigen::Matrix<double, kNumSampleZ, 1> sample_z =
-      Eigen::Matrix<double, kNumSampleZ, 1>::LinSpaced(kNumSampleZ, -0.1, 0.1);
+      Eigen::Matrix<double, kNumSampleZ, 1>::LinSpaced(kNumSampleZ, 0.05, 0.25);
   Eigen::Matrix<double, kNumSampleX, 1> sample_x =
       Eigen::Matrix<double, kNumSampleX, 1>::LinSpaced(kNumSampleX, -0.8, 0.8);
   Eigen::Matrix<double, kNumSampleX, 1> sample_y =
@@ -110,17 +110,29 @@ int DoMain() {
   ee_orient_des << 0, 1, 0, 0, 0, -1, -1, 0, 0;
   const Eigen::Quaterniond ee_quat_des(ee_orient_des);
 
-  Eigen::Matrix3d link6_orient_des;
-  link6_orient_des << 1, 0, 0, 0, 0, 1, 0, -1, 0;
-  const Eigen::Quaterniond link6_quat_des(link6_orient_des);
+  // We will count how many different orientations link 6 can reach.
+  constexpr int kNumOrient = 5;
+  std::array<Eigen::Matrix3d, kNumOrient> link6_orient_des;
+  link6_orient_des[0] << 1, 0, 0, 0, 0, 1, 0, -1, 0;
+  link6_orient_des[1] =
+      link6_orient_des[0] *
+      Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitX()).matrix();
+  link6_orient_des[2] =
+      link6_orient_des[0] *
+      Eigen::AngleAxisd(-M_PI / 4, Eigen::Vector3d::UnitX()).matrix();
+  link6_orient_des[3] =
+      link6_orient_des[0] *
+      Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ()).matrix();
+  link6_orient_des[4] =
+      link6_orient_des[0] *
+      Eigen::AngleAxisd(-M_PI / 4, Eigen::Vector3d::UnitZ()).matrix();
 
   Eigen::VectorXd q_sol;
-  int nonlinear_ik_info;
-  
+  std::array<int, kNumOrient> nonlinear_ik_info;
 
   GlobalInverseKinematics global_ik(*tree);
   for (int i = 1; i < tree->get_num_bodies(); ++i) {
-    const auto &body_R = global_ik.body_rotation_matrix(i);
+    const auto& body_R = global_ik.body_rotation_matrix(i);
     Eigen::Matrix<symbolic::Expression, 5, 1> cone_expr;
     cone_expr(0) = 1.0;
     cone_expr(1) = 3.0;
@@ -150,12 +162,12 @@ int DoMain() {
       0, 0, global_ik.body_position(link6_idx));
   const auto& link6_R = global_ik.body_rotation_matrix(link6_idx);
   Eigen::Matrix<double, 9, 1> link6_rotmat_des_flat;
-  link6_rotmat_des_flat << link6_orient_des.col(0), link6_orient_des.col(1),
-      link6_orient_des.col(2);
+  link6_rotmat_des_flat << link6_orient_des[0].col(0), link6_orient_des[0].col(1),
+      link6_orient_des[0].col(2);
   solvers::VectorDecisionVariable<9> link6_R_flat;
   link6_R_flat << link6_R.col(0), link6_R.col(1), link6_R.col(2);
-  global_ik.AddBoundingBoxConstraint(link6_rotmat_des_flat,
-                                     link6_rotmat_des_flat, link6_R_flat);
+  auto orient_cnstr = global_ik.AddBoundingBoxConstraint(
+      link6_rotmat_des_flat, link6_rotmat_des_flat, link6_R_flat);
   int pos_sample_count = 0;
   std::array<Eigen::VectorXd, 50> q0s;
   q0s[0] = Eigen::VectorXd::Zero(7);
@@ -163,36 +175,46 @@ int DoMain() {
     q0s[i] = Eigen::VectorXd::Random(7);
   }
   for (const auto& pos_sample : ee_pos_samples) {
-    nonlinear_ik_info = 13;
-    for (const auto& q0: q0s) {
-      SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des, q0,
-                       &nonlinear_ik_info, &q_sol);
-      if (nonlinear_ik_info <= 10) {
-        break;
+    nonlinear_ik_info.fill(13);
+    for (int i = 0; i < kNumOrient; ++i) {
+      const Eigen::Quaterniond link6_quat_des(link6_orient_des[i]);
+      for (const auto& q0 : q0s) {
+        SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des, q0,
+                         &nonlinear_ik_info[i], &q_sol);
+        if (nonlinear_ik_info[i] <= 10) {
+          break;
+        }
       }
-    }
-    solvers::SolutionResult global_ik_result{
-        solvers::SolutionResult::kSolutionFound};
-    int nonlinear_ik_resolve_info = 0;
-    if (nonlinear_ik_info > 10) {
-      pos_cnstr.constraint()->UpdateLowerBound(pos_sample);
-      pos_cnstr.constraint()->UpdateUpperBound(pos_sample);
-      solvers::GurobiSolver gurobi_solver;
-      global_ik_result = gurobi_solver.Solve(global_ik);
-      if (global_ik_result == SolutionResult::kSolutionFound) {
-        Eigen::VectorXd q_global_ik =
-            global_ik.ReconstructGeneralizedPositionSolution();
-        SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des,
-                         q_global_ik, &nonlinear_ik_resolve_info, &q_sol);
+
+      solvers::SolutionResult global_ik_result{
+          solvers::SolutionResult::kSolutionFound};
+      int nonlinear_ik_resolve_info = 0;
+      if (nonlinear_ik_info[i] > 10) {
+        pos_cnstr.constraint()->UpdateLowerBound(pos_sample);
+        pos_cnstr.constraint()->UpdateUpperBound(pos_sample);
+        link6_rotmat_des_flat << link6_orient_des[i].col(0),
+            link6_orient_des[i].col(1), link6_orient_des[i].col(2);
+        orient_cnstr.constraint()->UpdateLowerBound(link6_rotmat_des_flat);
+        orient_cnstr.constraint()->UpdateUpperBound(link6_rotmat_des_flat);
+        solvers::GurobiSolver gurobi_solver;
+        global_ik_result = gurobi_solver.Solve(global_ik);
+        if (global_ik_result == SolutionResult::kSolutionFound) {
+          Eigen::VectorXd q_global_ik =
+              global_ik.ReconstructGeneralizedPositionSolution();
+          SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des,
+                           q_global_ik, &nonlinear_ik_resolve_info, &q_sol);
+        }
       }
-    }
-    if (output_file.is_open()) {
-      output_file << "\nposition:\n" << pos_sample.transpose() << std::endl;
-      output_file << "nonlinear ik info:" << nonlinear_ik_info << std::endl;
-      output_file << "global_ik info:" << global_ik_result << std::endl;
-      output_file << "nonlinear ik resolve info:"
-                  << nonlinear_ik_resolve_info << std::endl;
-      output_file << std::endl;
+      if (output_file.is_open()) {
+        output_file << "pos count: " << pos_sample_count << std::endl;
+        output_file << "orient count: " << i << std::endl;
+        output_file << "position:\n" << pos_sample.transpose() << std::endl;
+        output_file << "nonlinear ik info:" << nonlinear_ik_info[i] << std::endl;
+        output_file << "global_ik info:" << global_ik_result << std::endl;
+        output_file << "nonlinear ik resolve info:" << nonlinear_ik_resolve_info
+                    << std::endl;
+        output_file << std::endl;
+      }
     }
     std::cout << "pos count: " << pos_sample_count << std::endl;
     pos_sample_count++;
