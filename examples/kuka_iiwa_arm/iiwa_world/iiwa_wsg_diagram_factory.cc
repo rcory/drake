@@ -28,7 +28,7 @@ IiwaAndWsgPlantWithStateEstimator<T>::IiwaAndWsgPlantWithStateEstimator(
     throw std::logic_error("The number of arms and grippers do not match.");
   }
   const int kNumArms = iiwa_instances.size();
-  const int kNumObjects = object_instances.size();
+  const int kNumObjects = 0;//object_instances.size();
   this->set_name("IiwaAndWsgPlantWithStateEstimator");
 
   manipulation::util::SimDiagramBuilder<T> builder;

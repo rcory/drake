@@ -56,12 +56,12 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <self_collision_checking>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <geometry>
-        <capsule length="0.25" radius="0.15"/>
-      </geometry>
-    </self_collision_checking>
+    <!--<self_collision_checking>-->
+      <!--<origin rpy="0 0 0" xyz="0 0 0"/>-->
+      <!--<geometry>-->
+        <!--<capsule length="0.25" radius="0.15"/>-->
+      <!--</geometry>-->
+    <!--</self_collision_checking>-->
   </link>
   <!-- joint between link_0 and link_1 -->
   <joint name="iiwa_joint_1" type="revolute">
@@ -242,13 +242,13 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <geometry>
-        <mesh filename="../meshes/collision/link_7_polytope.obj"/>
-      </geometry>
-      <material name="Grey"/>
-    </collision>
+    <!--<collision>-->
+      <!--<origin rpy="0 0 0" xyz="0 0 0"/>-->
+      <!--<geometry>-->
+        <!--<mesh filename="../meshes/collision/link_7_polytope.obj"/>-->
+      <!--</geometry>-->
+      <!--<material name="Grey"/>-->
+    <!--</collision>-->
   </link>
   <joint name="iiwa_joint_ee" type="fixed">
     <parent link="iiwa_link_7"/>
