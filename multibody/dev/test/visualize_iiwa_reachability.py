@@ -20,7 +20,13 @@ def receiveMessage(msg):
     # unpack message
     data = pickle.loads(msg.data)
 
-    d_reachable = DebugData()
+    d_reachable0 = DebugData()
+    d_reachable1 = DebugData()
+    d_reachable2 = DebugData()
+    d_reachable3 = DebugData()
+    d_reachable4 = DebugData()
+    d_reachable5 = DebugData()
+    d_reachable = [d_reachable0, d_reachable1, d_reachable2, d_reachable3, d_reachable4, d_reachable5]
 
     file = open(drake_path + '/iiwa_reachability_global_ik.txt', 'r')
 
@@ -56,14 +62,15 @@ def receiveMessage(msg):
             nonlinear_ik_resolve_status = int(nonlinear_ik_status_str[1])
 
             if orient_count == 4:
-                print num_reachable_orient
-                reachable_color = [(num_orient - num_reachable_orient) / num_orient, num_reachable_orient / num_orient, 0]
-                d_reachable.addSphere(pos, radius = 0.01, color = reachable_color)
+                reachable_color = [float(num_orient - num_reachable_orient) / num_orient, float(num_reachable_orient) / num_orient, 0]
+                d_reachable[num_reachable_orient].addSphere(pos, radius = 0.01, color = reachable_color)
                 # reset num_reachable_orient
                 num_reachable_orient = 0
         line_number = line_number + 1
 
-    vis.showPolyData(d_reachable.getPolyData(), 'reachable', parent = folder, colorByName = 'RGB255')
+    for i in range(num_orient + 1):
+        name = 'reachable' + str(i)
+        vis.showPolyData(d_reachable[i].getPolyData(), name, parent = folder, colorByName = 'RGB255')
 
 
 def publishData():
