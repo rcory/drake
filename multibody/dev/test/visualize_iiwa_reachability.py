@@ -4,7 +4,7 @@ import pickle
 import bot_core as lcmbotcore
 
 def receiveMessage(msg):
-    drake_path = '/home/hongkai/drake-distro'
+    drake_path = '/home/hongkai/drake-distro-bk'
 
     #robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
     #jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))
@@ -20,13 +20,6 @@ def receiveMessage(msg):
     # unpack message
     data = pickle.loads(msg.data)
 
-    d_reachable0 = DebugData()
-    d_reachable1 = DebugData()
-    d_reachable2 = DebugData()
-    d_reachable3 = DebugData()
-    d_reachable4 = DebugData()
-    d_reachable5 = DebugData()
-    d_reachable = [d_reachable0, d_reachable1, d_reachable2, d_reachable3, d_reachable4, d_reachable5]
 
     file = open(drake_path + '/iiwa_reachability_global_ik.txt', 'r')
 
@@ -34,7 +27,10 @@ def receiveMessage(msg):
 
     line_number = 0
 
-    num_orient = 5
+    num_orient = 15 
+    d_reachable = []
+    for i in range(num_orient + 1):
+        d_reachable.append(DebugData())
     orient_count = 0
     num_reachable_orient = 0
     while line_number < len(lines):

@@ -51,7 +51,7 @@ std::array<Eigen::Vector3d, kNumSampleX * kNumSampleY * kNumSampleZ>
 GenerateEEposition() {
   constexpr int kNumSample = kNumSampleX * kNumSampleY * kNumSampleZ;
   Eigen::Matrix<double, kNumSampleZ, 1> sample_z =
-      Eigen::Matrix<double, kNumSampleZ, 1>::LinSpaced(kNumSampleZ, 0.05, 0.25);
+      Eigen::Matrix<double, kNumSampleZ, 1>::LinSpaced(kNumSampleZ, 0.05, 0.85);
   Eigen::Matrix<double, kNumSampleX, 1> sample_x =
       Eigen::Matrix<double, kNumSampleX, 1>::LinSpaced(kNumSampleX, -0.8, 0.8);
   Eigen::Matrix<double, kNumSampleX, 1> sample_y =
@@ -90,7 +90,7 @@ void SolveNonlinearIK(RigidBodyTreed* robot, int ee_idx,
 
 int DoMain() {
   // First generate the sample end effector position
-  constexpr int kNumSampleZ = 5;
+  constexpr int kNumSampleZ = 21;
   constexpr int kNumSampleX = 41;
   constexpr int kNumSampleY = 41;
   const auto ee_pos_samples =
@@ -111,21 +111,15 @@ int DoMain() {
   const Eigen::Quaterniond ee_quat_des(ee_orient_des);
 
   // We will count how many different orientations link 6 can reach.
-  constexpr int kNumOrient = 5;
+  constexpr int kNumOrient = 15;
   std::array<Eigen::Matrix3d, kNumOrient> link6_orient_des;
   link6_orient_des[0] << 1, 0, 0, 0, 0, 1, 0, -1, 0;
-  link6_orient_des[1] =
-      link6_orient_des[0] *
-      Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitX()).matrix();
-  link6_orient_des[2] =
-      link6_orient_des[0] *
-      Eigen::AngleAxisd(-M_PI / 4, Eigen::Vector3d::UnitX()).matrix();
-  link6_orient_des[3] =
-      link6_orient_des[0] *
-      Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ()).matrix();
-  link6_orient_des[4] =
-      link6_orient_des[0] *
-      Eigen::AngleAxisd(-M_PI / 4, Eigen::Vector3d::UnitZ()).matrix();
+  for (int i = 0; i < 8; ++i) {
+    link6_orient_des[i] = link6_orient_des[0] * Eigen::AngleAxisd(M_PI / 4 * i, Eigen::Vector3d::UnitX()).matrix();
+  }
+  for (int i = 1; i < 8; ++i) {
+    link6_orient_des[i + 7] = link6_orient_des[0] * Eigen::AngleAxisd(M_PI / 4 * i, Eigen::Vector3d::UnitX()).matrix();
+  }
 
   Eigen::VectorXd q_sol;
   std::array<int, kNumOrient> nonlinear_ik_info;
@@ -169,9 +163,9 @@ int DoMain() {
   auto orient_cnstr = global_ik.AddBoundingBoxConstraint(
       link6_rotmat_des_flat, link6_rotmat_des_flat, link6_R_flat);
   int pos_sample_count = 0;
-  std::array<Eigen::VectorXd, 50> q0s;
+  std::array<Eigen::VectorXd, 20> q0s;
   q0s[0] = Eigen::VectorXd::Zero(7);
-  for (int i = 1; i < 50; ++i) {
+  for (int i = 1; i < 20; ++i) {
     q0s[i] = Eigen::VectorXd::Random(7);
   }
   for (const auto& pos_sample : ee_pos_samples) {
@@ -189,7 +183,7 @@ int DoMain() {
       solvers::SolutionResult global_ik_result{
           solvers::SolutionResult::kSolutionFound};
       int nonlinear_ik_resolve_info = 0;
-      if (nonlinear_ik_info[i] > 10) {
+      /*if (nonlinear_ik_info[i] > 10) {
         pos_cnstr.constraint()->UpdateLowerBound(pos_sample);
         pos_cnstr.constraint()->UpdateUpperBound(pos_sample);
         link6_rotmat_des_flat << link6_orient_des[i].col(0),
@@ -204,7 +198,7 @@ int DoMain() {
           SolveNonlinearIK(tree.get(), link6_idx, pos_sample, link6_quat_des,
                            q_global_ik, &nonlinear_ik_resolve_info, &q_sol);
         }
-      }
+      }*/
       if (output_file.is_open()) {
         output_file << "pos count: " << pos_sample_count << std::endl;
         output_file << "orient count: " << i << std::endl;
