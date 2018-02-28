@@ -4,7 +4,7 @@ import pickle
 import bot_core as lcmbotcore
 
 def receiveMessage(msg):
-    drake_path = '/home/hongkai/drake-distro-bk'
+    drake_path = '/home/rcory/dev/drake'
 
     #robotModel, jointController = roboturdf.loadRobotModel(urdfFile=drake_path+"/manipulation/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", view=view, useConfigFile=False)
     #jointController.setPose('my posture', np.zeros(len(jointController.jointNames)))

@@ -43,7 +43,7 @@ int DoMain() {
 
   // Simple demo that iterates through a bunch of joint configurations.
   for (int i = 0; i < FLAGS_num_configurations; ++i) {
-    simple_tree_visualizer.visualize(Eigen::VectorXd::Random(7));
+    simple_tree_visualizer.visualize(Eigen::VectorXd::Zero(7));
 
     // Sleep for a second just so that the new configuration can be seen
     // on the visualizer.
