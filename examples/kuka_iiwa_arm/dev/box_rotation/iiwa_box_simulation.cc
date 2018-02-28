@@ -74,8 +74,8 @@ using manipulation::util::FramePoseTracker;
 using systems::sensors::OptitrackEncoder;
 using systems::sensors::OptitrackLCMFrameSender;
 
-const char *const kIiwaUrdf = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
-    "models/dual_iiwa14_primitive_sphere_visual_collision.urdf";
+const char *const kIiwaUrdf = "drake/manipulation/models/iiwa_description/urdf/"
+    "iiwa14_polytope_collision.urdf";
 
 template<typename T>
 std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
@@ -91,54 +91,70 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // Adds models to the simulation builder. Instances of these models can be
   // subsequently added to the world.
   tree_builder->StoreModel("iiwa", iiwa_path);
+
   tree_builder->StoreDrakeModel(
-      "table",
-      "drake/examples/kuka_iiwa_arm/models/table/"
-      "extra_heavy_duty_table_surface_only_collision.sdf");
+      "table_soiled", "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/"
+          "table_soiled.sdf");
   tree_builder->StoreDrakeModel(
-      "large_table", "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/"
-      "large_extra_heavy_duty_table_surface_only_collision.sdf");
+      "table_staging", "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/"
+      "table_staging.sdf");
   tree_builder->StoreDrakeModel(
-      "box",
-      "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/box.urdf");
+      "table_clean", "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/"
+          "table_clean.sdf");
+
+  tree_builder->StoreDrakeModel(
+      "washer", "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/"
+          "hobart_rough.urdf");
+
+
+  tree_builder->StoreDrakeModel(
+      "mug",
+      "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/plastic_mug.urdf");
+
+  const double kTableHeight = 0.736 + 0.057 / 2;
 
   // Build a world with three fixed tables.  A box is placed one on
   // table, and the iiwa arms are fixed to the other two tables.
   tree_builder->AddFixedModelInstance(
-      "table", /* right arm */
-      Eigen::Vector3d(0, 0, 0) /* xyz */,
+      "table_soiled", /* right arm */
+      Eigen::Vector3d(0.6, 0, 0.2-kTableHeight) /* xyz */,
       Eigen::Vector3d::Zero() /* rpy */);
   tree_builder->AddFixedModelInstance(
-      "table", /* left arm */
-      Eigen::Vector3d(0, 0.9, 0) /* xyz */,
+      "table_clean", /* left arm */
+      Eigen::Vector3d(0.6, 1.9, 0.2-kTableHeight) /* xyz */,
       Eigen::Vector3d::Zero() /* rpy */);
   tree_builder->AddFixedModelInstance(
-      "large_table", /* box */
-      Eigen::Vector3d(0.72, 0.9/2, 0) /* xyz */,
-      Eigen::Vector3d::Zero() /* rpy */);
+      "table_staging", /* box */
+      Eigen::Vector3d(-0.3, -0.7, 0.15-kTableHeight) /* xyz */,
+      Eigen::Vector3d(0, 0, 1.57) /* rpy */);
 
-  tree_builder->AddGround();
+  tree_builder->AddFixedModelInstance(
+      "washer", /* box */
+      Eigen::Vector3d(0.6, 0.95, 0.1-kTableHeight),
+      Eigen::Vector3d(0, 0, 3.14));
+
+  //tree_builder->AddGround();
 
   // The `z` coordinate of the top of the table in the world frame.
   // The quantity 0.736 is the `z` coordinate of the frame associated with the
   // 'surface' collision element in the SDF. This element uses a box of height
   // 0.057m thus giving the surface height (`z`) in world coordinates as
   // 0.736 + 0.057 / 2.
-  const double kTableTopZInWorld = 0.736 + 0.057 / 2;
+//  const double kTableTopZInWorld = 0;//0.736 + 0.057 / 2;
 
   // Coordinates for the right robot arm, which is centered at x=0, y=0
   // The left arm is 0.9m away from the right arm in the y-axis (specified
   // in the urdf).
   // TODO(rcory): Could I grab the arm distance from the URDF directly?
-  const Eigen::Vector3d kRobotBase(0, 0, kTableTopZInWorld);
+  const Eigen::Vector3d kRobotBase(0, 0, kTableHeight*0);
   // Start the box on the table and place it between the two arms.
   // The distance between the two arms is y=0.9m. Each edge of the box measures
   // 0.565 m.
-  const Eigen::Vector3d kBoxBase(0.7, 0.9/2 , kTableTopZInWorld + 0.565/2);
+  const Eigen::Vector3d kBoxBase(0, -0.5, 0.1 + kTableHeight*0 + 0.102 / 2 + 1E-3);
 
   int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase);
   *iiwa_instance = tree_builder->get_model_info_for_instance(id);
-  id = tree_builder->AddFloatingModelInstance("box", kBoxBase,
+  id = tree_builder->AddFloatingModelInstance("mug", kBoxBase,
                                               Vector3<double>(0, 0, 0));
   *box_instance = tree_builder->get_model_info_for_instance(id);
 
@@ -189,7 +205,7 @@ int DoMain() {
       systems::lcm::LcmSubscriberSystem::Make<lcmt_iiwa_command>("IIWA_COMMAND",
                                                                  &lcm));
   iiwa_command_sub->set_name("iiwa_command_subscriber");
-  auto iiwa_command_receiver = builder.AddSystem<IiwaCommandReceiver>(14);
+  auto iiwa_command_receiver = builder.AddSystem<IiwaCommandReceiver>(7);
   iiwa_command_receiver->set_name("iwwa_command_receiver");
 
   auto iiwa_status_pub = builder.AddSystem(
@@ -197,52 +213,52 @@ int DoMain() {
                                                                &lcm));
   iiwa_status_pub->set_name("iiwa_status_publisher");
   iiwa_status_pub->set_publish_period(kIiwaLcmStatusPeriod);
-  auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(14);
+  auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(7);
   iiwa_status_sender->set_name("iiwa_status_sender");
 
-  // Create the Optitrack sender and publisher. The sender is configured to
-  // send three objects: left arm base, right arm base, and box.
-  auto optitrack_sender = builder.AddSystem<OptitrackLCMFrameSender>(3);
-  optitrack_sender->set_name("optitrack frame sender");
-  auto optitrack_pub = builder.AddSystem(
-      systems::lcm::LcmPublisherSystem::Make<optitrack::optitrack_frame_t>(
-          "OPTITRACK_FRAMES", &lcm));
-  optitrack_pub->set_name("optitrack frame publisher");
-  optitrack_pub->set_publish_period(systems::sensors::kLcmStatusPeriod);
+//  // Create the Optitrack sender and publisher. The sender is configured to
+//  // send three objects: left arm base, right arm base, and box.
+//  auto optitrack_sender = builder.AddSystem<OptitrackLCMFrameSender>(3);
+//  optitrack_sender->set_name("optitrack frame sender");
+//  auto optitrack_pub = builder.AddSystem(
+//      systems::lcm::LcmPublisherSystem::Make<optitrack::optitrack_frame_t>(
+//          "OPTITRACK_FRAMES", &lcm));
+//  optitrack_pub->set_name("optitrack frame publisher");
+//  optitrack_pub->set_publish_period(systems::sensors::kLcmStatusPeriod);
+//
+//  // Create the FramePoseTracker system.
+//  std::map<std::string, std::pair<std::string, int>> frame_info;
+//  frame_info["left_iiwa_base"] = std::make_pair("left_iiwa_link_0", -1);
+//  frame_info["right_iiwa_base"] = std::make_pair("right_iiwa_link_0", -1);
+//  frame_info["box"] = std::make_pair("box", -1);
+//  auto pose_tracker = builder.AddSystem<FramePoseTracker>(tree, frame_info);
+//  pose_tracker->set_name("frame pose tracker");
+//
+//  // Create the OptitrackEncoder system. This assigns a unique Optitrack ID to
+//  // each tracked frame (similar to the Motive software). These are used to
+//  // create a tracked Optitrack body.
+//  std::map<std::string, int> frame_name_to_id_map;
+//  frame_name_to_id_map["left_iiwa_base"] = 1;
+//  frame_name_to_id_map["right_iiwa_base"] = 2;
+//  frame_name_to_id_map["box"] = 3;
+//  auto optitrack_encoder =
+//      builder.AddSystem<OptitrackEncoder>(frame_name_to_id_map);
+//  optitrack_encoder->set_name("optitrack encoder");
 
-  // Create the FramePoseTracker system.
-  std::map<std::string, std::pair<std::string, int>> frame_info;
-  frame_info["left_iiwa_base"] = std::make_pair("left_iiwa_link_0", -1);
-  frame_info["right_iiwa_base"] = std::make_pair("right_iiwa_link_0", -1);
-  frame_info["box"] = std::make_pair("box", -1);
-  auto pose_tracker = builder.AddSystem<FramePoseTracker>(tree, frame_info);
-  pose_tracker->set_name("frame pose tracker");
-
-  // Create the OptitrackEncoder system. This assigns a unique Optitrack ID to
-  // each tracked frame (similar to the Motive software). These are used to
-  // create a tracked Optitrack body.
-  std::map<std::string, int> frame_name_to_id_map;
-  frame_name_to_id_map["left_iiwa_base"] = 1;
-  frame_name_to_id_map["right_iiwa_base"] = 2;
-  frame_name_to_id_map["box"] = 3;
-  auto optitrack_encoder =
-      builder.AddSystem<OptitrackEncoder>(frame_name_to_id_map);
-  optitrack_encoder->set_name("optitrack encoder");
-
-  // Connect the systems related to tracking bodies.
-  builder.Connect(model->get_output_port_kinematics_results(),
-                  pose_tracker->get_kinematics_input_port());
-  builder.Connect(pose_tracker->get_pose_bundle_output_port(),
-                  optitrack_encoder->get_pose_bundle_input_port());
-  builder.Connect(optitrack_encoder->get_optitrack_output_port(),
-                  optitrack_sender->get_optitrack_input_port());
-  builder.Connect(optitrack_sender->get_lcm_output_port(),
-                  optitrack_pub->get_input_port());
+//  // Connect the systems related to tracking bodies.
+//  builder.Connect(model->get_output_port_kinematics_results(),
+//                  pose_tracker->get_kinematics_input_port());
+//  builder.Connect(pose_tracker->get_pose_bundle_output_port(),
+//                  optitrack_encoder->get_pose_bundle_input_port());
+//  builder.Connect(optitrack_encoder->get_optitrack_output_port(),
+//                  optitrack_sender->get_optitrack_input_port());
+//  builder.Connect(optitrack_sender->get_lcm_output_port(),
+//                  optitrack_pub->get_input_port());
 
   // TODO(rcory): Do we need this accel source?
   auto iiwa_zero_acceleration_source =
       builder.template AddSystem<systems::ConstantVectorSource<double>>(
-          Eigen::VectorXd::Zero(14));
+          Eigen::VectorXd::Zero(7));
   iiwa_zero_acceleration_source->set_name("zero_acceleration");
 
   builder.Connect(iiwa_command_sub->get_output_port(),
@@ -276,35 +292,35 @@ int DoMain() {
                   iiwa_state_pub->get_input_port());
   iiwa_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
-  auto box_state_pub = builder.AddSystem(
-      systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
-          "OBJECT_STATE_EST", &lcm));
-  box_state_pub->set_name("box_state_publisher");
-  box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
+//  auto box_state_pub = builder.AddSystem(
+//      systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
+//          "OBJECT_STATE_EST", &lcm));
+//  box_state_pub->set_name("box_state_publisher");
+//  box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
-  builder.Connect(model->get_output_port_box_robot_state_msg(),
-                  box_state_pub->get_input_port());
-  box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
+//  builder.Connect(model->get_output_port_box_robot_state_msg(),
+//                  box_state_pub->get_input_port());
+//  box_state_pub->set_publish_period(kIiwaLcmStatusPeriod);
 
 
-  // Add contact viz.
-  if (FLAGS_use_visualizer) {
-    auto contact_viz =
-        builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
-            model->get_tree());
-    contact_viz->set_name("contact_viz");
-
-    auto contact_results_publisher = builder.AddSystem(
-        systems::lcm::LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
-            "CONTACT_RESULTS", &lcm));
-    contact_results_publisher->set_name("contact_results_publisher");
-
-    builder.Connect(model->get_output_port_contact_results(),
-                    contact_viz->get_input_port(0));
-    builder.Connect(contact_viz->get_output_port(0),
-                    contact_results_publisher->get_input_port());
-    contact_results_publisher->set_publish_period(.01);
-  }
+//  // Add contact viz.
+//  if (FLAGS_use_visualizer) {
+//    auto contact_viz =
+//        builder.template AddSystem<systems::ContactResultsToLcmSystem<double>>(
+//            model->get_tree());
+//    contact_viz->set_name("contact_viz");
+//
+//    auto contact_results_publisher = builder.AddSystem(
+//        systems::lcm::LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
+//            "CONTACT_RESULTS", &lcm));
+//    contact_results_publisher->set_name("contact_results_publisher");
+//
+//    builder.Connect(model->get_output_port_contact_results(),
+//                    contact_viz->get_input_port(0));
+//    builder.Connect(contact_viz->get_output_port(0),
+//                    contact_results_publisher->get_input_port());
+//    contact_results_publisher->set_publish_period(.01);
+//  }
 
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);

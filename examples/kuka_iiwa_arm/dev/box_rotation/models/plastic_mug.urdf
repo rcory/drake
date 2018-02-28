@@ -1,0 +1,193 @@
+<?xml version="1.0" ?>
+<robot name="mug">
+
+  <!--
+  Axes:
+    +X - Pointing toward Handle.
+    +Y - Right side of cup, if handle is facing toward you.
+    +Z - towards the top of the cup.
+  Origin:
+    (0, 0, 0) at the center bottom of the mug.
+  Dimensions (approximate):
+    Cylinder:
+      Radius: 4cm
+      Height: 10cm
+    Handle:
+      Max X-Dist. from Cylinder: 3cm
+        Z-Dist of above point: 3.2cm
+      Width: 2cm
+  -->
+
+  <link name="base">
+    <inertial>
+      <!-- Estimate offset due to handle. -->
+      <origin xyz="0.01 0 0.05"/>
+      <mass value="0.094"/>
+      <!--This inertia is computed at the CoM frame -->
+      <inertia ixx="0.000156" ixy="0" ixz="0" iyy="0.000156" iyz="0" izz="0.00015"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="plastic_mug.obj"/>
+      </geometry>
+    </visual>
+    <!--
+    We use a cylinder slightly shorter than the mug as the collision
+    geometry, together with some spheres on the bottom and top of the mug
+    -->
+    <collision>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.1" radius="0.04"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <!-- Bottom Points -->
+    <collision>
+      <origin xyz="0.04 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="-0.04 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="0 0.04 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="0 -0.04 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <!-- Top Points -->
+    <collision>
+      <origin xyz="0.04 0 0.1" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="-0.04 0 0.1" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="0 0.04 0.1" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="0 -0.04 0.1" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <!-- Handle Points / Box -->
+    <!-- - Create "virtual" handle as a box, 1cm sunk from top / bottom -->
+    <collision>
+      <origin xyz="0.055 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.02 0.08"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <!-- - Add collision points at tip of angled handle. -->
+    <collision>
+      <origin xyz="0.07 0.01 0.068" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+    <collision>
+      <origin xyz="0.07 -0.01 0.068" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="1e-4"/>
+      </geometry>
+      <drake_compliance>
+        <youngs_modulus>1e7</youngs_modulus>
+        <dissipation>5</dissipation>
+        <static_friction>0.5</static_friction>
+        <dynamic_friction>0.2</dynamic_friction>
+      </drake_compliance>
+    </collision>
+  </link>
+
+  <!-- Ensure that the `mug` frame points towards the center of the mug's
+  cylinder. -->
+  <frame name="mug" link="base" rpy="0 0 0" xyz="0 0 0.05"/>
+</robot>
