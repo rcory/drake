@@ -309,6 +309,7 @@ class Simulator {
   const System<T>& get_system() const { return system_; }
 
  private:
+  void UpdateRealTimeRate();
   void HandleUnrestrictedUpdate(
       const EventCollection<UnrestrictedUpdateEvent<T>>& events);
 
@@ -359,6 +360,24 @@ class Simulator {
   // Temporaries used for witness function isolation.
   std::vector<const WitnessFunction<T>*> triggered_witnesses_;
   VectorX<T> w0_, wf_;
+
+  // The computed real-time rate.
+  double real_time_rate_{0};
+
+  // The last weighted virtual time stored using UpdateRealTimeRate().
+  double weighted_virtual_time_{0};
+
+  // The last weighted real time stored using UpdateRealTimeRate().
+  double weighted_real_time_{0};
+
+  // The last real time stored using UpdateRealTimeRate().
+  TimePoint last_real_time_;
+
+  // The last virtual time stored using UpdateRealTimeRate().
+  double last_virtual_time_;
+
+  // The exponential weighting factor for regulating the real time rate.
+  double realtime_rate_weighting_factor_{0.5};
 
   // Slow down to this rate if possible (user settable).
   double target_realtime_rate_{0.};
@@ -561,6 +580,7 @@ void Simulator<T>::StepTo(const T& boundary_time) {
     SPDLOG_TRACE(log(), "Starting a simulation step at {}", step_start_time);
 
     // Delay to match target realtime rate if requested and possible.
+    UpdateRealTimeRate();
     PauseIfTooFast();
 
     // Merge events together.
