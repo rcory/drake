@@ -837,7 +837,7 @@ ModelInstanceIdTable ParseSdf(XMLDocument* xml_doc,
                weld_to_frame, &model_instance_id_table);
   }
 
-  model->compile();
+  //model->compile();
 
   return model_instance_id_table;
 }
