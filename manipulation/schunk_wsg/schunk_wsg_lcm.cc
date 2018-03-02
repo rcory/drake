@@ -201,6 +201,12 @@ void SchunkWsgStatusSender::OutputStatus(const Context<double>& context,
   status.actual_position_mm = -2 * state->GetAtIndex(position_index_) * 1e3;
   status.actual_speed_mm_per_s = -2 * state->GetAtIndex(velocity_index_) * 1e3;
 
+  status.pos1 = state->GetAtIndex(0);
+  status.pos2 = state->GetAtIndex(1);
+  status.pos3 = state->GetAtIndex(2);
+  status.pos4 = state->GetAtIndex(3);
+  status.pos5 = state->GetAtIndex(4);
+
   if (force) {
     status.actual_force = -force->GetAtIndex(0);
   } else {
