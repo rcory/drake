@@ -139,6 +139,14 @@ class WorldSimTreeBuilder {
     return *rigid_body_tree_;
   }
 
+  /// Returns the (not yet built) tree.
+  /// @pre Build() must not have been called yet.
+  RigidBodyTree<T>* get_mutable_tree() {
+    DRAKE_DEMAND(built_ == false && rigid_body_tree_ != nullptr);
+    return rigid_body_tree_.get();
+  }
+
+
   ModelInstanceInfo<T> get_model_info_for_instance(int id) {
     return instance_id_to_model_info_.at(id);
   }
@@ -153,7 +161,7 @@ class WorldSimTreeBuilder {
     return default_contact_material_;
   }
 
- private:
+ public:
   std::unique_ptr<RigidBodyTree<T>> rigid_body_tree_{
       std::make_unique<RigidBodyTree<T>>()};
 
