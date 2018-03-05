@@ -1331,8 +1331,8 @@ void RigidBodyPlant<T>::CalcContactResultsOutput(
 
   // This code should do nothing if the state is discrete because the compliant
   // contact model will not be used to compute contact forces.
-  if (is_state_discrete())
-    return;
+//  if (is_state_discrete())
+//    return;
 
   // TODO(SeanCurtis-TRI): This is horribly redundant code that only exists
   // because the data is not properly accessible in the cache.  This is
