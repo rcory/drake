@@ -486,7 +486,15 @@ class RigidBodyPlant : public LeafSystem<T> {
 
   void ExportModelInstanceCentricPorts();
 
-  void CalcContactStiffnessDampingMuAndNumHalfConeEdges(
+  void ComputeTimeSteppingContactResults(
+      const T& dt,
+      const std::vector<multibody::collision::PointPair<T>>& contacts,
+      const multibody::constraint::ConstraintVelProblemData<T>& data,
+      const KinematicsCache<T>& kinematics_cache,
+      const VectorX<T>& constraint_force,
+      ContactResults<T>* contact_results) const;
+
+    void CalcContactStiffnessDampingMuAndNumHalfConeEdges(
       const drake::multibody::collision::PointPair<T>& contact,
       double* stiffness, double* damping, double* mu,
       int* num_cone_edges) const;
@@ -524,7 +532,7 @@ class RigidBodyPlant : public LeafSystem<T> {
   std::unique_ptr<const RigidBodyTree<double>> tree_;
 
   // Object that performs all constraint computations.
-  multibody::constraint::ConstraintSolver<double> constraint_solver_;
+  multibody::constraint::ConstraintSolver<T> constraint_solver_;
 
   OutputPortIndex state_output_port_index_{};
   OutputPortIndex kinematics_output_port_index_{};
@@ -564,6 +572,13 @@ class RigidBodyPlant : public LeafSystem<T> {
 
   // Pointer to the class that encapsulates all the contact computations.
   const std::unique_ptr<CompliantContactModel<T>> compliant_contact_model_;
+
+  // TODO(edrumwri): Remove this variable once caching is in place.
+  // This variable stores the generalized force due to contact from the last
+  // time stepping computation (in DoCalcDiscreteVariableUpdatesImpl()). The
+  // computation should remain valid since the first-order discretized version
+  // of this system is only evaluated monotonically forward in time.
+  mutable ContactResults<T> time_stepping_contact_results_;
 
   // Structure for storing joint limit data for time stepping.
   struct JointLimit {

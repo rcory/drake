@@ -12,6 +12,7 @@
 #include "drake/multibody/kinematics_cache.h"
 #include "drake/multibody/rigid_body_plant/compliant_contact_model.h"
 #include "drake/multibody/rigid_body_plant/compliant_material.h"
+#include "drake/multibody/rigid_body_plant/point_contact_detail.h"
 #include "drake/solvers/mathematical_program.h"
 
 using std::make_unique;
@@ -80,6 +81,14 @@ void RigidBodyPlant<T>::initialize() {
 
   // Declares an abstract valued output port for contact information.
   contact_output_port_index_ = DeclareContactResultsOutputPort();
+
+  // @TODO(edrumwri): Remove this once the time stepping constraint force
+  //                  results have been cached (which will allow us to compute
+  //                  the contact force outputs the "proper" way and obviate the
+  //                  need to initialize the generalized contact force vector in
+  //                  this way).
+  time_stepping_contact_results_.set_generalized_contact_force(
+      VectorX<T>::Zero(tree_->get_num_velocities()));
 
   // Schedule time stepping update.
   if (timestep_ > 0.0)
@@ -539,9 +548,8 @@ void RigidBodyPlant<T>::CalcContactStiffnessDampingMuAndNumHalfConeEdges(
   // radius. See @ref hunt_crossley (in contact_model_doxygen.h) for a lengthy
   // discussion on converting Young's Modulus to a stiffness.
   // The "length" will be incorporated using the contact depth.
-  // TODO(edrumwri): Make characteristic radius user settable.
-  const double characteristic_radius = 1e-2;  // 1 cm.
-  *stiffness = material.youngs_modulus() * characteristic_radius;
+  *stiffness = material.youngs_modulus() *
+      compliant_contact_model_->characteristic_radius();
 
   // Get the damping value (b) from the compliant model dissipation (α).
   // Equation (16) from [Hunt 1975] yields b = 3/2 * α * k * x. We can assume
@@ -1176,9 +1184,9 @@ RigidBodyPlant<T>::DoCalcDiscreteVariableUpdatesImpl(
   data.Mv = H * v + right_hand_side * dt;
 
   // Solve the rigid impact problem.
-  VectorX<T> new_velocity, contact_force;
-  constraint_solver_.SolveImpactProblem(data, &contact_force);
-  constraint_solver_.ComputeGeneralizedVelocityChange(data, contact_force,
+  VectorX<T> new_velocity, constraint_force;
+  constraint_solver_.SolveImpactProblem(data, &constraint_force);
+  constraint_solver_.ComputeGeneralizedVelocityChange(data, constraint_force,
       &new_velocity);
   SPDLOG_DEBUG(drake::log(), "Actuator forces: {} ", u.transpose());
   SPDLOG_DEBUG(drake::log(), "Transformed actuator forces: {} ",
@@ -1206,12 +1214,103 @@ RigidBodyPlant<T>::DoCalcDiscreteVariableUpdatesImpl(
   SPDLOG_DEBUG(drake::log(), "g(): {}",
       tree.positionConstraints(kinematics_cache).transpose());
 
+  // TODO(edrumwri): Relocate this block of code to the contact output function
+  // when caching is in place.
+  ComputeTimeSteppingContactResults(dt, contacts, data, kinematics_cache,
+                                    constraint_force,
+                                    &time_stepping_contact_results_);
+
   // qn = q + dt*qdot.
   VectorX<T> xn(this->get_num_states());
   xn << q + dt * tree.transformVelocityToQDot(kinematics_cache, new_velocity),
       new_velocity;
   updates->get_mutable_vector(0).SetFromVector(xn);
   updates->get_mutable_vector(1)[0] = t + dt;
+}
+
+// Populates `contact_results` for the time stepping calculation using the
+// geometric data (`contacts`), the time stepping problem data, and the computed
+// contact force (impulse) solution. Note: we
+template <typename T>
+void RigidBodyPlant<T>::ComputeTimeSteppingContactResults(
+    const T& dt,
+    const std::vector<multibody::collision::PointPair<T>>& contacts,
+    const multibody::constraint::ConstraintVelProblemData<T>& data,
+    const KinematicsCache<T>& kinematics_cache,
+    const VectorX<T>& constraint_force,
+    ContactResults<T>* contact_results) const {
+  const int total_friction_cone_edges = std::accumulate(
+      data.r.begin(), data.r.end(), 0);
+
+  int normal_force_index = 0;
+  int frictional_force_index = static_cast<int>(contacts.size());
+  contact_results->Clear();
+  for (const auto& contact : contacts) {
+    // Get the two body indices.
+    const int body_a_index = contact.elementA->get_body()->get_body_index();
+    const int body_b_index = contact.elementB->get_body()->get_body_index();
+
+    // The reported point on A's surface (As) in the world frame (W).
+    const Vector3<T> p_WAs =
+        kinematics_cache.get_element(body_a_index).transform_to_world *
+            contact.ptA;
+
+    // The reported point on B's surface (Bs) in the world frame (W).
+    const Vector3<T> p_WBs =
+        kinematics_cache.get_element(body_b_index).transform_to_world *
+            contact.ptB;
+
+    // Get the point halfway between the two in the world frame.
+    const Vector3<T> p_W = (p_WAs + p_WBs) * 0.5;
+
+    // Initialize the contact result.
+    ContactInfo<T>& contact_result = contact_results->AddContact(
+        contact.elementA->getId(), contact.elementB->getId());
+
+    // Compute an orthonormal basis, the contact frame.
+    const int kXAxisIndex = 0, kYAxisIndex = 1, kZAxisIndex = 2;
+    auto R_WC = math::ComputeBasisFromAxis(kXAxisIndex, contact.normal);
+    const Vector3<T> tan1_dir = R_WC.col(kYAxisIndex);
+    const Vector3<T> tan2_dir = R_WC.col(kZAxisIndex);
+
+    // Determine the contact force. This computation requires knowledge of the
+    // packed format used for the constraint force calculations. See
+    // ConstraintSolver::SolveImpactProblem().
+    std::vector<std::unique_ptr<ContactDetail<T>>> contact_details;
+    Vector3<T> force = contact.normal * constraint_force[normal_force_index];
+    if (data.r[normal_force_index] == 2) {
+      // Special case: pyramid friction.
+      force += tan1_dir * constraint_force[frictional_force_index++];
+      force += tan2_dir * constraint_force[frictional_force_index++];
+    } else {
+      for (int j = 0; j < data.r[normal_force_index]; ++j) {
+        double theta = M_PI * j /
+            (static_cast<double>(data.r[normal_force_index]) - 1);
+        const double cth = cos(theta);
+        const double sth = sin(theta);
+        force += tan1_dir * cth * constraint_force[frictional_force_index++];
+        force += tan2_dir * sth * constraint_force[frictional_force_index++];
+      }
+    }
+
+    ++normal_force_index;
+    const ContactForce<T> resultant_force(p_W, contact.normal, force / dt);
+    contact_result.set_resultant_force(resultant_force);
+    contact_details.emplace_back(new PointContactDetail<T>(resultant_force));
+    contact_result.set_contact_details(std::move(contact_details));
+  }
+
+  // Convert the contact forces to generalized forces by zeroing joint limit
+  // and bilateral constraint forces first.
+  VectorX<T> generalized_contact_force;
+  const int limits_start = contacts.size() + total_friction_cone_edges;
+  VectorX<T> contact_force = constraint_force;
+  contact_force.segment(
+      limits_start, constraint_force.size() - limits_start).setZero();
+  constraint_solver_.ComputeGeneralizedImpulseFromConstraintImpulses(
+      data, contact_force / dt, &generalized_contact_force);
+  contact_results->set_generalized_contact_force(
+      generalized_contact_force);
 }
 
 template <typename T>
@@ -1345,13 +1444,12 @@ void RigidBodyPlant<T>::CalcContactResultsOutput(
   contacts->set_generalized_contact_force(
       VectorX<T>::Zero(get_num_velocities()));
 
-  // TODO(siyuanfeng-tri): Need to correctly output contact results for time
-  // stepping.
-
   // This code should do nothing if the state is discrete because the compliant
   // contact model will not be used to compute contact forces.
-  if (is_state_discrete())
+  if (is_state_discrete()) {
+    *contacts = time_stepping_contact_results_;
     return;
+  }
 
   // TODO(SeanCurtis-TRI): This is horribly redundant code that only exists
   // because the data is not properly accessible in the cache.  This is

@@ -41,12 +41,22 @@ namespace {
 
 // Base class for testing the RigidBodyPlant's logic for populating its
 // output port for collision response data.
-class ContactResultTest : public ContactResultTestCommon<double> {
+class ContactResultTest : public ContactResultTestCommon<double>,
+                          public ::testing::TestWithParam<bool> {
  protected:
   // Runs the test on the RigidBodyPlant.
   const ContactResults<double>& RunTest(double distance) {
+    // Set the time step, based on whether the continuous or discrete model is
+    // used. The nonzero value is arbitrary. The absurdly low step size is
+    // necessary for the test to pass to the requisite precision (the force
+    // depends on the step size).
+    // TODO(edrumwri): Reference constraint documentation which explains the
+    // cfm / erp relationship.
+    const double timestep = (GetParam()) ? 1e-18 : 0.0;
+
     // Populate the plant.
-    plant_ = make_unique<RigidBodyPlant<double>>(GenerateTestTree(distance));
+    plant_ = make_unique<RigidBodyPlant<double>>(GenerateTestTree(distance),
+        timestep);
 
     plant_->set_default_compliant_material(MakeDefaultMaterial());
 
@@ -57,6 +67,12 @@ class ContactResultTest : public ContactResultTestCommon<double> {
 
     context_ = plant_->CreateDefaultContext();
     output_ = plant_->AllocateOutput(*context_);
+
+    // TODO(edrumwri): Eliminate this call once the caching system is in place-
+    // it will then no longer be necessary.
+    plant_->CalcDiscreteVariableUpdates(*context_,
+       &context_->get_mutable_discrete_state());
+
     plant_->CalcOutput(*context_.get(), output_.get());
 
     const int port_index = plant_->contact_results_output_port().get_index();
@@ -78,7 +94,7 @@ class ContactResultTest : public ContactResultTestCommon<double> {
 
 // Confirms a contact result for two non-colliding spheres -- expects no
 // reported collisions.
-TEST_F(ContactResultTest, NoCollision) {
+TEST_P(ContactResultTest, NoCollision) {
   auto& contact_results = RunTest(0.1);
   ASSERT_EQ(contact_results.get_num_contacts(), 0);
 }
@@ -86,13 +102,13 @@ TEST_F(ContactResultTest, NoCollision) {
 // Confirms a contact result for two touching spheres -- expects no reported
 // collisions. For now, osculation is not considered a "contact" for reporting
 // purposes. If the definition changes, this will likewise change.
-TEST_F(ContactResultTest, Touching) {
+TEST_P(ContactResultTest, Touching) {
   auto& contact_results = RunTest(0.0);
   ASSERT_EQ(contact_results.get_num_contacts(), 0);
 }
 
 // Confirms a contact result for two colliding spheres.
-TEST_F(ContactResultTest, SingleCollision) {
+TEST_P(ContactResultTest, SingleCollision) {
   double offset = 0.1;
   auto& contact_results = RunTest(-offset);
   ASSERT_EQ(contact_results.get_num_contacts(), 1);
@@ -119,6 +135,14 @@ TEST_F(ContactResultTest, SingleCollision) {
   // Note: This is fragile. It assumes a particular collision model.  Once the
   // model has been generalized, this will have to adapt to account for that.
 
+  // Establish the scaling factor necessary for the impulses, which have already
+  // been averaged to be interpreted as forces, to be _instantaneously_
+  // comparable to non-impulsive forces. This is necessary because the smaller
+  // the time step, the larger the magnitude of the instantaneous force that
+  // results from the conversion of impulsive forces: this result follows from
+  // the relationship impulse = force * time.
+  const double impulsive_scaling = GetParam() ? plant_->get_time_step() : 1;
+
   // NOTE: the *effective* Young's modulus of the contact is half of the
   // material Young's modulus.
   const double effective_elasticity = kContactYoungsModulus * 0.5;
@@ -128,13 +152,15 @@ TEST_F(ContactResultTest, SingleCollision) {
   double force = effective_elasticity * offset * 2;
   expected_spatial_force << 0, 0, 0, force_sign * force, 0, 0;
   ASSERT_TRUE(
-      CompareMatrices(resultant.get_spatial_force(), expected_spatial_force));
+      CompareMatrices(resultant.get_spatial_force() * impulsive_scaling,
+                      expected_spatial_force));
 
   const auto& details = info.get_contact_details();
   ASSERT_EQ(details.size(), 1u);
   auto detail_force = details[0]->ComputeContactForce();
-  ASSERT_TRUE(CompareMatrices(detail_force.get_spatial_force(),
-                              expected_spatial_force));
+  ASSERT_TRUE(CompareMatrices(
+      detail_force.get_spatial_force() * impulsive_scaling,
+      expected_spatial_force));
   Vector3<double> expected_point;
   expected_point << x_anchor_, 0, 0;
   ASSERT_TRUE(
@@ -146,6 +172,10 @@ GTEST_TEST(AdditionalContactResultsTest, AutoDiffTest) {
   ContactResults<AutoDiffXd> result;
   EXPECT_EQ(result.get_num_contacts(), 0);
 }
+
+// Instantiate the tests.
+INSTANTIATE_TEST_CASE_P(CompliantAndTimeSteppingTest, ContactResultTest,
+    ::testing::Bool());
 
 }  // namespace
 }  // namespace test
