@@ -73,6 +73,7 @@ using systems::Simulator;
 using manipulation::util::FramePoseTracker;
 using systems::sensors::OptitrackEncoder;
 using systems::sensors::OptitrackLCMFrameSender;
+using drake::examples::kuka_iiwa_arm::IiwaContactResultsToExternalTorque;
 
 const char *const kIiwaUrdf = "drake/examples/kuka_iiwa_arm/dev/box_rotation/"
     "models/dual_iiwa14_primitive_sphere_visual_collision.urdf";
@@ -142,7 +143,7 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
                                               Vector3<double>(0, 0, 0));
   *box_instance = tree_builder->get_model_info_for_instance(id);
 
-  auto plant = std::make_unique<RigidBodyPlant<T>>(tree_builder->Build());
+  auto plant = std::make_unique<RigidBodyPlant<T>>(tree_builder->Build(), 1e-3);
 
   return plant;
 }
@@ -199,6 +200,10 @@ int DoMain() {
   iiwa_status_pub->set_publish_period(kIiwaLcmStatusPeriod);
   auto iiwa_status_sender = builder.AddSystem<IiwaStatusSender>(14);
   iiwa_status_sender->set_name("iiwa_status_sender");
+
+  std::vector<int> instance_ids = {iiwa_instance.instance_id};
+  auto external_torque_converter =
+      builder.AddSystem<IiwaContactResultsToExternalTorque>(tree, instance_ids);
 
   // Create the Optitrack sender and publisher. The sender is configured to
   // send three objects: left arm base, right arm base, and box.
@@ -265,6 +270,11 @@ int DoMain() {
 
   builder.Connect(iiwa_status_sender->get_output_port(0),
                   iiwa_status_pub->get_input_port());
+
+  builder.Connect(model->get_output_port_contact_results(),
+                  external_torque_converter->get_input_port(0));
+  builder.Connect(external_torque_converter->get_output_port(0),
+                  iiwa_status_sender->get_external_torque_input_port());
 
   auto iiwa_state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<bot_core::robot_state_t>(
