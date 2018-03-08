@@ -112,6 +112,30 @@
       </geometry>
       <material name="Orange"/>
     </visual>
+    <visual>
+      <geometry>
+        <sphere radius="0.8"/> <!-- this is reachability at origin of link 6 -->
+      </geometry>
+      <material>
+        <color rgba="0.2 0.5 0.2 0.3"/>
+      </material>
+    </visual>
+    <visual>
+      <geometry>
+        <sphere radius="1.05"/> <!-- this is reachability with schunk -->
+      </geometry>
+      <material>
+        <color rgba="0 0.35 0.5 0.3"/>
+      </material>
+    </visual>
+    <visual>
+      <geometry>
+        <sphere radius="0.41"/> <!-- this is the unreachable space -->
+      </geometry>
+      <material>
+        <color rgba="0.5 0.35 0 0.3"/>
+      </material>
+    </visual>    
   </link>
   <!-- joint between link_2 and link_3 -->
   <joint name="iiwa_joint_3" type="revolute">

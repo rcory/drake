@@ -12,7 +12,7 @@ filegroup(
     srcs = glob([
         "**/*.urdf",
         "**/*.sdf",
-	"**/*.obj",
+	      "**/*.obj",
         "robot_keyframes.txt",
     ]),
     visibility = ["//visibility:public"],

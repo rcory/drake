@@ -31,73 +31,85 @@
       Top of Lower Cabinet to Radial Center of Bar, 52.5 along bar (Z): 75
       Angle: ~30 degrees
   -->
-  <link name="floor_pieces"/>
+  <!--<link name="floor_pieces"/>-->
 
-  <joint name="floor_lower_joint" type="fixed">
-    <origin xyz="0 0 0.18"/>
-    <parent link="floor_pieces"/>
-    <child link="lower_cabinet"/>
-  </joint>
+  <!--<joint name="floor_lower_joint" type="fixed">-->
+    <!--<origin xyz="0 0 0.18"/>-->
+    <!--<parent link="floor_pieces"/>-->
+    <!--<child link="lower_cabinet"/>-->
+  <!--</joint>-->
 
-  <link name="lower_cabinet">
-    <!-- Origin: Bottom Center -->
+  <!--<link name="lower_cabinet">-->
+    <!--&lt;!&ndash; Origin: Bottom Center &ndash;&gt;-->
+    <!--<visual>-->
+      <!--<origin xyz="0 0 0.3375"/>-->
+      <!--<geometry>-->
+        <!--<box size="0.67 0.685 0.675"/>-->
+      <!--</geometry>-->
+    <!--</visual>-->
+  <!--</link>-->
+
+  <!--<joint name="lower_upper_joint" type="fixed">-->
+    <!--<origin xyz="0.02 0 1.11"/>-->
+    <!--<parent link="lower_cabinet"/>-->
+    <!--<child link="upper_cabinet"/>-->
+  <!--</joint>-->
+
+  <!--<link name="upper_cabinet">-->
+    <!--&lt;!&ndash; Origin: Bottom Center &ndash;&gt;-->
+    <!--<visual>-->
+      <!--<origin xyz="0 0 0.3125"/>-->
+      <!--&lt;!&ndash;<pose frame=''>0 0 0 1.57 -0 -1.57</pose>&ndash;&gt;-->
+      <!--<geometry>-->
+        <!--<box size="0.595 0.63 0.625"/>-->
+        <!--&lt;!&ndash;<mesh filename="dish_washer_body.obj"/>&ndash;&gt;-->
+        <!--&lt;!&ndash;<scale value=".0254 .0254 .0254"/>&ndash;&gt;-->
+      <!--</geometry>-->
+    <!--</visual>-->
+  <!--</link>-->
+
+  <link name="dishwasher_body">
     <visual>
-      <origin xyz="0 0 0.3375"/>
+      <origin rpy="0 0 1.57" xyz="0 0 0.0254"/>
       <geometry>
-        <box size="0.67 0.685 0.675"/>
+        <mesh filename="hobart_washer.obj" scale="0.0254 0.0254 0.0254"/>
       </geometry>
     </visual>
   </link>
 
-  <joint name="lower_upper_joint" type="fixed">
-    <origin xyz="0.02 0 1.11"/>
-    <parent link="lower_cabinet"/>
-    <child link="upper_cabinet"/>
-  </joint>
+  <!--<joint name="lower_bar_joint" type="fixed">-->
+    <!--&lt;!&ndash; Place at Lower Cabinet's Back, but at the same level as the-->
+    <!--Upper Cabinet. Angle by ~30 deg. &ndash;&gt;-->
+    <!--<origin xyz="-0.315 0 1.17" rpy="0 -0.5236 0"/>-->
+    <!--<parent link="lower_cabinet"/>-->
+    <!--<child link="bar"/>-->
+  <!--</joint>-->
 
-  <link name="upper_cabinet">
-    <!-- Origin: Bottom Center -->
-    <visual>
-      <origin xyz="0 0 0.3125"/>
-      <geometry>
-        <box size="0.595 0.63 0.625"/>
-      </geometry>
-    </visual>
-  </link>
+  <!--<link name="bar">-->
+    <!--&lt;!&ndash; Origin: (X, Z) Interface with Lower Cabinet Back, (Y) Center &ndash;&gt;-->
+    <!--&lt;!&ndash; Local Axes: +X extension of bar &ndash;&gt;-->
 
-  <joint name="lower_bar_joint" type="fixed">
-    <!-- Place at Lower Cabinet's Back, but at the same level as the
-    Upper Cabinet. Angle by ~30 deg. -->
-    <origin xyz="-0.315 0 1.17" rpy="0 -0.5236 0"/>
-    <parent link="lower_cabinet"/>
-    <child link="bar"/>
-  </joint>
-
-  <link name="bar">
-    <!-- Origin: (X, Z) Interface with Lower Cabinet Back, (Y) Center -->
-    <!-- Local Axes: +X extension of bar -->
-
-    <!-- Left Side -->
-    <visual>
-      <origin xyz="0.44 0.36 0" rpy="0 1.57 0"/>
-      <geometry>
-        <cylinder radius="0.025" length="0.88"/>
-      </geometry>
-    </visual>
-    <!-- Right Side -->
-    <visual>
-      <origin xyz="0.44 -0.36 0" rpy="0 1.57 0"/>
-      <geometry>
-        <cylinder radius="0.025" length="0.88"/>
-      </geometry>
-    </visual>
-    <!-- Front Side -->
-    <visual>
-      <origin xyz="0.88 0 0" rpy="1.57 0 0"/>
-      <geometry>
-        <cylinder radius="0.025" length="0.72"/>
-      </geometry>
-    </visual>
-  </link>
+    <!--&lt;!&ndash; Left Side &ndash;&gt;-->
+    <!--<visual>-->
+      <!--<origin xyz="0.44 0.36 0" rpy="0 1.57 0"/>-->
+      <!--<geometry>-->
+        <!--<cylinder radius="0.025" length="0.88"/>-->
+      <!--</geometry>-->
+    <!--</visual>-->
+    <!--&lt;!&ndash; Right Side &ndash;&gt;-->
+    <!--<visual>-->
+      <!--<origin xyz="0.44 -0.36 0" rpy="0 1.57 0"/>-->
+      <!--<geometry>-->
+        <!--<cylinder radius="0.025" length="0.88"/>-->
+      <!--</geometry>-->
+    <!--</visual>-->
+    <!--&lt;!&ndash; Front Side &ndash;&gt;-->
+    <!--<visual>-->
+      <!--<origin xyz="0.88 0 0" rpy="1.57 0 0"/>-->
+      <!--<geometry>-->
+        <!--<cylinder radius="0.025" length="0.72"/>-->
+      <!--</geometry>-->
+    <!--</visual>-->
+  <!--</link>-->
 
 </robot>

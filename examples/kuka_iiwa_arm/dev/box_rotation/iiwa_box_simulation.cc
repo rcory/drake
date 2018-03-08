@@ -111,26 +111,26 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
       "mug",
       "drake/examples/kuka_iiwa_arm/dev/box_rotation/models/plastic_mug.urdf");
 
-  const double kTableHeight = 0.736 + 0.057 / 2;
+  const double kTableHeight = 0.736 + 0.057 / 2 + 0.2;
 
   // Build a world with three fixed tables.  A box is placed one on
   // table, and the iiwa arms are fixed to the other two tables.
   tree_builder->AddFixedModelInstance(
       "table_soiled", /* right arm */
-      Eigen::Vector3d(0.6, 0, 0.2-kTableHeight) /* xyz */,
+      Eigen::Vector3d(0.6-0.1, 0, 0.2-kTableHeight) /* xyz */,
       Eigen::Vector3d::Zero() /* rpy */);
   tree_builder->AddFixedModelInstance(
       "table_clean", /* left arm */
-      Eigen::Vector3d(0.6, 1.9, 0.2-kTableHeight) /* xyz */,
-      Eigen::Vector3d::Zero() /* rpy */);
+      Eigen::Vector3d(0.6-0.1, 1.9, 0.2-kTableHeight) /* xyz */,
+      Eigen::Vector3d(0, 0, 0) /* rpy */);
   tree_builder->AddFixedModelInstance(
       "table_staging", /* box */
-      Eigen::Vector3d(-0.3, -0.7, 0.15-kTableHeight) /* xyz */,
-      Eigen::Vector3d(0, 0, 1.57) /* rpy */);
+      Eigen::Vector3d(-0.3-0.1-0.2, -0.7+0.2+0.5, 0.15-kTableHeight + 0.1) /* xyz */,
+      Eigen::Vector3d(0, 0, 0) /* rpy */);
 
   tree_builder->AddFixedModelInstance(
       "washer", /* box */
-      Eigen::Vector3d(0.6, 0.95, 0.1-kTableHeight),
+      Eigen::Vector3d(0.6-0.1, 0.95, 0.1-kTableHeight),
       Eigen::Vector3d(0, 0, 3.14));
 
   //tree_builder->AddGround();
@@ -152,7 +152,8 @@ std::unique_ptr<RigidBodyPlant<T>> BuildCombinedPlant(
   // 0.565 m.
   const Eigen::Vector3d kBoxBase(0, -0.5, 0.1 + kTableHeight*0 + 0.102 / 2 + 1E-3);
 
-  int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase);
+  double kRobotRotation = 0.0;
+  int id = tree_builder->AddFixedModelInstance("iiwa", kRobotBase, Eigen::Vector3d(0, 0, kRobotRotation));
   *iiwa_instance = tree_builder->get_model_info_for_instance(id);
   id = tree_builder->AddFloatingModelInstance("mug", kBoxBase,
                                               Vector3<double>(0, 0, 0));

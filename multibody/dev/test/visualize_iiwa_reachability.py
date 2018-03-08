@@ -2,6 +2,9 @@ from director import lcmUtils
 from director import roboturdf
 import pickle
 import bot_core as lcmbotcore
+import math
+import numpy
+from director.thirdparty import transformations as tm
 
 def receiveMessage(msg):
     drake_path = '/Users/rickcory/dev/drake'
@@ -57,9 +60,13 @@ def receiveMessage(msg):
             nonlinear_ik_resolve_status_str = line.split(':')
             nonlinear_ik_resolve_status = int(nonlinear_ik_status_str[1])
 
-            if orient_count == 4:
+            if orient_count == num_orient - 1:
                 reachable_color = [float(num_orient - num_reachable_orient) / num_orient, float(num_reachable_orient) / num_orient, 0]
-                d_reachable[num_reachable_orient].addSphere(pos, radius = 0.01, color = reachable_color)
+                R = tm.rotation_matrix(0, [0, 0, 1], [0, 0, 0]) # rotates the blob
+                new_pos = numpy.dot(R[:3, :3], numpy.add(pos, [0, 0, 0])) # offsets the blob
+                #print(new_pos)
+                #print(R[:3, :3])
+                d_reachable[num_reachable_orient].addSphere(new_pos, radius = 0.01, color = reachable_color)
                 # reset num_reachable_orient
                 num_reachable_orient = 0
         line_number = line_number + 1
