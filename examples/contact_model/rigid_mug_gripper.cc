@@ -36,6 +36,7 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/util/drakeGeometryUtil.h"
+#include "drake/multibody/joints/fixed_joint.h"
 
 // Global default contact parameters
 DEFINE_double(us, 0.9, "The coefficient of static friction");
@@ -138,15 +139,27 @@ void AddGripperPads(RigidBodyTree<double>* tree, RigidBody<double>* gripper) {
 
   // Sample the torus with a sphere. The sphere is located at X_GS, relative to
   // the gripper.
-  auto add_ball = [&gripper, &tree, &material] (auto X_GS) {
+  auto add_ball = [&gripper, &tree, &material] (auto X_GS, auto name) {
+    // Create the sphere visual geometry
     const DrakeShapes::Sphere ball(kPadMinorRadius);
-    DrakeShapes::VisualElement vis(X_GS);
+    DrakeShapes::VisualElement vis(Eigen::Isometry3d::Identity());
     vis.setGeometry(ball);
-    gripper->AddVisualElement(vis);
-    multibody::collision::Element collide(X_GS, gripper);
+    vis.setMaterial(Eigen::Vector4d(1, 0, 0, 1));
+
+    // Create another body that is welded to the gripper
+    std::unique_ptr<RigidBody<double>> body = gripper->Clone();
+    body->set_name(name);
+    body->add_joint(gripper, std::make_unique<FixedJoint>("foo", X_GS));
+
+    // Add the body to the tree and assign the sphere visual element
+    auto mbody = tree->add_rigid_body(std::move(body));
+    mbody->AddVisualElement(vis);
+
+    // Add the collision element geometry
+    multibody::collision::Element collide(Eigen::Isometry3d::Identity(), mbody);
     collide.setGeometry(ball);
     collide.set_compliant_material(material);
-    tree->addCollisionElement(collide, *gripper, "default");
+    tree->addCollisionElement(collide, *mbody, "default");
   };
 
   const double d_theta = 2 * M_PI / sample_count;
@@ -154,8 +167,8 @@ void AddGripperPads(RigidBodyTree<double>* tree, RigidBody<double>* gripper) {
     const double x = std::cos(d_theta * i + sample_rotation) * kPadMajorRadius;
     const double z = std::sin(d_theta * i + sample_rotation) * kPadMajorRadius;
 
-    add_ball(Isometry3<double>{Translation3<double>{x, y, z}});
-    add_ball(Isometry3<double>{Translation3<double>{x, -y, z}});
+    add_ball(Isometry3<double>{Translation3<double>{x, y, z}}, "ball_" + std::to_string(i) + "_pos_y");
+    add_ball(Isometry3<double>{Translation3<double>{x, -y, z}}, "ball_" + std::to_string(i) + "_neg_y");
   }
 }
 
@@ -208,6 +221,7 @@ int main() {
   plant->set_name("plant");
 
   // Command-line specified contact parameters.
+  std::cout << "Simulation time: " << FLAGS_simulation_type <<"\n\n";
   std::cout << "Contact properties:\n";
   std::cout << "\tYoung's modulus:          " << FLAGS_youngs_modulus << "\n";
   std::cout << "\tDissipation:              " << FLAGS_dissipation << "\n";

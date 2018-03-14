@@ -1,0 +1,22 @@
+# This command assumes drake_visualizer was built using: `bazel build //tools:drake_visualizer`
+cmd "0.drake_visualizer" {
+    exec = "${DRAKE_WORKSPACE}/bazel-bin/tools/drake_visualizer \
+	    --script ${DRAKE_WORKSPACE}/multibody/rigid_body_plant/visualization/contact_viz.py \
+	    --script ${DRAKE_WORKSPACE}/multibody/rigid_body_plant/visualization/show_time.py";
+    host = "localhost";
+}
+
+cmd "1.sim" {
+        exec = "${DRAKE_WORKSPACE}/bazel-bin/examples/contact_model/rigid_mug_gripper \
+		--simulation_type=compliant --dt=1e-3 --accuracy=5e-5 \
+		--ring_samples=4 --pad_depth=4e-3 --ring_orient=0 --ring_youngs_modulus=-1 \
+		--ring_dissipation=-1 --ring_static_friction=-1 --ring_dynamic_friction=-1 \
+		--px=0 --py=0 --pz=0 --rx=0 --ry=0 --rz=0";
+        host = "localhost";
+}
+
+# This command assumes lcm spy was built using: `bazel build //lcmtypes:drake-lcm-spy`
+cmd "2.lcm-spy" {
+    exec = "${DRAKE_WORKSPACE}/bazel-bin/lcmtypes/drake-lcm-spy";
+    host = "localhost";
+}
