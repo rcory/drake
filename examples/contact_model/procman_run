@@ -1,0 +1,2 @@
+#export DRAKE_WORKSPACE=/home/<user>/<drake_workspace>
+bot-procman-sheriff -l rigid_mug.pmd > /dev/null 2>&1 &
