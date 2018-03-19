@@ -80,6 +80,13 @@ class ContactInfo {
     return penetration_depth_;
   }
 
+  void set_slip_speed(const T speed) {
+    slip_speed_ = speed;
+  }
+
+  T get_slip_speed() const {
+    return slip_speed_;
+  }
 
   const std::vector<copyable_unique_ptr<ContactDetail<T>>>&
   get_contact_details() const {
@@ -105,6 +112,7 @@ class ContactInfo {
   drake::multibody::collision::ElementId element2_{};
   ContactForce<T> resultant_force_;
   T penetration_depth_;
+  T slip_speed_;
   std::vector<copyable_unique_ptr<ContactDetail<T>>> contact_details_;
 };
 
