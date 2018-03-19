@@ -43,6 +43,7 @@ void ContactResultsToLcmSystem<T>::CalcLcmContactOutput(
     info_msg.body2_name = b2->get_name();
 
     info_msg.penetration_depth = contact_info.get_penetration_depth();
+    info_msg.slip_speed = contact_info.get_slip_speed();
 
     eigenVectorToCArray(contact_force.get_application_point(),
                         info_msg.contact_point);

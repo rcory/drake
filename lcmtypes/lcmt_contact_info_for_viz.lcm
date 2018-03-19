@@ -15,4 +15,7 @@ struct lcmt_contact_info_for_viz {
 
   // Penetration depth
   double penetration_depth;
+
+  // Slip speed
+  double slip_speed;
 }
