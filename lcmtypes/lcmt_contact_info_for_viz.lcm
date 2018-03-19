@@ -12,4 +12,7 @@ struct lcmt_contact_info_for_viz {
   double contact_point[3];
   double contact_force[3];
   double normal[3];
+
+  // Penetration depth
+  double penetration_depth;
 }

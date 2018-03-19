@@ -72,6 +72,15 @@ class ContactInfo {
     return resultant_force_;
   }
 
+  void set_penetration_depth(const T depth) {
+    penetration_depth_ = depth;
+  }
+
+  T get_penetration_depth() const {
+    return penetration_depth_;
+  }
+
+
   const std::vector<copyable_unique_ptr<ContactDetail<T>>>&
   get_contact_details() const {
     return contact_details_;
@@ -95,6 +104,7 @@ class ContactInfo {
   drake::multibody::collision::ElementId element1_{};
   drake::multibody::collision::ElementId element2_{};
   ContactForce<T> resultant_force_;
+  T penetration_depth_;
   std::vector<copyable_unique_ptr<ContactDetail<T>>> contact_details_;
 };
 
