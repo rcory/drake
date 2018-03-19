@@ -196,6 +196,10 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
         calculator.AddForce(p_WC, normal, force);
 
         contact_info.set_resultant_force(calculator.ComputeResultant());
+
+        // Allows us to stream penetration via LCM.
+        contact_info.set_penetration_depth(pair.distance);
+
         // TODO(SeanCurtis-TRI): As with previous note, this line depends
         // on the eventual instantiation of the user-set flag for accumulating
         // contact details.
