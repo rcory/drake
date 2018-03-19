@@ -32,6 +32,7 @@
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/multibody/rigid_body_tree_construction.h"
 #include "drake/systems/analysis/runge_kutta3_integrator.h"
+#include "drake/systems/analysis/runge_kutta2_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
@@ -54,11 +55,17 @@ DEFINE_bool(playback, true,
             "If true, simulation begins looping playback when complete");
 DEFINE_string(simulation_type, "compliant", "The type of simulation to use: "
     "'compliant' or 'timestepping'");
-DEFINE_double(dt, 1e-3, "The step size to use for "
+DEFINE_string(rk_type, "rk3", "The RK integrator order. Can be 'rk2' or 'rk3'."
+    "Used when simulation_time is 'compliant'");
+DEFINE_double(ts_dt, 1e-3, "The step size to use for "
     "'simulation_type=timestepping' (ignored for "
     "'simulation_type=compliant'");
+DEFINE_double(rk_dt, 1e-4, "The step size to use for "
+    "'simulation_type=compliant' (ignored for "
+    "'simulation_type=timestepping'");
 DEFINE_double(accuracy, 5e-5, "Sets the simulation accuracy for "
     "'simulation_type=compliant'");
+DEFINE_bool(print_time, false, "Prints simulation timestamp every 1/10 s.");
 
 // Parameters for specifying the ring pad approximation.
 DEFINE_int32(ring_samples, 4,
@@ -94,6 +101,7 @@ namespace examples {
 
 using drake::SquareTwistMatrix;
 using drake::systems::RungeKutta3Integrator;
+using drake::systems::RungeKutta2Integrator;
 using drake::systems::ContactResultsToLcmSystem;
 using drake::systems::lcm::LcmPublisherSystem;
 using Eigen::Matrix3d;
@@ -167,8 +175,10 @@ void AddGripperPads(RigidBodyTree<double>* tree, RigidBody<double>* gripper) {
     const double x = std::cos(d_theta * i + sample_rotation) * kPadMajorRadius;
     const double z = std::sin(d_theta * i + sample_rotation) * kPadMajorRadius;
 
-    add_ball(Isometry3<double>{Translation3<double>{x, y, z}}, "ball_" + std::to_string(i) + "_pos_y");
-    add_ball(Isometry3<double>{Translation3<double>{x, -y, z}}, "ball_" + std::to_string(i) + "_neg_y");
+    add_ball(Isometry3<double>{Translation3<double>{x, y, z}},
+             "ball_" + std::to_string(i) + "_pos_y");
+    add_ball(Isometry3<double>{Translation3<double>{x, -y, z}},
+             "ball_" + std::to_string(i) + "_neg_y");
   }
 }
 
@@ -213,23 +223,34 @@ std::unique_ptr<RigidBodyTreed> BuildTestTree() {
 int main() {
   systems::DiagramBuilder<double> builder;
 
-  if (FLAGS_simulation_type != "timestepping")
-    FLAGS_dt = 0.0;
+  if (FLAGS_simulation_type == "compliant") {
+    FLAGS_ts_dt = 0.0;  // Set the time-stepping dt to zero
+    std::cout << "Simulation type:\n";
+    std::cout<<"\tcompliant: " << FLAGS_rk_type << "\n";
+    std::cout<<"\tdt:        " << FLAGS_rk_dt << "\n";
+  }
+  else if (FLAGS_simulation_type == "timestepping") {
+    std::cout << "Simulation type:\n";
+    std::cout << "\ttime-stepping  \n";
+    std::cout << "\tdt:              " << FLAGS_ts_dt << "\n";
+  } else {
+    throw std::runtime_error("Simulation type" + FLAGS_simulation_type + "is not supported");
+  }
+
   systems::RigidBodyPlant<double>* plant =
       builder.AddSystem<systems::RigidBodyPlant<double>>(BuildTestTree(),
-                                                         FLAGS_dt);
+                                                         FLAGS_ts_dt);
   plant->set_name("plant");
 
   // Command-line specified contact parameters.
-  std::cout << "Simulation time: " << FLAGS_simulation_type <<"\n\n";
   std::cout << "Contact properties:\n";
-  std::cout << "\tYoung's modulus:          " << FLAGS_youngs_modulus << "\n";
-  std::cout << "\tDissipation:              " << FLAGS_dissipation << "\n";
-  std::cout << "\tstatic friction:          " << FLAGS_us << "\n";
-  std::cout << "\tdynamic friction:         " << FLAGS_ud << "\n";
-  std::cout << "\tAllowed stiction speed:   " << FLAGS_v_stiction_tolerance
+  std::cout << "  Young's modulus:          " << FLAGS_youngs_modulus << "\n";
+  std::cout << "  Dissipation:              " << FLAGS_dissipation << "\n";
+  std::cout << "  Penetration depth:        " << FLAGS_pad_depth << "\n";
+  std::cout << "  static friction:          " << FLAGS_us << "\n";
+  std::cout << "  dynamic friction:         " << FLAGS_ud << "\n";
+  std::cout << "  Allowed stiction speed:   " << FLAGS_v_stiction_tolerance
             << "\n";
-  std::cout << "\tDissipation:              " << FLAGS_dissipation << "\n";
 
   systems::CompliantMaterial default_material;
   default_material.set_youngs_modulus(FLAGS_youngs_modulus)
@@ -269,22 +290,34 @@ int main() {
 
   systems::Context<double>& context = simulator.get_mutable_context();
 
-  simulator.reset_integrator<RungeKutta3Integrator<double>>(*model, &context);
-  simulator.get_mutable_integrator()->request_initial_step_size_target(1e-4);
-  simulator.get_mutable_integrator()->set_target_accuracy(FLAGS_accuracy);
-  std::cout << "Variable-step integrator accuracy: " << FLAGS_accuracy << "\n";
+  if (FLAGS_rk_type == "rk2") {
+    simulator.reset_integrator<RungeKutta2Integrator<double>>(
+        *model, FLAGS_rk_dt, &simulator.get_mutable_context());
+  } else if (FLAGS_rk_type == "rk3") {
+    simulator.reset_integrator<RungeKutta3Integrator<double>>(*model, &context);
+    simulator.get_mutable_integrator()->
+        request_initial_step_size_target(FLAGS_rk_dt);
+    simulator.get_mutable_integrator()->set_target_accuracy(FLAGS_accuracy);
+    std::cout << "Variable-step integrator accuracy: " << FLAGS_accuracy << "\n";
+  } else {
+    throw std::runtime_error("RK type not recognized.");
+  }
 
   simulator.Initialize();
 
-  // Print a time stamp update every tenth of a second.  This helps communicate
-  // progress in the event that the integrator crawls to a very small timestep.
-  const double kPrintPeriod = std::min(0.1, FLAGS_sim_duration);
-  int step_count =
-      static_cast<int>(std::ceil(FLAGS_sim_duration / kPrintPeriod));
-  for (int i = 1; i <= step_count; ++i) {
-    double t = context.get_time();
-    std::cout << "time: " << t << "\n";
-    simulator.StepTo(i * kPrintPeriod);
+  if (FLAGS_print_time) {
+    // Print a time stamp update every tenth of a second.  This helps communicate
+    // progress in the event that the integrator crawls to a very small timestep.
+    const double kPrintPeriod = std::min(0.1, FLAGS_sim_duration);
+    int step_count =
+        static_cast<int>(std::ceil(FLAGS_sim_duration / kPrintPeriod));
+    for (int i = 1; i <= step_count; ++i) {
+      double t = context.get_time();
+      std::cout << "time: " << t << "\n";
+      simulator.StepTo(i * kPrintPeriod);
+    }
+  } else {
+    simulator.StepTo(FLAGS_sim_duration);
   }
 
   while (FLAGS_playback) viz_publisher->ReplayCachedSimulation();
