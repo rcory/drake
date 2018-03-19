@@ -14,6 +14,7 @@ ContactInfo<T>::ContactInfo(drake::multibody::collision::ElementId element1,
       element2_(element2),
       resultant_force_(),
       penetration_depth_{},
+      slip_speed_{},
       contact_details_() {}
 
 }  // namespace systems

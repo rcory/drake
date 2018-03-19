@@ -200,6 +200,9 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
         // Allows us to stream penetration via LCM.
         contact_info.set_penetration_depth(pair.distance);
 
+        // Allows us to stream stiction slip velocity via LCM.
+        contact_info.set_slip_speed(sqrt(slip_speed_squared));
+
         // TODO(SeanCurtis-TRI): As with previous note, this line depends
         // on the eventual instantiation of the user-set flag for accumulating
         // contact details.
