@@ -108,12 +108,12 @@ int WorldSimTreeBuilder<T>::AddModelInstanceToFrame(
   if (extension == ".urdf") {
     table = drake::parsers::urdf::AddModelInstanceFromUrdfFile(
         model_map_[model_name], floating_base_type, weld_to_frame,
-        rigid_body_tree_.get());
+        false, rigid_body_tree_.get());
 
   } else if (extension == ".sdf") {
     table = drake::parsers::sdf::AddModelInstancesFromSdfFile(
         model_map_[model_name], floating_base_type, weld_to_frame,
-        rigid_body_tree_.get());
+        false, rigid_body_tree_.get());
   }
   const int model_instance_id = table.begin()->second;
 
