@@ -21,9 +21,12 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/find_resource.h"
+#include "drake/common/trajectories/piecewise_polynomial.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_contact_results_for_viz.hpp"
+#include "drake/manipulation/schunk_wsg/schunk_wsg_constants.h"
 #include "drake/multibody/parsers/urdf_parser.h"
+#include "drake/multibody/parsers/sdf_parser.h"
 #include "drake/multibody/rigid_body_frame.h"
 #include "drake/multibody/rigid_body_plant/compliant_contact_model.h"
 #include "drake/multibody/rigid_body_plant/contact_results_to_lcm.h"
@@ -38,6 +41,9 @@
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/util/drakeGeometryUtil.h"
 #include "drake/multibody/joints/fixed_joint.h"
+#include "drake/systems/primitives/trajectory_source.h"
+#include "drake/lcmt_schunk_wsg_status.hpp"
+#include "drake/manipulation/schunk_wsg/schunk_wsg_lcm.h"
 
 // Global default contact parameters
 DEFINE_double(us, 0.9, "The coefficient of static friction");
@@ -96,6 +102,10 @@ DEFINE_double(rz, 0,
               "The z-rotation of the mug around its origin - the center of its "
                   "bottom (in degrees). Rotation order: X, Y, Z");
 
+DEFINE_double(gripper_force, 0, "The force to be applied by the gripper. A value"
+              "of 0 indicates no gripper (use pad_deptch to determine"
+              " penetration).");
+
 namespace drake {
 namespace examples {
 
@@ -104,6 +114,8 @@ using drake::systems::RungeKutta3Integrator;
 using drake::systems::RungeKutta2Integrator;
 using drake::systems::ContactResultsToLcmSystem;
 using drake::systems::lcm::LcmPublisherSystem;
+using drake::trajectories::PiecewisePolynomial;
+using drake::manipulation::schunk_wsg::SchunkWsgStatusSender;
 using Eigen::Matrix3d;
 using std::make_unique;
 
@@ -172,7 +184,7 @@ void AddGripperPads(RigidBodyTree<double>* tree, RigidBody<double>* gripper) {
 
   const double d_theta = 2 * M_PI / sample_count;
   for (int i = 0; i < sample_count; ++i) {
-    const double x = std::cos(d_theta * i + sample_rotation) * kPadMajorRadius;
+    const double x = -std::cos(d_theta * i + sample_rotation) * kPadMajorRadius;
     const double z = std::sin(d_theta * i + sample_rotation) * kPadMajorRadius;
 
     add_ball(Isometry3<double>{Translation3<double>{x, y, z}},
@@ -182,23 +194,121 @@ void AddGripperPads(RigidBodyTree<double>* tree, RigidBody<double>* gripper) {
   }
 }
 
-std::unique_ptr<RigidBodyTreed> BuildTestTree() {
+void AddFingerPads(RigidBodyTree<double>* tree, RigidBody<double>* finger,
+                   double x, std::string dir_string) {
+  const int sample_count = FLAGS_ring_samples;
+  const double sample_rotation = FLAGS_ring_orient * M_PI / 180.0; // in radians
+
+  const double y_offset = 0.0265; // finger-center to pad-center distance (along finger length)
+  drake::systems::CompliantMaterial material;
+  if (FLAGS_ring_youngs_modulus >= 0)
+    material.set_youngs_modulus(FLAGS_ring_youngs_modulus);
+  if (FLAGS_ring_dissipation >= 0)
+    material.set_dissipation(FLAGS_ring_dissipation);
+  if (FLAGS_ring_static_friction >= 0 && FLAGS_ring_dynamic_friction >= 0) {
+    material.set_friction(FLAGS_ring_static_friction,
+                          FLAGS_ring_dynamic_friction);
+  } else if (FLAGS_ring_static_friction >= 0 ||
+      FLAGS_ring_dynamic_friction >= 0) {
+    drake::log()->warn("Both static and dynamic friction should be specified. "
+                           "Using global values instead.");
+  }
+  std::cout << "Ring contact material\n";
+  std::cout << "  Youngs modulus:   " << material.youngs_modulus() << "\n";
+  std::cout << "  Dissipation:      " << material.dissipation() << "\n";
+  std::cout << "  Static friction:  " << material.static_friction() << "\n";
+  std::cout << "  Dynamic friction: " << material.dynamic_friction() << "\n";
+
+  // Sample the torus with a sphere. The sphere is located at X_GS, relative to
+  // the gripper.
+  auto add_ball = [&finger, &tree, &material] (auto X_FB, auto name) {
+    // Create the sphere visual geometry
+    const DrakeShapes::Sphere ball(kPadMinorRadius);
+    DrakeShapes::VisualElement vis(Eigen::Isometry3d::Identity());
+    vis.setGeometry(ball);
+    vis.setMaterial(Eigen::Vector4d(1, 0, 0, 1));
+
+    // Create another body that is welded to the gripper
+    std::unique_ptr<RigidBody<double>> body = finger->Clone();
+    body->set_name(name);
+    auto joint_name = name + "_joint";
+    body->add_joint(finger, std::make_unique<FixedJoint>(joint_name, X_FB));
+
+    // Add the body to the tree and assign the sphere visual element
+    auto mbody = tree->add_rigid_body(std::move(body));
+    mbody->AddVisualElement(vis);
+
+    // Add the collision element geometry
+    drake::multibody::collision::Element collide(Eigen::Isometry3d::Identity(), mbody);
+    collide.setGeometry(ball);
+    collide.set_compliant_material(material);
+    tree->addCollisionElement(collide, *mbody, "default");
+  };
+
+  const double d_theta = 2 * M_PI / sample_count;
+  for (int i = 0; i < sample_count; ++i) {
+    const double y = std::cos(d_theta * i + sample_rotation) * kPadMajorRadius + y_offset;
+    const double z = std::sin(d_theta * i + sample_rotation) * kPadMajorRadius;
+
+    add_ball(drake::Isometry3<double>{drake::Translation3<double>{x, y, z}},
+             "ball_" + std::to_string(i) + "_" + dir_string);
+
+  }
+}
+
+std::unique_ptr<RigidBodyTreed> BuildTestTree(int* gripper_instance_id = nullptr) {
   std::unique_ptr<RigidBodyTreed> tree = std::make_unique<RigidBodyTreed>();
 
-  // Add the gripper.  Move it up so it's aligned with the center of the mug's
-  // barrel. NOTE: This urdf is an "empty" body. It has mass but no geometry
-  // (collision or visual). We add them procedurally.
-  auto gripper_frame = std::allocate_shared<RigidBodyFrame<double>>(
-      Eigen::aligned_allocator<RigidBodyFrame<double>>(), "gripper_pose_frame",
-      &tree->world(), Eigen::Vector3d(0, 0, kMugHeight / 2),
-      Eigen::Vector3d::Zero());
-  parsers::urdf::AddModelInstanceFromUrdfFile(
-      FindResourceOrThrow("drake/examples/contact_model/rigid_mug_gripper.urdf"),
-      multibody::joints::kFixed, gripper_frame, tree.get());
+  if (FLAGS_gripper_force == 0) {
+    // Add the gripper.  Move it up so it's aligned with the center of the mug's
+    // barrel. NOTE: This urdf is an "empty" body. It has mass but no geometry
+    // (collision or visual). We add them procedurally.
+    auto gripper_frame = std::allocate_shared<RigidBodyFrame<double>>(
+        Eigen::aligned_allocator<RigidBodyFrame<double>>(), "gripper_pose_frame",
+        &tree->world(), Eigen::Vector3d(0, 0, kMugHeight / 2),
+        Eigen::Vector3d::Zero());
 
-  // Add the procedural gripper pads.
-  RigidBody<double>& gripper_body = *tree->FindBody("gripper_pads", "gripper");
-  AddGripperPads(tree.get(), &gripper_body);
+    parsers::urdf::AddModelInstanceFromUrdfFile(
+        FindResourceOrThrow("drake/examples/contact_model/rigid_mug_gripper.urdf"),
+        multibody::joints::kFixed, gripper_frame, true, tree.get());
+
+    // Add the procedural gripper pads.
+    RigidBody<double>& gripper_body = *tree->FindBody("gripper_pads", "gripper");
+    AddGripperPads(tree.get(), &gripper_body);
+  } else {
+    // Add the gripper.  Move it up so it's aligned with the center of the mug's
+    // barrel. NOTE: This urdf is an "empty" body. It has mass but no geometry
+    // (collision or visual). We add them procedurally.
+    auto gripper_frame = std::allocate_shared<RigidBodyFrame<double>>(
+        Eigen::aligned_allocator<RigidBodyFrame<double>>(), "gripper_pose_frame",
+        &tree->world(), Eigen::Vector3d(0.055 + 5e-4, 0, kMugHeight / 2 + 5e-4),
+        Eigen::Vector3d(0, 0, 1.57));
+
+    auto gripper_id_table = parsers::sdf::AddModelInstancesFromSdfFile(
+        FindResourceOrThrow("drake/examples/contact_model/"
+                            "schunk_wsg_50_ball_contact_visual_collision.sdf"),
+        multibody::joints::kFixed, gripper_frame, false, tree.get());
+    *gripper_instance_id = gripper_id_table.begin()->second;
+
+    // Add the procedural gripper pads.
+    RigidBody<double>& right_finger_body = *tree->FindBody("right_finger");
+    AddFingerPads(tree.get(), &right_finger_body, -0.0046, "pos_y");
+
+    // Add the procedural gripper pads.
+    RigidBody<double>& left_finger_body = *tree->FindBody("left_finger");
+    AddFingerPads(tree.get(), &left_finger_body, 0.0046, "neg_y");
+
+    // Create the finger collision filter.
+    for (int i = 0; i < FLAGS_ring_samples; i++) {
+      tree->AddCollisionFilterGroupMember(
+          "finger_filter", "ball_" + std::to_string(i) + "_pos_y",
+          *gripper_instance_id);
+      tree->AddCollisionFilterGroupMember(
+          "finger_filter", "ball_" + std::to_string(i) + "_neg_y",
+          *gripper_instance_id);
+    }
+    tree->compile();
+  }
 
   // Add the "Mug" to grip. It assumes that with the identity pose, the center
   // of the bottom of the mug sits on the origin with the rest of the mug
@@ -212,7 +322,7 @@ std::unique_ptr<RigidBodyTreed> BuildTestTree() {
       Eigen::aligned_allocator<RigidBodyFrame<double>>(), "mug_pose",
       &tree->world(), Eigen::Vector3d(FLAGS_px, FLAGS_py, FLAGS_pz),
       Eigen::Vector3d(FLAGS_rx * M_PI / 180, FLAGS_ry * M_PI / 180,
-                      FLAGS_rz * M_PI / 180));
+                      (FLAGS_rz * M_PI / 180) + M_PI));
   parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow("drake/examples/contact_model/cylinder_mug.urdf"),
       multibody::joints::kQuaternion, mug_frame, tree.get());
@@ -237,9 +347,33 @@ int main() {
     throw std::runtime_error("Simulation type" + FLAGS_simulation_type + "is not supported");
   }
 
-  systems::RigidBodyPlant<double>* plant =
-      builder.AddSystem<systems::RigidBodyPlant<double>>(BuildTestTree(),
-                                                         FLAGS_ts_dt);
+  // Set the gripper force source.
+  int gripper_instance_id = -1;
+  systems::RigidBodyPlant<double>* plant;
+  if (FLAGS_gripper_force == 0) {
+    plant =
+        builder.AddSystem<systems::RigidBodyPlant<double>>(
+            BuildTestTree(), FLAGS_ts_dt);
+  } else {
+    plant =
+        builder.AddSystem<systems::RigidBodyPlant<double>>(
+            BuildTestTree(&gripper_instance_id), FLAGS_ts_dt);
+    // Create a trajectory for grip force.
+    // Settle the grip by the time the lift starts.
+    std::vector<double> grip_breaks{0., 0.01, FLAGS_sim_duration};
+    std::vector<Eigen::MatrixXd> grip_knots;
+    grip_knots.push_back(Vector1d(0));
+    grip_knots.push_back(Vector1d(FLAGS_gripper_force));
+    grip_knots.push_back(Vector1d(FLAGS_gripper_force));
+    PiecewisePolynomial<double> grip_trajectory =
+        PiecewisePolynomial<double>::FirstOrderHold(grip_breaks, grip_knots);
+    auto grip_source =
+        builder.AddSystem<systems::TrajectorySource>(grip_trajectory);
+    grip_source->set_name("grip_source");
+    builder.Connect(grip_source->get_output_port(),
+                    plant->model_instance_actuator_command_input_port(
+                        gripper_instance_id));
+  }
   plant->set_name("plant");
 
   // Command-line specified contact parameters.
@@ -284,11 +418,54 @@ int main() {
   builder.Connect(contact_viz.get_output_port(0),
                   contact_results_publisher.get_input_port());
 
-  // Set up the model and simulator and set their starting state.
+  if (FLAGS_gripper_force > 0) {
+    // Create the wsg status publisher.
+    auto wsg_status_pub =
+        builder.AddSystem(LcmPublisherSystem::Make<drake::lcmt_schunk_wsg_status>(
+            "SCHUNK_WSG_STATUS", &lcm));
+    wsg_status_pub->set_name("wsg_status_publisher");
+    wsg_status_pub->set_publish_period(
+        drake::manipulation::schunk_wsg::kSchunkWsgLcmStatusPeriod);
+
+    // Get the state and torque output ports for publishing via LCM.
+    const auto& wsg_state_output_port =
+        plant->model_instance_state_output_port(gripper_instance_id);
+    //auto wsg_state_output_port_indx = builder.ExportOutput(wsg_state_output_port);
+
+    const auto& wsg_torque_output_port =
+        plant->model_instance_torque_output_port(gripper_instance_id);
+    //auto wsg_torque_output_port_indx = builder.ExportOutput(wsg_torque_output_port);
+
+    // Create the status sender.
+    auto wsg_status_sender =
+        builder.AddSystem<drake::manipulation::schunk_wsg::SchunkWsgStatusSender>(
+            wsg_state_output_port.size(),
+            wsg_torque_output_port.size(),
+            drake::manipulation::schunk_wsg::kSchunkWsgPositionIndex,
+            drake::manipulation::schunk_wsg::kSchunkWsgVelocityIndex);
+    wsg_status_sender->set_name("wsg_status_sender");
+
+    builder.Connect(wsg_state_output_port,
+                    wsg_status_sender->get_input_port_wsg_state());
+    builder.Connect(wsg_torque_output_port,
+                    wsg_status_sender->get_input_port_measured_torque());
+    builder.Connect(*wsg_status_sender, *wsg_status_pub);
+  }
+
+  // Build the diagram.
   const std::unique_ptr<systems::Diagram<double>> model = builder.Build();
+
+  // Set up the model and simulator and set their starting state.
   systems::Simulator<double> simulator(*model);
 
   systems::Context<double>& context = simulator.get_mutable_context();
+
+  if (FLAGS_gripper_force > 0) {
+    // Open the gripper.
+    plant->SetModelInstancePositions(
+        &model->GetMutableSubsystemContext(*plant, &context), gripper_instance_id,
+        manipulation::schunk_wsg::GetSchunkWsgMugGraspPosition<double>());
+  }
 
   if (FLAGS_rk_type == "rk2") {
     simulator.reset_integrator<RungeKutta2Integrator<double>>(

@@ -63,6 +63,7 @@ drake_cc_binary(
     data = [
         "cylinder_mug.urdf",
         "rigid_mug_gripper.urdf",
+        "schunk_wsg_50_ball_contact_visual_collision.sdf",
         "//multibody:models",
     ],
     test_rule_args = [
@@ -72,13 +73,17 @@ drake_cc_binary(
     deps = [
         "//common:find_resource",
         "//lcm",
+        "//manipulation/schunk_wsg:schunk_wsg_constants",
         "//multibody:rigid_body_tree_construction",
         "//multibody/parsers",
         "//multibody/rigid_body_plant",
         "//multibody/rigid_body_plant:contact_results_to_lcm",
         "//multibody/rigid_body_plant:drake_visualizer",
         "//systems/analysis",
+        "//systems/primitives:trajectory_source",
         "//util",
+        "@drake//lcmtypes:schunk",
+        "@drake//manipulation/schunk_wsg:schunk_wsg_lcm",
         "@gflags",
     ],
 )
