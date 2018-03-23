@@ -7,4 +7,5 @@ struct lcmt_schunk_wsg_status
   double actual_position_mm;
   double actual_force;
   double actual_speed_mm_per_s;
+  double link_positions[5];
 }

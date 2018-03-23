@@ -60,6 +60,22 @@ VectorX<T> GetSchunkWsgOpenPosition() {
   // clang-format on
 }
 
+/**
+ * Returns the position vector corresponding to mug grasping position of the
+ * gripper.
+ */
+template <typename T>
+VectorX<T> GetSchunkWsgMugGraspPosition() {
+  // clang-format off
+  return (VectorX<T>(kSchunkWsgNumPositions) <<
+     -0.04248,
+      0.12346,
+      1.07289,
+      0.04248,
+      0.12346) .finished();
+  // clang-format on
+}
+
 }  // namespace schunk_wsg
 }  // namespace manipulation
 }  // namespace drake
