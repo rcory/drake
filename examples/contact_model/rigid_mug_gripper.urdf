@@ -20,4 +20,9 @@
             <inertia ixx="0.16" ixy="0" ixz="0" iyy="0.16" iyz="0" izz="0.16"/>
         </inertial>
     </link>
+    <!-- Collision filter groups-->
+    <collision_filter_group name="pads_filter">
+        <member link="gripper_pads"/>
+        <ignored_collision_filter_group collision_filter_group="pads_filter"/>
+    </collision_filter_group>
 </robot>
