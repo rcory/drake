@@ -37,7 +37,7 @@ SchunkWsgController::SchunkWsgController() {
   // target.
   const Eigen::VectorXd wsg_kp = Eigen::VectorXd::Constant(kWsgActDim, 2000.0);
   const Eigen::VectorXd wsg_ki = Eigen::VectorXd::Constant(kWsgActDim, 0.0);
-  const Eigen::VectorXd wsg_kd = Eigen::VectorXd::Constant(kWsgActDim, 5.0);
+  const Eigen::VectorXd wsg_kd = Eigen::VectorXd::Constant(kWsgActDim, 50.0);
 
   auto wsg_controller =
       builder.AddSystem<systems::controllers::PidController<double>>(
@@ -63,6 +63,7 @@ SchunkWsgController::SchunkWsgController() {
   builder.Connect(gain->get_output_port(),
                   saturation->get_min_value_port());
   builder.ExportOutput(saturation->get_output_port());
+  //builder.ExportOutput(wsg_controller->get_output_port_control());
   builder.BuildInto(this);
 }
 
