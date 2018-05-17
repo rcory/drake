@@ -50,7 +50,7 @@ DEFINE_double(us, 0.9, "The coefficient of static friction");
 DEFINE_double(ud, 0.5, "The coefficient of dynamic friction");
 DEFINE_double(youngs_modulus, 1e8, "The contact material Young's modulus (Pa)");
 DEFINE_double(dissipation, 2.0, "The contact material dissipation (s/m)");
-DEFINE_double(v_stiction_tolerance, 0.01,
+DEFINE_double(v_stiction_tolerance, 0.001,
               "The maximum slipping speed allowed during stiction (m/s)");
 DEFINE_double(contact_radius, 1e-4,
               "The characteristic scale of radius (m) of the contact area");
@@ -61,20 +61,20 @@ DEFINE_bool(playback, true,
             "If true, simulation begins looping playback when complete");
 DEFINE_string(system_type, "continuous", "The type of simulation to simulate: "
     "'continuous' or 'discrete'");
-DEFINE_string(rk_type, "rk3", "The RK integrator order. Can be 'rk2' or 'rk3'."
+DEFINE_string(rk_type, "rk2", "The RK integrator order. Can be 'rk2' or 'rk3'."
     "Used when simulation_time is 'continuous'");
 DEFINE_double(ts_dt, 1e-3, "The step size to use for "
     "'system_type=discrete' (ignored for 'system_type=continuous'");
-DEFINE_double(rk_dt, 1e-4, "The step size to use for "
+DEFINE_double(rk_dt, 6e-6, "The step size to use for "
     "'system_type=continuous' (ignored for 'system_type=discrete'");
-DEFINE_double(accuracy, 5e-5, "Sets the simulation accuracy for "
+DEFINE_double(accuracy, 1e-3, "Sets the simulation accuracy for "
     "'system_type=continuous' and 'rk_type=rk3'");
 DEFINE_bool(print_time, false, "Prints simulation timestamp every 1/10 s.");
 
 // Parameters for specifying the ring pad approximation.
-DEFINE_int32(ring_samples, 4,
+DEFINE_int32(ring_samples, 8,
              "The number of spheres used to sample the pad ring");
-DEFINE_double(pad_depth, 4e-3, "The depth the foremost pads penetrate the mug. "
+DEFINE_double(pad_depth, 3e-3, "The depth the foremost pads penetrate the mug. "
     "Deeper penetration implies stronger contact forces");
 DEFINE_double(ring_orient, 0, "Rotation of pads around x-axis (in degrees)");
 DEFINE_double(ring_youngs_modulus, -1, "The Young's modulus for the ring pad. "
@@ -100,8 +100,8 @@ DEFINE_double(rz, 0, "The z-rotation of the mug around its origin - the center "
 DEFINE_double(gripper_force, 0, "The force to be applied by the gripper. A "
     "value of 0 indicates no gripper (uses pad_depth to determine penetration "
     "distance).");
-DEFINE_double(finger_width, 0.1, "The initial distance between the gripper "
-    "fingers, when gripper_force > 0.");
+DEFINE_double(initial_finger_position, 0.1, "The initial distance between the "
+    "gripper fingers, when gripper_force > 0.");
 
 namespace drake {
 namespace examples {
@@ -429,9 +429,9 @@ int main() {
       plant->SetModelInstancePositions(
           &model->GetMutableSubsystemContext(
               *plant, &context), gripper_instance_id,
-          (VectorX<double>(1) << FLAGS_finger_width).finished());
+          (VectorX<double>(1) << FLAGS_initial_finger_position).finished());
     } else {
-      plant->set_position(&context, 0, FLAGS_finger_width);
+      plant->set_position(&context, 0, FLAGS_initial_finger_position);
     }
   }
 
