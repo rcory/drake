@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version="1.6">
+  <model name="thin_box">
+    <!--
+    This frame has its +z axis pointing up (sticking out of the food).
+    If the spoon was placed on a flat table, the origin (x=0, y=0, z=0) would
+    be touching the table, and lie between the tip of the spoon and the tip of
+    the handle. The origin is slightly offset in the y-axis (~ 7mm).
+    -->
+    <link name="base_link">
+      <pose frame="">0 0 0 0 0 0</pose>
+      <inertial>
+        <!-- The COM offset from the defined origin (m) -->
+        <pose frame="">7.9737e-03 6.8264e-03 5.1174e-03 0 0 0</pose>
+        <!-- Mass was obtained via scale measurements of the home demo spoon.
+        -->
+        <mass>52.78e-3</mass>
+        <!--Inertia values were obtained via MeshLab. The mesh file spoon.obj is
+        given in cm, giving us a scale factor of s = 0.01. The model inertia
+        is then given by:
+        I = G / V * m * s², where I is the inertia of the unscaled (real)
+        model (whose values then populate the <inertia> tag below), G is the
+        inertia tensor computed via Meshlab around the center of mass (Meshlab
+        assumes uniform and unit density), V is the volume of the model also
+        computed by Meshlab, and s is the scale factor above.
+        -->
+        <inertia>
+          <ixx>5.20e-06</ixx>
+          <ixy>0</ixy>
+          <ixz>-7.51e-06</ixz>
+          <iyy>166e-06</iyy>
+          <iyz>0</iyz>
+          <izz>169e-06</izz>
+        </inertia>
+      </inertial>
+      <!--
+      Collision modeling overview:
+       (1) A box that has the approximately the same cross section dimension as
+           the neck of the spoon. The box length spans from the tip of the
+           handle to right past the neck of the spoon. It is oriented to
+           approximately match the orientation of the handle when the spoon is
+           sitting on a flat table.
+       (2) A box that spans from the tip of the spoon (bowl) to the bottom of
+           the spoon (bowl), i.e., the point that touches the table when it is
+           lying flat (food side up). The box width approximately matches the
+           spoon bowl.
+
+      TODO(rcory) Collision elements should have a <drake_compliance>
+      element to specify the physical material properties.
+
+      TODO(rcory) Use xacro to make the collision sizes, offsets, etc.
+      parametric for easier tuning.
+
+      TODO(rcory) Model the spoon collisions more carefully to better
+      approximate the visual mesh.
+      -->
+      <collision name="handle_collision">
+        <pose frame="">-0.031 0.007 0.005 0 -0.05 0</pose>
+        <geometry>
+          <box>
+            <size>0.115 0.01 0.0025</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name="bowl_collision">
+        <pose frame="">0.067 0.007 0.0115 0 -0.45 0</pose>
+        <geometry>
+          <box>
+            <size>0.047 0.042 0.0025</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="visual_1">
+        <pose frame="">-0.031 0.007 0.005 0 -0.05 0</pose>
+        <geometry>
+          <box>
+            <size>0.115 0.01 0.0025</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0 1.00 0 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="visual_2">
+        <pose frame="">0.067 0.007 0.0115 0 -0.45 0</pose>
+        <geometry>
+          <box>
+            <size>0.047 0.042 0.0025</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0 1.00 0 1.0</diffuse>
+        </material>
+      </visual>
+
+      <!-- Add spheres to the corners of the collision boxes, to avoid
+      bouncing. -->
+      <collision name="handle_corner_col_0">
+        <pose frame="">-0.0885 0.002 0.00225 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_corner_col_1">
+        <pose frame="">-0.0885 0.012 0.00225 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="bowl_corner_col_0">
+        <pose frame="">0.088 0.028 0.022 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="bowl_corner_col_1">
+        <pose frame="">0.088 -0.0145 0.022 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="bowl_corner_col_2">
+        <pose frame="">0.046 -0.014 0.001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="bowl_corner_col_3">
+        <pose frame="">0.046 0.028 0.001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+
+
+      <!-- Add collision spheres along the handle, which are used to make
+      contact with the flat face of the gripper finger.-->
+      <collision name="handle_sphere_col_0">
+        <pose frame="">-0.080 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_1">
+        <pose frame="">-0.070 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_2">
+        <pose frame="">-0.060 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_3">
+        <pose frame="">-0.050 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_4">
+        <pose frame="">-0.040 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_5">
+        <pose frame="">-0.030 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_6">
+        <pose frame="">-0.020 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_7">
+        <pose frame="">-0.010 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_8">
+        <pose frame="">-0 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_9">
+        <pose frame="">0.010 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="handle_sphere_col_10">
+        <pose frame="">0.020 0.007 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>2e-3</radius>
+          </sphere>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- A dummy link for locating the grasp frame. -->
+    <link name="spoon_grasp_body">
+      <pose frame="">0 0.007 0 0 0 0</pose>
+      <inertial>
+        <pose frame="">0 0 0 0 0 0</pose>
+        <mass>1e-12</mass>
+        <inertia>
+          <ixx>.0000000001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00000000001</iyy>
+          <iyz>0</iyz>
+          <izz>0.0000000001</izz>
+        </inertia>
+      </inertial>
+      <visual name="dummy_visual">
+        <pose frame="">0 0 0.008 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-8</radius>
+          </sphere>
+        </geometry>
+      </visual>
+    </link>
+    <!-- Ensure that the `spoon` frame lies along the symmetry axis.-->
+    <frame name="box_frame">
+      <link>base_link</link>
+      <pose>0 0.007 0 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>

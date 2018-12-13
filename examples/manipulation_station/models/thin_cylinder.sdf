@@ -1,0 +1,177 @@
+<?xml version='1.0'?>
+<sdf version='1.6'>
+  <model name='thin_cylinder'>
+    <!--
+    This frame has its +z axis pointing up (sticking out of the food).
+    The origin-point of the plate-frame is along the plate's symmetry axis.
+    If the plate was placed on a flat table, the origin (x=0, y=0, z=0) would
+    be touching the table.  All particles in the plate have a z-value greater
+    than or equal to zero.  (Note that due to rounding errors a few vertices
+    are approximately a micron below zero.)
+    -->
+    <link name='base_link'>
+      <pose>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0.00915 0 0 0</pose>
+        <mass>0.375</mass>
+        <inertia>
+          <ixx>0.000860</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000860</iyy>
+          <iyz>0</iyz>
+          <izz>0.00171</izz>
+        </inertia>
+      </inertial>
+      <!--
+      Collision modeling overview:
+       (1) An elevated flat cylinder for a parallel gripper to grasp.
+       (2) A ground-level ring of spheres to rest on a surface.
+       (3) A lip-level ring of spheres to be pushed against vertical surfaces,
+           or to support the plate when upside-down.
+
+      TODO(jeremy.nimmer) Collision elements should have a <drake_compliance>
+      element to specify the physical material properties.
+
+      TODO(jeremy.nimmer) Use xacro to make the collision sizes, offsets, etc.
+      parametric for easier tuning.
+
+      TODO(jeremy.nimmer) Ideally the collision solid(s) would have a slope to
+      match the outer ring of the plate, since in reality the grasp is angled.
+      -->
+      <!-- Part (1).  The plate mesh has 101mm radius and 19mm height.  We
+           choose a cylinder thickness of 6mm and center it at 16mm elevation,
+           so that its z spans from 13mm to 19mm.
+      -->
+      <visual name='visual_cylinder'>
+        <pose>0 0 0.018 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.101</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.0 0 1.0 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name='visual_cylinder_base'>
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.080</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.0 0 1.0 1.0</diffuse>
+        </material>
+      </visual>
+
+      <collision name='collision_cylinder'>
+        <pose>0 0 0.018 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.101</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.1</mu>
+              <mu2>0.1</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='collision_cylinder_base'>
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.080</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.9</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <!-- Part (2).  The ring at the bottom of the plate has a 66mm radius
+           on-center.  We choose a sphere radius and elevation of 5mm, so that
+           each z spans from 0mm to 10mm.
+      -->
+      <collision name='collision_base_sphere_0'>
+        <pose> 0.066  0.000 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_1'>
+        <pose> 0.047  0.047 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_2'>
+        <pose> 0.000  0.066 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_3'>
+        <pose>-0.047  0.047 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_4'>
+        <pose>-0.066  0.000 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_5'>
+        <pose>-0.047 -0.047 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_6'>
+        <pose> 0.000 -0.066 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name='collision_base_sphere_7'>
+        <pose> 0.047 -0.047 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.005</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <!-- Part (3).  TBD.
+      -->
+    </link>
+  </model>
+</sdf>

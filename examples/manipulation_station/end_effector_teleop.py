@@ -190,6 +190,7 @@ class DifferentialIK(LeafSystem):
             robot.num_positions()), self.CopyPositionOut)
 
     def SetPositions(self, context, q):
+        '''A test docstring'''
         context.get_mutable_discrete_state(0).SetFromVector(q)
 
     def ForwardKinematics(self, q):
@@ -270,12 +271,19 @@ if args.hardware:
     station.Connect(wait_for_cameras=False)
 else:
     station = builder.AddSystem(ManipulationStation())
-    station.SetupDefaultStation()
+    #station.SetupDefaultStation()
+    station.SetupClutterStation()
     parser = Parser(station.get_mutable_multibody_plant(),
                     station.get_mutable_scene_graph())
-    object = parser.AddModelFromFile(FindResourceOrThrow(
+    object_1 = parser.AddModelFromFile(FindResourceOrThrow(
         "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
-        "object")
+        "cylinder")
+    object_2 = parser.AddModelFromFile(FindResourceOrThrow(
+        "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
+        "thin_cylider")
+    object_3 = parser.AddModelFromFile(FindResourceOrThrow(
+        "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
+        "thin_box")
     station.Finalize()
 
     ConnectDrakeVisualizer(builder, station.get_scene_graph(),
@@ -342,15 +350,36 @@ if not args.hardware:
     station.SetWsgPosition(0.1, station_context)
     station.SetWsgVelocity(0, station_context)
 
-    # Place the object in the middle of the workspace.
+    # Place the cylinder.
     X_WObject = Isometry3.Identity()
-    X_WObject.set_translation([.6, 0, 0])
+    X_WObject.set_translation([-0.15, -0.5, 0.35])
     station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
         station.get_multibody_plant().GetBodyByName("base_link",
-                                                    object),
+                                                    object_1),
         X_WObject, station.GetMutableSubsystemContext(
             station.get_multibody_plant(),
             station_context))
+
+    # Place the thin cylinder.
+    X_WObject = Isometry3.Identity()
+    X_WObject.set_translation([0.08, -0.45, 0.35])
+    station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+        station.get_multibody_plant().GetBodyByName("base_link",
+                                                    object_2),
+        X_WObject, station.GetMutableSubsystemContext(
+            station.get_multibody_plant(),
+            station_context))
+
+    # Place the thin box.
+    X_WObject = Isometry3.Identity()
+    X_WObject.set_translation([0.08, -0.6, 0.35])
+    station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+        station.get_multibody_plant().GetBodyByName("base_link",
+                                                    object_3),
+        X_WObject, station.GetMutableSubsystemContext(
+            station.get_multibody_plant(),
+            station_context))
+
 
 q0 = station.GetOutputPort("iiwa_position_measured").Eval(
     station_context).get_value()
