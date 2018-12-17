@@ -246,34 +246,34 @@
       </collision>
     </link>
 
-    <!-- A dummy link for locating the grasp frame. -->
-    <link name="spoon_grasp_body">
-      <pose frame="">0 0.007 0 0 0 0</pose>
-      <inertial>
-        <pose frame="">0 0 0 0 0 0</pose>
-        <mass>1e-12</mass>
-        <inertia>
-          <ixx>.0000000001</ixx>
-          <ixy>0</ixy>
-          <ixz>0</ixz>
-          <iyy>0.00000000001</iyy>
-          <iyz>0</iyz>
-          <izz>0.0000000001</izz>
-        </inertia>
-      </inertial>
-      <visual name="dummy_visual">
-        <pose frame="">0 0 0.008 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-8</radius>
-          </sphere>
-        </geometry>
-      </visual>
-    </link>
-    <!-- Ensure that the `spoon` frame lies along the symmetry axis.-->
-    <frame name="box_frame">
-      <link>base_link</link>
-      <pose>0 0.007 0 0 0 0</pose>
-    </frame>
+    <!--&lt;!&ndash; A dummy link for locating the grasp frame. &ndash;&gt;-->
+    <!--<link name="spoon_grasp_body">-->
+      <!--<pose frame="">0 0.007 0 0 0 0</pose>-->
+      <!--<inertial>-->
+        <!--<pose frame="">0 0 0 0 0 0</pose>-->
+        <!--<mass>1e-12</mass>-->
+        <!--<inertia>-->
+          <!--<ixx>.0000000001</ixx>-->
+          <!--<ixy>0</ixy>-->
+          <!--<ixz>0</ixz>-->
+          <!--<iyy>0.00000000001</iyy>-->
+          <!--<iyz>0</iyz>-->
+          <!--<izz>0.0000000001</izz>-->
+        <!--</inertia>-->
+      <!--</inertial>-->
+      <!--<visual name="dummy_visual">-->
+        <!--<pose frame="">0 0 0.008 0 0 0</pose>-->
+        <!--<geometry>-->
+          <!--<sphere>-->
+            <!--<radius>1e-8</radius>-->
+          <!--</sphere>-->
+        <!--</geometry>-->
+      <!--</visual>-->
+    <!--</link>-->
+    <!--&lt;!&ndash; Ensure that the `spoon` frame lies along the symmetry axis.&ndash;&gt;-->
+    <!--<frame name="box_frame">-->
+      <!--<link>base_link</link>-->
+      <!--<pose>0 0.007 0 0 0 0</pose>-->
+    <!--</frame>-->
   </model>
 </sdf>

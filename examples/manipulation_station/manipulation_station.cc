@@ -183,7 +183,7 @@ ManipulationStation<T>::ManipulationStation(double time_step)
 }
 
 template <typename T>
-void ManipulationStation<T>::SetupClutterStation(
+void ManipulationStation<T>::SetupBinPickStation(
     const IiwaCollisionModel collision_model) {
 
   AddDefaultIiwa(collision_model);
@@ -191,19 +191,23 @@ void ManipulationStation<T>::SetupClutterStation(
 
   // Add the bin.
   {
-    const double dy_bin_center_to_robot_base = -0.5;
-    const double bin_height = 0.4;
-
     const std::string sdf_path = FindResourceOrThrow(
         "drake/examples/manipulation_station/models/bin.sdf");
 
-    const Isometry3<double> X_WC =
+    Isometry3<double> X_WC =
         RigidTransform<double>(
             RotationMatrix<double>::MakeZRotation(M_PI_2),
-            Vector3d(0, dy_bin_center_to_robot_base, bin_height / 2.0))
+            Vector3d(-0.145, -0.63, 0.235))
             .GetAsIsometry3();
-    internal::AddAndWeldModelFrom(sdf_path, "bin", plant_->world_frame(),
+    internal::AddAndWeldModelFrom(sdf_path, "bin1", plant_->world_frame(),
                                   "bin_base", X_WC, plant_);
+
+    X_WC = RigidTransform<double>(RotationMatrix<double>::MakeZRotation(M_PI),
+                                  Vector3d(0.5, -0.1, 0.235))
+               .GetAsIsometry3();
+    internal::AddAndWeldModelFrom(sdf_path, "bin2", plant_->world_frame(),
+                                  "bin_base", X_WC, plant_);
+
 
   }
 

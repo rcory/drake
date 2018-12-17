@@ -16,7 +16,7 @@ from pydrake.manipulation.simple_ui import SchunkWsgButtons
 from pydrake.manipulation.planner import (
     DifferentialInverseKinematicsParameters, DoDifferentialInverseKinematics)
 from pydrake.multibody.parsing import Parser
-from pydrake.math import RigidTransform, RollPitchYaw
+from pydrake.math import RigidTransform, RollPitchYaw, RotationMatrix
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import (AbstractValue, BasicVector,
                                        DiagramBuilder, LeafSystem,
@@ -58,19 +58,19 @@ class EndEffectorTeleop(LeafSystem):
                             length=800,
                             orient=tk.HORIZONTAL)
         self.yaw.pack()
-        self.x = tk.Scale(self.window, from_=0.1, to=0.8,
+        self.x = tk.Scale(self.window, from_=-0.6, to=0.8,
                           resolution=-1,
                           label="x",
                           length=800,
                           orient=tk.HORIZONTAL)
         self.x.pack()
-        self.y = tk.Scale(self.window, from_=-0.3, to=0.3,
+        self.y = tk.Scale(self.window, from_=-0.8, to=0.3,
                           resolution=-1,
                           label="y",
                           length=800,
                           orient=tk.HORIZONTAL)
         self.y.pack()
-        self.z = tk.Scale(self.window, from_=0, to=0.8,
+        self.z = tk.Scale(self.window, from_=0, to=1.1,
                           resolution=-1,
                           label="z",
                           length=800,
@@ -190,7 +190,6 @@ class DifferentialIK(LeafSystem):
             robot.num_positions()), self.CopyPositionOut)
 
     def SetPositions(self, context, q):
-        '''A test docstring'''
         context.get_mutable_discrete_state(0).SetFromVector(q)
 
     def ForwardKinematics(self, q):
@@ -261,6 +260,9 @@ parser.add_argument(
          "joint velocity limits. "
          "Note: The pre-defined velocity limits are specified by "
          "iiwa14_velocity_limits, found in this python file.")
+parser.add_argument('--sim_station_type', type=str, default='default',
+    help="help string", choices=['default', 'bin_picking'])
+
 MeshcatVisualizer.add_argparse_argument(parser)
 args = parser.parse_args()
 
@@ -271,21 +273,33 @@ if args.hardware:
     station.Connect(wait_for_cameras=False)
 else:
     station = builder.AddSystem(ManipulationStation())
-    #station.SetupDefaultStation()
-    station.SetupClutterStation()
+
+    # Initializes the chosen station type.
+    if args.sim_station_type == 'default':
+        station.SetupDefaultStation()
+    elif args.sim_station_type == 'bin_picking':
+        station.SetupBinPickStation()
+
     parser = Parser(station.get_mutable_multibody_plant(),
                     station.get_mutable_scene_graph())
     object_1 = parser.AddModelFromFile(FindResourceOrThrow(
         "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
-        "cylinder")
-    object_2 = parser.AddModelFromFile(FindResourceOrThrow(
-        "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
-        "thin_cylider")
-    object_3 = parser.AddModelFromFile(FindResourceOrThrow(
-        "drake/examples/manipulation_station/models/061_foam_brick.sdf"),
-        "thin_box")
-    station.Finalize()
+        "object_1")
+    if args.sim_station_type == 'bin_picking':
+        object_2 = parser.AddModelFromFile(FindResourceOrThrow(
+            "drake/examples/manipulation_station/models/cylinder.sdf"),
+            "object_2")
+        object_3 = parser.AddModelFromFile(FindResourceOrThrow(
+            "drake/examples/manipulation_station/models/thin_cylinder.sdf"),
+            "object_3")
+        object_4 = parser.AddModelFromFile(FindResourceOrThrow(
+            "drake/examples/manipulation_station/models/thin_box.sdf"),
+            "object_4")
+        object_5 = parser.AddModelFromFile(FindResourceOrThrow(
+            "drake/examples/manipulation_station/models/sphere.sdf"),
+            "object_5")
 
+    station.Finalize()
     ConnectDrakeVisualizer(builder, station.get_scene_graph(),
                            station.GetOutputPort("pose_bundle"))
     if args.meshcat:
@@ -340,46 +354,85 @@ station_context.FixInputPort(station.GetInputPort(
     "iiwa_feedforward_torque").get_index(), np.zeros(7))
 
 if not args.hardware:
-    # Set the initial positions of the IIWA to a comfortable configuration
-    # inside the workspace of the station.
-    q0 = [0, 0.6, 0, -1.75, 0, 1.0, 0]
-    station.SetIiwaPosition(q0, station_context)
-    station.SetIiwaVelocity(np.zeros(7), station_context)
+    if args.sim_station_type == 'default':
+        # Set the initial positions of the IIWA to a comfortable configuration
+        # inside the workspace of the station.
+        q0 = [0, 0.6, 0, -1.75, 0, 1.0, 0]
+        station.SetIiwaPosition(q0, station_context)
+        station.SetIiwaVelocity(np.zeros(7), station_context)
 
-    # Set the initial configuration of the gripper to open.
-    station.SetWsgPosition(0.1, station_context)
-    station.SetWsgVelocity(0, station_context)
+        # Set the initial configuration of the gripper to open.
+        station.SetWsgPosition(0.1, station_context)
+        station.SetWsgVelocity(0, station_context)
 
-    # Place the cylinder.
-    X_WObject = Isometry3.Identity()
-    X_WObject.set_translation([-0.15, -0.5, 0.35])
-    station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
-        station.get_multibody_plant().GetBodyByName("base_link",
-                                                    object_1),
-        X_WObject, station.GetMutableSubsystemContext(
-            station.get_multibody_plant(),
-            station_context))
+        # Place the object in the middle of the workspace.
+        X_WObject = Isometry3.Identity()
+        X_WObject.set_translation([.6, 0, 0])
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_1),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
+    elif args.sim_station_type == 'bin_picking':
+        # Set the initial positions of the IIWA to a comfortable configuration
+        # inside the workspace of the station.
+        q0 = [-1.57, 0.1, 0, -1.2, 0, 1.6, 0]
+        station.SetIiwaPosition(q0, station_context)
+        station.SetIiwaVelocity(np.zeros(7), station_context)
 
-    # Place the thin cylinder.
-    X_WObject = Isometry3.Identity()
-    X_WObject.set_translation([0.08, -0.45, 0.35])
-    station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
-        station.get_multibody_plant().GetBodyByName("base_link",
-                                                    object_2),
-        X_WObject, station.GetMutableSubsystemContext(
-            station.get_multibody_plant(),
-            station_context))
+        # Set the initial configuration of the gripper to open.
+        station.SetWsgPosition(0.1, station_context)
+        station.SetWsgVelocity(0, station_context)
 
-    # Place the thin box.
-    X_WObject = Isometry3.Identity()
-    X_WObject.set_translation([0.08, -0.6, 0.35])
-    station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
-        station.get_multibody_plant().GetBodyByName("base_link",
-                                                    object_3),
-        X_WObject, station.GetMutableSubsystemContext(
-            station.get_multibody_plant(),
-            station_context))
+        # Place the box.
+        X_WObject = Isometry3.Identity()
+        X_WObject.set_translation([-0.15, -0.7, 0.25])
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_1),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
 
+        # Place the cylinder.
+        X_WObject.set_translation([-0.2, -0.6, 0.30])
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_2),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
+
+        # Place the thin cylinder.
+        X_WObject.set_translation([0, -0.6, 0.25])
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_3),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
+
+        # Place the thin box.
+        X_WObject.set_translation([-0.30, -0.70, 0.25])
+        rpy = RollPitchYaw([0, 0, 1.57])
+        R_BB = rpy.ToRotationMatrix().matrix()
+        X_WObject.set_rotation(R_BB)
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_4),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
+
+        # Place the sphere.
+        X_WObject.set_translation([0, -0.6, 0.31])
+        station.get_multibody_plant().tree().SetFreeBodyPoseOrThrow(
+            station.get_multibody_plant().GetBodyByName("base_link",
+                                                        object_5),
+            X_WObject, station.GetMutableSubsystemContext(
+                station.get_multibody_plant(),
+                station_context))
 
 q0 = station.GetOutputPort("iiwa_position_measured").Eval(
     station_context).get_value()
