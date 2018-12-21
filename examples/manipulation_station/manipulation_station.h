@@ -157,18 +157,18 @@ class ManipulationStation : public systems::Diagram<T> {
   void SetupDefaultStation(
       IiwaCollisionModel collision_model = IiwaCollisionModel::kNoCollision);
 
-  /// Sets the pose of a given body in the simulation.
+  /// Sets the pose of a given floating body in the simulation.
   /// @param X_WObject The pose of the object
   /// @param name The name of the body to pose
-  /// @param model_id The model instance id to which the body belongs.
-  /// @param station_context The Context of this manipulation station.
-  void SetBodyPose(const Isometry3<T> &X_WObject, std::string name,
-                   multibody::ModelInstanceIndex model_id,
-                   systems::Context<T>* station_context);
+  /// @param plant_q The full generalized position vector of the MBP
+  void SetFloatingBodyPose(math::RigidTransform<T>& X_WObject,
+                           std::string name, VectorX<T>& plant_q) const;
 
-  /// Sets the default context for the chosen setup.
-  /// @param station_context The context of the ManipulationStation.
-  void SetDefaultContext(systems::Context<T>* station_context);
+  //  /// Sets the default context for the chosen setup.
+  //  /// @param station_context The context of the ManipulationStation.
+  //  void SetDefaultContext(systems::Context<T>* station_context);
+  void SetDefaultState(const systems::Context<T>& context,
+                       systems::State<T>* state) const override;
 
   /// Notifies the ManipulationStation that the IIWA robot model instance can
   /// be identified by @p iiwa_instance as well as necessary information to

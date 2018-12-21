@@ -321,74 +321,142 @@ void ManipulationStation<T>::SetupDefaultStation(
 }
 
 template <typename T>
-void ManipulationStation<T>::SetBodyPose(
-    const Isometry3<T>& X_WObject, std::string name,
-    multibody::ModelInstanceIndex model_id,
-    systems::Context<T>* station_context) {
-  systems::Context<T>* plant_context =
-      &(this->GetMutableSubsystemContext(*plant_, station_context));
+void ManipulationStation<T>::SetFloatingBodyPose(
+    math::RigidTransform<T>& X_WObject, std::string name,
+    VectorX<T>& plant_q) const {
+  Eigen::VectorXd q0_object(7);
+  q0_object.head(4) = X_WObject.rotation().ToQuaternionAsVector4();
+  q0_object.tail(3) = X_WObject.translation();
 
-    plant_->tree().SetFreeBodyPoseOrThrow(
-        plant_->GetBodyByName(name, model_id), X_WObject, plant_context);
+  plant_->SetPositionsInArray(plant_->GetModelInstanceByName(name),
+                              q0_object, &plant_q);
 }
 
 template <typename T>
-void ManipulationStation<T>::SetDefaultContext(
-    systems::Context<T>* station_context) {
+void ManipulationStation<T>::SetDefaultState(const systems::Context<T>& context,
+                                             systems::State<T>* state) const {
+  // Call the base class method, to initialize all systems in this diagram.
+  systems::Diagram<T>::SetDefaultState(context, state);
 
-  Eigen::VectorXd q0(7);
-  Eigen::Isometry3d X_WObject;
+  Eigen::VectorXd q0_iiwa(7);
+  Eigen::VectorXd q0_object(7);
+  RigidTransform<T> X_WObject;
+
+  systems::SubsystemIndex plant_sys_index = this->GetSystemIndexOrAbort(plant_);
+
+  auto diagram_state = dynamic_cast<systems::DiagramState<T>*>(state);
+  DRAKE_DEMAND(diagram_state != nullptr);
+
+//  systems::DiscreteValues<T>& plant_xds =
+//      diagram_state->get_mutable_substate(plant_sys_index)
+//          .get_mutable_discrete_state();
+
+//  Eigen::VectorXd plant_xd =
+//      diagram_state->get_mutable_substate(plant_sys_index)
+//          .get_mutable_discrete_state().get_vector().CopyToVector();
+
+  Eigen::VectorBlock<VectorX<T>> plant_xd =
+      diagram_state->get_mutable_substate(plant_sys_index)
+          .get_mutable_discrete_state()
+          .get_mutable_vector()
+          .get_mutable_value();
+
+  VectorX<T> plant_q =
+      plant_xd.head(plant_->num_positions());
+  VectorX<T> plant_qdot =
+      plant_xd.tail(plant_->num_velocities());
 
   switch (setup_) {
     case Setup::kDefault:
       // Set the initial positions of the IIWA to a comfortable configuration
       // inside the workspace of the station.
-      q0 << 0, 0.6, 0, -1.75, 0, 1.0, 0;
+      q0_iiwa << 0, 0.6, 0, -1.75, 0, 1.0, 0;
 
-      DRAKE_DEMAND(model_ids_.size() == 1);
+      DRAKE_DEMAND(model_ids_.size() > 0);
 
-      // Place the box.
-      X_WObject = Isometry3<double>::Identity();
-      X_WObject.translation() = Eigen::Vector3d(0.6, 0, 0);
-      SetBodyPose(X_WObject, "base_link", model_ids_[0], station_context);
+      // Set the initial pose of the object.
+      X_WObject.set_translation(Eigen::Vector3d(0.6, 0, 0));
+      X_WObject.set_rotation(RotationMatrix<double>::Identity());
+
+//      q0_object.head(4) = X_WObject.rotation().ToQuaternionAsVector4();
+//      q0_object.tail(3) = X_WObject.translation();
+//
+//      plant_->SetPositionsInArray(plant_->GetModelInstanceByName("object_1"),
+//                                  q0_object, &plant_q);
+
+      SetFloatingBodyPose(X_WObject, "object_1", plant_q);
+
       break;
     case Setup::kClutterClearing:
-      // Set the initial positions of the IIWA to a configuration
-      // right above the picking bin.
-      q0 << -1.57, 0.1, 0, -1.2, 0, 1.6, 0;
-
-      DRAKE_DEMAND(model_ids_.size() == 5);
-
-      // Place the box.
-      X_WObject = Isometry3<double>::Identity();
-      X_WObject.translation() = Eigen::Vector3d(-0.15, -0.7, 0.25);
-      SetBodyPose(X_WObject, "base_link", model_ids_[0], station_context);
-
-      // Place the cylinder.
-      X_WObject.translation() = Eigen::Vector3d(-0.2, -0.6, 0.30);
-      SetBodyPose(X_WObject, "base_link", model_ids_[1], station_context);
-
-      // Place the thin cylinder.
-      X_WObject.translation() = Eigen::Vector3d(0, -0.6, 0.25);
-      SetBodyPose(X_WObject, "base_link", model_ids_[2], station_context);
-
-      // Place the thin box.
-      X_WObject.translation() = Eigen::Vector3d(-0.3, -0.7, 0.25);
-      SetBodyPose(X_WObject, "base_link", model_ids_[3], station_context);
-
-      // Place the sphere.
-      X_WObject.translation() = Eigen::Vector3d(0, -0.6, 0.31);
-      SetBodyPose(X_WObject, "base_link", model_ids_[4], station_context);
+      // Set the initial positions of the IIWA to a configuration right above
+      // the picking bin.
+      q0_iiwa << -1.57, 0.1, 0, -1.2, 0, 1.6, 0;
       break;
   }
 
-  SetIiwaPosition(q0, station_context);
-  SetIiwaVelocity(Eigen::VectorXd::Zero(7), station_context);
-
-  // Set the initial configuration of the gripper to open.
-  SetWsgPosition(0.1, station_context);
-  SetWsgVelocity(0, station_context);
+  plant_->SetPositionsInArray(plant_->GetModelInstanceByName("iiwa"), q0_iiwa,
+                              &plant_q);
+  plant_->SetVelocitiesInArray(plant_->GetModelInstanceByName("iiwa"),
+                               Eigen::VectorXd::Zero(7), &plant_qdot);
 }
+
+//template <typename T>
+//void ManipulationStation<T>::SetDefaultContext(
+//    systems::Context<T>* station_context) {
+//
+//  Eigen::VectorXd q0(7);
+//  Eigen::Isometry3d X_WObject;
+//
+//  switch (setup_) {
+//    case Setup::kDefault:
+//      // Set the initial positions of the IIWA to a comfortable configuration
+//      // inside the workspace of the station.
+//      q0 << 0, 0.6, 0, -1.75, 0, 1.0, 0;
+//
+//      DRAKE_DEMAND(model_ids_.size() == 1);
+//
+//      // Place the box.
+//      X_WObject = Isometry3<double>::Identity();
+//      X_WObject.translation() = Eigen::Vector3d(0.6, 0, 0);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[0], station_context);
+//      break;
+//    case Setup::kClutterClearing:
+//      // Set the initial positions of the IIWA to a configuration
+//      // right above the picking bin.
+//      q0 << -1.57, 0.1, 0, -1.2, 0, 1.6, 0;
+//
+//      DRAKE_DEMAND(model_ids_.size() == 5);
+//
+//      // Place the box.
+//      X_WObject = Isometry3<double>::Identity();
+//      X_WObject.translation() = Eigen::Vector3d(-0.15, -0.7, 0.25);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[0], station_context);
+//
+//      // Place the cylinder.
+//      X_WObject.translation() = Eigen::Vector3d(-0.2, -0.6, 0.30);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[1], station_context);
+//
+//      // Place the thin cylinder.
+//      X_WObject.translation() = Eigen::Vector3d(0, -0.6, 0.25);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[2], station_context);
+//
+//      // Place the thin box.
+//      X_WObject.translation() = Eigen::Vector3d(-0.3, -0.7, 0.25);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[3], station_context);
+//
+//      // Place the sphere.
+//      X_WObject.translation() = Eigen::Vector3d(0, -0.6, 0.31);
+//      SetBodyPose(X_WObject, "base_link", model_ids_[4], station_context);
+//      break;
+//  }
+//
+//  SetIiwaPosition(q0, station_context);
+//  SetIiwaVelocity(Eigen::VectorXd::Zero(7), station_context);
+//
+//  // Set the initial configuration of the gripper to open.
+//  SetWsgPosition(0.1, station_context);
+//  SetWsgVelocity(0, station_context);
+//}
 
 template <typename T>
 void ManipulationStation<T>::MakeIiwaControllerModel() {
