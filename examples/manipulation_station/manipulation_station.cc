@@ -182,10 +182,10 @@ ManipulationStation<T>::ManipulationStation(double time_step)
 }
 
 template <typename T>
-void ManipulationStation<T>::SetupBinPickingStation(
+void ManipulationStation<T>::SetupClutterClearingStation(
     const IiwaCollisionModel collision_model) {
 
-  setup_ = Setup::kBinPicking;
+  setup_ = Setup::kClutterClearing;
 
   // Add the bin.
   {
@@ -352,7 +352,7 @@ void ManipulationStation<T>::SetDefaultContext(
       X_WObject.translation() = Eigen::Vector3d(0.6, 0, 0);
       SetBodyPose(X_WObject, "base_link", model_ids_[0], station_context);
       break;
-    case Setup::kBinPicking:
+    case Setup::kClutterClearing:
       // Set the initial positions of the IIWA to a configuration
       // right above the picking bin.
       q0 << -1.57, 0.1, 0, -1.2, 0, 1.6, 0;
