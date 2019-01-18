@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<sdf version='1.6'>
+<model name="brick">
+  <link name="box_base_link">
+    <inertial>
+      <pose frame=''>0 0 0 0 0 0 </pose>
+      <mass>0.028</mass>
+        <inertia>
+          <ixx>1.17e-5</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.9e-5</iyy>
+          <iyz>0</iyz>
+          <izz>1.9e-5</izz>
+        </inertia>
+    </inertial>
+    <visual name='base_link_1'>
+      <pose frame=''>0 0 0.023 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.025 0.092 0.046</size>
+        </box>
+      </geometry>
+      <material>
+        <diffuse>0 1.0 0 1.0</diffuse>
+      </material>
+    </visual>
+    <visual name='base_link_2'>
+      <pose frame=''>0 0 -0.023 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.025 0.092 0.046</size>
+        </box>
+      </geometry>
+      <material>
+        <diffuse>0 0 1.0 1.0</diffuse>
+      </material>
+    </visual>
+    <collision name='box_collision'>
+      <pose>0 0 0 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.025 0.092 0.092</size>
+        </box>
+      </geometry>
+    </collision>
+   </link>
+  <joint name="box_pin_joint" type="revolute">
+    <parent>world</parent>
+    <child>box_base_link</child>
+    <pose>0 0 0 0 0 0</pose>
+    <axis>
+      <xyz>1 0 0</xyz>
+      <limit>
+        <effort>0</effort>
+      </limit>
+      <dynamics>
+        <damping>0.00001</damping>
+      </dynamics>
+      <use_parent_model_frame>1</use_parent_model_frame>
+    </axis>
+  </joint>
+</model>
+</sdf>
