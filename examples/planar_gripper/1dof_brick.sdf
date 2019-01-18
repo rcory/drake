@@ -3,67 +3,17 @@
 <model name="brick">
   <link name="brick_base_link">
   </link>
-  <link name="brick_dummy_link1">
-    <inertial>
-      <pose frame=''>0 0 0 0 0 0 </pose>
-      <mass>1e-10</mass>
-      <inertia>
-        <ixx>1e-10</ixx>
-        <ixy>0</ixy>
-        <ixz>0</ixz>
-        <iyy>1e-10</iyy>
-        <iyz>0</iyz>
-        <izz>1e-10</izz>
-      </inertia>
-    </inertial>
-  </link>
-  <joint name="brick_translate_y_joint" type="prismatic">
-    <child> brick_dummy_link1 </child>
-    <parent> brick_base_link </parent>
-    <axis>
-      <xyz> 0 1 0 </xyz>
-      <limit>
-        <!-- Drake parses a zero effort joint as an un-actuated joint. -->
-        <effort> 0 </effort>
-      </limit>
-    </axis>
-  </joint>
-  <link name="brick_dummy_link2">
-    <inertial>
-      <pose frame=''>0 0 0 0 0 0 </pose>
-      <mass>1e-10</mass>
-      <inertia>
-        <ixx>1e-10</ixx>
-        <ixy>0</ixy>
-        <ixz>0</ixz>
-        <iyy>1e-10</iyy>
-        <iyz>0</iyz>
-        <izz>1e-10</izz>
-      </inertia>
-    </inertial>
-  </link>
-  <joint name="brick_translate_z_joint" type="prismatic">
-    <child> brick_dummy_link2 </child>
-    <parent> brick_dummy_link1 </parent>
-    <axis>
-      <xyz> 0 0 1 </xyz>
-      <limit>
-        <!-- Drake parses a zero effort joint as an un-actuated joint. -->
-        <effort> 0 </effort>
-      </limit>
-    </axis>
-  </joint>
   <link name="brick_link">
     <inertial>
       <pose frame=''>0 0 0 0 0 0 </pose>
-      <mass>0.028</mass>
+      <mass>1.0</mass>
         <inertia>
-          <ixx>1.17e-5</ixx>
+          <ixx>1.666667e-3</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>1.9e-5</iyy>
+          <iyy>1.241667e-3</iyy>
           <iyz>0</iyz>
-          <izz>1.9e-5</izz>
+          <izz>1.241667e-3</izz>
         </inertia>
     </inertial>
     <visual name='brick_visual_1'>
@@ -74,7 +24,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0.8 0 1.0</diffuse>
+        <diffuse>0 0.8 0 0.2</diffuse>
       </material>
     </visual>
     <visual name='brick_visual_2'>
@@ -85,7 +35,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0 0.8 1.0</diffuse>
+        <diffuse>0 0 0.8 0.2</diffuse>
       </material>
     </visual>
     <collision name='box_collision'>
@@ -100,6 +50,7 @@
       <pose>-0.035 0.05 0.05 0 0 0</pose>
       <geometry>
         <sphere>
+<!--          TODO(rcory) I'm sure this affects that master sim too-->
           <radius>.0003</radius>
         </sphere>
       </geometry>
@@ -130,14 +81,20 @@
     </collision>
    </link>
    <joint name="brick_revolute_x_joint" type="revolute">
-     <child> brick_link </child>
-     <parent> brick_dummy_link2 </parent>
+     <parent>brick_base_link</parent>
+     <child>brick_link</child>
      <axis>
        <xyz> 1 0 0 </xyz>
        <limit>
          <!-- Drake parses a zero effort joint as an un-actuated joint. -->
          <effort> 0 </effort>
        </limit>
+       <dynamics>
+         <damping>.008</damping>
+<!--         <damping>.0001</damping>-->
+<!--         <damping>.01</damping>-->
+       </dynamics>
+       <use_parent_model_frame>1</use_parent_model_frame>
      </axis>
    </joint>
 </model>

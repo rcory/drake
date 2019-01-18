@@ -1,4 +1,4 @@
-#include "drake/examples/planar_gripper/gripper_brick.h"
+#include "drake/examples/planar_gripper/gripper_brick_helper.h"
 
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
@@ -10,22 +10,6 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
-
-std::string to_string(Finger finger) {
-  switch (finger) {
-    case Finger::kFinger1: {
-      return "finger 1";
-    }
-    case Finger::kFinger2: {
-      return "finger 2";
-    }
-    case Finger::kFinger3: {
-      return "finger 3";
-    }
-    default:
-      throw std::runtime_error("Finger not valid.");
-  }
-}
 
 template <typename T>
 void AddDrakeVisualizer(systems::DiagramBuilder<T>*,
@@ -65,7 +49,7 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
       FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
   parser.AddModelFromFile(brick_path, "brick");
   (*plant)->WeldFrames((*plant)->world_frame(),
-                       (*plant)->GetFrameByName("brick_base"),
+                       (*plant)->GetFrameByName("brick_base_link"),
                        math::RigidTransformd());
 
   (*plant)->Finalize();

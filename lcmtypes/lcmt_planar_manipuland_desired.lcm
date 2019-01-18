@@ -1,0 +1,14 @@
+package drake;
+
+struct lcmt_planar_manipuland_desired
+{
+  // in microseconds
+  int64_t utime;
+
+  int32_t num_states;
+  int32_t num_accels;
+
+  double desired_state[num_states];
+  double desired_accel[num_accels];
+
+}
