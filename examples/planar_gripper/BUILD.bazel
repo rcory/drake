@@ -15,12 +15,41 @@ load(
 )
 
 drake_cc_library(
+    name = "planar_gripper",
+    srcs = [
+        "planar_gripper.cc",
+    ],
+    hdrs = [
+        "planar_gripper.h",
+    ],
+    data = [
+        "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:planar_brick.sdf",
+        "//examples/planar_gripper:planar_gripper.sdf",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/controllers:inverse_dynamics_controller",
+        "//systems/framework:diagram",
+    ],
+)
+
+drake_cc_library(
     name = "planar_gripper_common",
     srcs = ["planar_gripper_common.cc"],
     hdrs = ["planar_gripper_common.h"],
     deps = [
         "//common:find_resource",
+        "//lcm:interface",
+        "//lcmtypes:viewer",
         "//multibody/plant",
+        "//multibody/plant:externally_applied_spatial_force",
+        "//multibody/plant:spatial_force_output",
         "//systems/lcm:lcm_interface_system",
         "@lcmtypes_robotlocomotion",
     ],
@@ -31,8 +60,17 @@ drake_cc_library(
     srcs = ["planar_gripper_lcm.cc"],
     hdrs = ["planar_gripper_lcm.h"],
     deps = [
+        "//examples/planar_gripper:planar_gripper_common",
         "//lcmtypes:planar_gripper",
+        "//lcmtypes:planar_gripper_qp",
+        "//lcmtypes:planar_manipuland",
+        "//multibody/plant:externally_applied_spatial_force",
+        "//systems/framework:diagram",
+        "//systems/framework:diagram_builder",
         "//systems/framework:leaf_system",
+        "//systems/lcm:lcm_interface_system",
+        "//systems/lcm:lcm_publisher_system",
+        "//systems/lcm:lcm_subscriber_system",
     ],
 )
 
@@ -41,6 +79,7 @@ drake_cc_library(
     srcs = ["planar_manipuland_lcm.cc"],
     hdrs = ["planar_manipuland_lcm.h"],
     deps = [
+        #        "//lcmtypes:planar_manipuland_qp_plan",
         "//lcmtypes:planar_manipuland_status",
         "//systems/framework:event_collection",
         "//systems/framework:leaf_system",
@@ -52,7 +91,7 @@ drake_cc_library(
     srcs = ["brick_static_equilibrium_constraint.cc"],
     hdrs = ["brick_static_equilibrium_constraint.h"],
     deps = [
-        ":gripper_brick",
+        ":gripper_brick_helper",
         ":gripper_brick_planning_constraint_helper",
         "//math:autodiff",
         "//multibody/inverse_kinematics:kinematic_constraint",
@@ -63,9 +102,9 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "gripper_brick",
-    srcs = ["gripper_brick.cc"],
-    hdrs = ["gripper_brick.h"],
+    name = "gripper_brick_helper",
+    srcs = ["gripper_brick_helper.cc"],
+    hdrs = ["gripper_brick_helper.h"],
     data = [
         ":models",
     ],
@@ -86,7 +125,8 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_trajectory_publisher.cc"],
     data = [
         ":models",
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
     ],
     deps = [
         ":planar_gripper_common",
@@ -103,12 +143,52 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "run_planar_gripper_qp_controller",
+    srcs = ["run_planar_gripper_qp_controller.cc"],
+    deps = [
+        ":finger_brick_control",
+        ":planar_gripper",
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//lcm",
+        "//lcmtypes:planar_gripper_qp",
+        "//systems/analysis:simulator",
+        "//systems/lcm:lcm_pubsub_system",
+        "@gflags",
+    ],
+)
+
+drake_cc_library(
+    name = "finger_brick",
+    srcs = ["finger_brick.cc"],
+    hdrs = ["finger_brick.h"],
+    deps = [
+        ":planar_gripper_common",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_library(
+    name = "contact_force_qp",
+    srcs = ["contact_force_qp.cc"],
+    hdrs = ["contact_force_qp.h"],
+    deps = [
+        "//examples/planar_gripper:planar_gripper_common",
+        "//multibody/plant",
+        "//solvers:mathematical_program",
+        "//solvers:solve",
+        "//systems/controllers:state_feedback_controller_interface",
+        "//systems/framework:leaf_system",
+    ],
+)
+
+drake_cc_binary(
     name = "planar_gripper_simulation",
     srcs = ["planar_gripper_simulation.cc"],
     add_test_rule = 1,
     data = [
         ":models",
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
@@ -129,21 +209,142 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "run_planar_gripper_simulation",
+    srcs = ["run_planar_gripper_simulation.cc"],
+    add_test_rule = 1,
+    data = [
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
+    ],
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":planar_gripper",
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "run_playback_gripper_keyframes",
+    srcs = ["run_playback_gripper_keyframes.cc"],
+    add_test_rule = 1,
+    data = [
+        ":models",
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
+    ],
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/rendering:multibody_position_to_geometry_pose",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "run_planar_gripper_rotate_simulation",
+    srcs = ["run_planar_gripper_rotate_simulation.cc"],
+    add_test_rule = 1,
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":finger_brick",
+        ":finger_brick_control",
+        ":planar_gripper",
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/lcm:connect_lcm_scope",
+        "@gflags",
+    ],
+)
+
 drake_cc_library(
     name = "gripper_brick_planning_constraint_helper",
     srcs = ["gripper_brick_planning_constraint_helper.cc"],
     hdrs = ["gripper_brick_planning_constraint_helper.h"],
     deps = [
-        ":gripper_brick",
+        ":gripper_brick_helper",
         "//multibody/inverse_kinematics:kinematic_constraint",
         "//solvers:mathematical_program",
     ],
 )
 
-drake_cc_googletest(
-    name = "gripper_brick_test",
+drake_cc_library(
+    name = "finger_brick_control",
+    srcs = ["finger_brick_control.cc"],
+    hdrs = ["finger_brick_control.h"],
     deps = [
-        ":gripper_brick",
+        "//common/trajectories:piecewise_polynomial",
+        "//examples/planar_gripper",
+        "//examples/planar_gripper:contact_force_qp",
+        "//examples/planar_gripper:finger_brick",
+        "//examples/planar_gripper:planar_gripper_common",
+        "//lcm:drake_lcm",
+        "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
+        "//systems/lcm:connect_lcm_scope",
+        "//systems/primitives:constant_value_source",
+        "//systems/primitives:constant_vector_source",
+        "//systems/primitives:discrete_derivative",
+        "//systems/primitives:trajectory_source",
+        "//systems/primitives:zero_order_hold",
+    ],
+)
+
+drake_cc_binary(
+    name = "brick_qp_multiple_contact_simulation",
+    srcs = ["test/brick_qp_multiple_contact_simulation.cc"],
+    add_test_rule = 1,
+    deps = [
+        ":contact_force_qp",
+        ":planar_gripper",
+        "//common/proto:call_python",
+        "//geometry:geometry_visualization",
+        "//multibody/inverse_kinematics",
+        "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/primitives:constant_value_source",
+        "//systems/primitives:constant_vector_source",
+        "//systems/primitives:signal_logger",
+        "//systems/primitives:trajectory_source",
+        "@gflags",
+    ],
+)
+
+drake_cc_googletest(
+    name = "gripper_brick_helper_test",
+    deps = [
+        ":gripper_brick_helper",
         "//common/test_utilities:eigen_matrix_compare",
     ],
 )
@@ -194,6 +395,26 @@ drake_cc_googletest(
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/parsing",
         "//multibody/plant",
+    ],
+)
+
+drake_cc_googletest(
+    name = "contact_force_qp_test",
+    data = [
+        "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:fixed_surface.sdf",
+        "//examples/planar_gripper:planar_finger.sdf",
+    ],
+    deps = [
+        ":contact_force_qp",
+        ":finger_brick",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/inverse_kinematics",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//solvers:solve",
+        "//systems/framework:diagram",
     ],
 )
 
