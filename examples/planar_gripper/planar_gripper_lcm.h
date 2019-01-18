@@ -13,10 +13,19 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
+#include "drake/lcmt_planar_plant_state.hpp"
+#include "drake/lcmt_planar_gripper_finger_face_assignments.hpp"
+#include "drake/lcmt_planar_manipuland_spatial_forces.hpp"
+#include "drake/lcmt_planar_manipuland_desired.hpp"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/systems/framework/event_status.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/systems/framework/diagram.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/systems/lcm/lcm_subscriber_system.h"
 
 namespace drake {
 namespace examples {
@@ -30,7 +39,7 @@ constexpr int kGripperDefaultNumFingers = 3;
 
 // This is rather arbitrary, for now.
 // TODO(rcory) Refine this value once the planner comes online.
-constexpr double kGripperLcmStatusPeriod = 0.010;
+constexpr double kGripperLcmPeriod = 0.002;
 
 /// Handles lcmt_planar_gripper_command messages from a LcmSubscriberSystem.
 ///
@@ -217,6 +226,264 @@ class GripperStatusEncoder : public systems::LeafSystem<double> {
   const InputPort<double>* state_input_port_{};
   const InputPort<double>* force_input_port_{};
 };
+
+/// =================== QP Controller Section ===========================
+
+// TODO(rcory) Make the "decoder" classes take in an LCM period as an argument.
+//  Currently, it the discrete variable update is hard-coded to be
+//  kGripperLCMPeriod.
+
+/*
+ * This takes in an lcmt_planar_manipuland_spatial_forces object and outputs
+ * a std::vector<multibody::ExternallyAppliedSpatialForce<double>> object.
+ */
+class QPBrickControlDecoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickControlDecoder)
+
+  explicit QPBrickControlDecoder(multibody::BodyIndex brick_body_index);
+
+ private:
+  void OutputBrickControl(
+      const systems::Context<double>& context,
+      std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+          brick_control) const;
+
+  /// Event handler of the periodic discrete state update.
+  systems::EventStatus UpdateAbstractState(
+      const systems::Context<double>& context,
+      systems::State<double>* state) const;
+
+  multibody::BodyIndex brick_body_index_;
+};
+
+/*
+ * This takes in a
+ * std::vector<multibody::ExternallyAppliedSpatialForce<double>> object and
+ * outputs a lcmt_planar_manipuland_spatial_forces object.
+ */
+class QPBrickControlEncoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickControlEncoder)
+
+  QPBrickControlEncoder();
+
+ private:
+  void EncodeBrickControl(
+      const systems::Context<double>& context,
+      lcmt_planar_manipuland_spatial_forces* spatial_forces_lcm) const;
+};
+
+/*
+ * This takes in an lcmt_planar_manipuland_spatial_forces object and outputs a
+ * std::unordered_map<Finger, multibody::ExternallyAppliedSpatialForce<double>>.
+ * The incoming lcmt object must contain exactly `num_fingers` spatial forces.
+ */
+class QPFingersControlDecoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPFingersControlDecoder)
+
+  explicit QPFingersControlDecoder(multibody::BodyIndex brick_body_index);
+
+ private:
+  void OutputFingersControl(
+      const systems::Context<double>& context,
+      std::unordered_map<Finger,
+                         multibody::ExternallyAppliedSpatialForce<double>>*
+          fingers_control) const;
+
+  /// Event handler of the periodic discrete state update.
+  systems::EventStatus UpdateAbstractState(
+      const systems::Context<double>& context,
+      systems::State<double>* state) const;
+
+  const multibody::BodyIndex brick_body_index_;
+};
+
+/*
+ * This class takes in a
+ * std::unordered_map<Finger, multibody::ExternallyAppliedSpatialForce<double>>
+ * and outputs an lcmt_planar_manipuland_spatial_forces object.
+ */
+class QPFingersControlEncoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPFingersControlEncoder)
+
+  QPFingersControlEncoder();
+
+ private:
+  void EncodeFingersControl(
+      const systems::Context<double>& context,
+      lcmt_planar_manipuland_spatial_forces* spatial_forces_lcm) const;
+
+};
+
+/*
+ * This class takes in an lcmt_planar_plant_state and outputs
+ * a VectorX<double> of the same size as the lcmt's `plant_state`. The ordering
+ * is assumed to match MBP joint ordering.
+ */
+class QPEstimatedStateDecoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPEstimatedStateDecoder)
+
+  QPEstimatedStateDecoder(const int num_plant_states);
+
+ private:
+  void OutputEstimatedState(const systems::Context<double>& context,
+                            systems::BasicVector<double>* plant_state) const;
+
+  /// Event handler of the periodic discrete state update.
+  systems::EventStatus UpdateDiscreteState(
+      const systems::Context<double>& context,
+      systems::DiscreteValues<double>* discrete_state) const;
+
+  const int num_plant_states_;
+};
+
+/*
+ * This class takes in a VectorX<double> (plant state) and outputs an
+ * lcmt_planar_plant_state object. The ordering is assumed to match MBP joint
+ * ordering.
+ */
+class QPEstimatedStateEncoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPEstimatedStateEncoder)
+
+  QPEstimatedStateEncoder(const int num_plant_states);
+
+ private:
+  void EncodeEstimatedState(const systems::Context<double>& context,
+      lcmt_planar_plant_state* plant_status) const;
+
+  const int num_plant_states_;
+};
+
+/*
+ * This class takes in an lcmt_planar_gripper_finger_face_assignments object
+ * and outputs a
+ * std::unordered_map<Finger, std::pair(BrickFace, Eigen::Vector2d)>.
+ */
+class QPFingerFaceAssignmentsDecoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPFingerFaceAssignmentsDecoder)
+
+  QPFingerFaceAssignmentsDecoder();
+
+ private:
+  void OutputFingerFaceAssignments(
+      const systems::Context<double>& context,
+      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
+          finger_face_assignments) const;
+
+  /// Event handler of the periodic discrete state update.
+  systems::EventStatus UpdateAbstractState(
+      const systems::Context<double>& context,
+      systems::State<double>* state) const;
+};
+
+/*
+ * This class takes in a
+ * std::unordered_map<Finger, std::pair(BrickFace, Eigen::Vector2d)>
+ * and outputs an lcmt_planar_gripper_finger_face_assignments object.
+ */
+class QPFingerFaceAssignmentsEncoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPFingerFaceAssignmentsEncoder)
+
+  QPFingerFaceAssignmentsEncoder();
+
+ private:
+  void EncodeFingerFaceAssignments(const systems::Context<double>& context,
+                                   lcmt_planar_gripper_finger_face_assignments*
+                                       finger_face_assignments_lcm) const;
+};
+
+/*
+ * This class takes in a lcmt_planar_gripper_qp_brick_desired object and outputs
+ * (1) a VectorXd of desired brick state and (2) a VectorXd of desired brick
+ * accelerations.
+ */
+class QPBrickDesiredDecoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickDesiredDecoder)
+
+  QPBrickDesiredDecoder();
+
+ private:
+  void OutputBrickDesiredState(
+      const systems::Context<double>& context,
+      systems::BasicVector<double>* qp_desired_brick_state) const;
+
+  void DecodeBrickDesiredAccel(
+      const systems::Context<double>& context,
+      systems::BasicVector<double>* qp_desired_brick_accels) const;
+
+  /// Event handler of the periodic discrete state update.
+  systems::EventStatus UpdateDiscreteState(
+      const systems::Context<double>& context,
+      systems::DiscreteValues<double>* discrete_state) const;
+
+  const int num_brick_states_{6};
+  const int num_brick_accels_{3};
+
+  systems::DiscreteStateIndex brick_state_index_{};
+  systems::DiscreteStateIndex brick_accel_index_{};
+};
+
+/*
+ * This class takes in two inputs 1) a VectorXd of desired brick state and 2)
+ * a VectorXd of desired brick accelerations, and outputs an
+ * lcmt_planar_gripper_qp_brick_desired object.
+ */
+class QPBrickDesiredEncoder : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickDesiredEncoder)
+
+  QPBrickDesiredEncoder();
+
+ private:
+  void EncodeBrickDesired(
+      const systems::Context<double>& context,
+      lcmt_planar_manipuland_desired* planar_gripper_qp_brick_desired) const;
+
+  const int num_brick_states_{6};
+  const int num_brick_accels_{3};
+};
+
+// A system that subscribes to the QP planer and publishes to the QP planer.
+class PlanarGripperQPControllerLCM : public systems::Diagram<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperQPControllerLCM)
+  PlanarGripperQPControllerLCM(const int num_multibody_states,
+                               const multibody::BodyIndex brick_index,
+                               drake::lcm::DrakeLcmInterface* lcm,
+                               double publish_period);
+};
+
+// A system that subscribes to the simulation and publishes to the simulation.
+ class PlanarGripperSimulationLcm : public systems::Diagram<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationLcm)
+   PlanarGripperSimulationLcm(int num_multibody_states,
+                              drake::lcm::DrakeLcmInterface* lcm,
+                              double publish_period);
+
+   const systems::lcm::LcmSubscriberSystem& get_estimated_plant_state_sub() {
+     return *qp_estimated_plant_state_sub_;
+   }
+   const systems::lcm::LcmSubscriberSystem& get_finger_face_assignments_sub() {
+     return *qp_finger_face_assignments_sub_;
+   }
+   const systems::lcm::LcmSubscriberSystem& get_brick_desired_sub() {
+     return *qp_brick_desired_sub_;
+   }
+
+  private:
+   systems::lcm::LcmSubscriberSystem* qp_estimated_plant_state_sub_;
+   systems::lcm::LcmSubscriberSystem* qp_finger_face_assignments_sub_;
+   systems::lcm::LcmSubscriberSystem* qp_brick_desired_sub_;
+ };
 
 }  // namespace planar_gripper
 }  // namespace examples

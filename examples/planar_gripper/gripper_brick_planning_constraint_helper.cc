@@ -53,6 +53,9 @@ void AddFrictionConeConstraint(
       prog->AddLinearConstraint(f_Cb_B(0) >= mu * f_Cb_B(1));
       break;
     }
+    default: {
+      throw std::logic_error("Unrecognized BrickFace");
+    }
   }
 }
 
@@ -91,6 +94,9 @@ void AddFingerTipInContactWithBrickFaceConstraint(
       p_BFingertip_lower(1) = -brick_size(1) / 2 - finger_tip_radius + depth;
       p_BFingertip_upper(1) = -brick_size(1) / 2 - finger_tip_radius + depth;
       break;
+    }
+    default: {
+      throw std::logic_error("Unrecognized BrickFace");
     }
   }
   auto constraint = prog->AddConstraint(
@@ -189,6 +195,9 @@ void FingerNoSlidingConstraint::DoEvalGeneric(
                 gripper_brick_->finger_tip_radius() * (theta_to - theta_from);
       break;
     }
+    default: {
+      throw std::logic_error("Unrecognized BrickFace");
+    }
   }
 }
 
@@ -283,6 +292,9 @@ void FingerNoSlidingFromFixedPostureConstraint::DoEvalGeneric(
       (*y)(0) = -(p_BTip_to(1) - p_BTip_from(1)) -
                 gripper_brick_->finger_tip_radius() * (theta_to - theta_from);
       break;
+    }
+    default: {
+      throw std::logic_error("Unrecognized BrickFace");
     }
   }
 }

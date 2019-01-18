@@ -1,6 +1,6 @@
 #pragma once
 
-#include "drake/examples/planar_gripper/gripper_brick.h"
+#include "drake/examples/planar_gripper/gripper_brick_helper.h"
 #include "drake/solvers/mathematical_program.h"
 
 /// @file This file contains the utility function to add constraint in
