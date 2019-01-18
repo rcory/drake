@@ -1,0 +1,17 @@
+package drake;
+
+struct lcmt_planar_gripper_finger_face_assignment {
+  // in microseconds
+  int64_t utime;
+
+  // Finger name: {finger1, finger2, finger3}
+  string finger_name;
+
+  // Brick face name: {PosY, NegY, PosZ, NegZ}
+  string brick_face_name;
+
+  // The contact point (or contact-reference point). A position vector from the
+  // brick's body B's origin (Bo) to a point Bq (a point of B), expressed in B's
+  // frame.
+  double p_BoBq_B[2];  // {y-coordinate, z-coordinate}
+}

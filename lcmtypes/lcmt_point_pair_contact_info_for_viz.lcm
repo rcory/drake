@@ -14,4 +14,8 @@ struct lcmt_point_pair_contact_info_for_viz {
   double contact_point[3];
   double contact_force[3];
   double normal[3];
+
+  // Speed results.
+  double separation_speed;
+  double slip_speed;
 }
