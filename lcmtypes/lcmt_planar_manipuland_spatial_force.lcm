@@ -1,0 +1,19 @@
+package drake;
+
+struct lcmt_planar_manipuland_spatial_force {
+  // in microseconds
+  int64_t utime;
+
+  string manip_body_name;
+  string finger_name;
+
+  // A position vector from Body B's origin (Bo) to a point Bq (a point of B),
+  // expressed in B's frame.
+  double p_BoBq_B[2];  // {y, z}
+
+  // A force applied to Body B at point Bq, expressed in the world (W) frame.
+  double force_Bq_W[2];  // {fy, fz}
+
+  // A torque applied to Body B at point Bq, expressed in the world (W) frame.
+  double torque_Bq_W;  // tau_x
+}

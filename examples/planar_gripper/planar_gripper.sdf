@@ -21,14 +21,21 @@
     <link name="finger1_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.03811 0 0 0</pose>
+        <mass>0.449</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
+          <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -64,11 +71,11 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -77,14 +84,21 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.02966 0 0 0</pose>
+        <mass>0.104</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
+          <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -134,11 +148,11 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -230,14 +244,21 @@
     <link name="finger2_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.03811 0 0 0</pose>
+        <mass>0.449</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
+          <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -273,11 +294,11 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -286,14 +307,21 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.02966 0 0 0</pose>
+        <mass>0.104</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
+          <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -343,11 +371,11 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -439,14 +467,21 @@
     <link name="finger3_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.03811 0 0 0</pose>
+        <mass>0.449</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
+          <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -482,11 +517,11 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -495,14 +530,21 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <mass>0.1</mass>
+        <pose>0 0 -0.02966 0 0 0</pose>
+        <mass>0.104</mass>
         <inertia>
-          <ixx>0.0083</ixx>
-          <iyy>0.0083</iyy>
-          <izz>5e-7</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
+          <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
-          <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
@@ -552,11 +594,11 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-1.570796</lower>
+          <upper>1.570796</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
