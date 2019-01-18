@@ -260,8 +260,8 @@ class ContactVisualizer(object):
             for p, v in list_of_forces:
                 d.addArrow(start=p,
                            end=p + auto_scale * v,
-                           tubeRadius=0.005,
-                           headRadius=0.01)
+                           tubeRadius=0.001,
+                           headRadius=0)
 
             vis.showPolyData(d.getPolyData(), str(key), parent=folder,
                              color=[0.2, 0.8, 0.2])

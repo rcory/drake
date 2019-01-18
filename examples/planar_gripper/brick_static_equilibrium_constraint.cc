@@ -84,6 +84,9 @@ void BrickStaticEquilibriumNonlinearConstraint::DoEvalGeneric(
         p_BCb(1) += T(gripper_brick_system_.finger_tip_radius());
         break;
       }
+      default: {
+        throw std::logic_error("Unrecognized BrickFace.");
+      }
     }
     // Now compute the torque about the COM
     (*y)(2) += p_BCb(0) * x(plant.num_positions() + 2 * i + 1) -
