@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<sdf version='1.6'>
+<model name="brick">
+  <link name="brick_link">
+    <inertial>
+      <pose frame=''>0 0 0 0 0 0 </pose>
+      <mass>0.028</mass>
+        <inertia>
+          <ixx>1.17e-5</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.9e-5</iyy>
+          <iyz>0</iyz>
+          <izz>1.9e-5</izz>
+        </inertia>
+    </inertial>
+    <visual name='base_link_1'>
+      <pose frame=''>0 0 0.023 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.025 0.2 0.046</size>
+        </box>
+      </geometry>
+      <material>
+        <diffuse>0.2 0.2 0.8 1.0</diffuse>
+      </material>
+    </visual>
+    <collision name='box_collision'>
+      <pose>0 0 0.023 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.025 0.2 0.046</size>
+        </box>
+      </geometry>
+    </collision>
+   </link>
+  <joint name="surface_fixed" type="fixed">
+    <parent>world</parent>
+    <child>brick_link</child>
+    <pose>0 0 0 0 0 0</pose>
+  </joint>
+</model>
+</sdf>

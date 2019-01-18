@@ -1,0 +1,11 @@
+package drake;
+
+// Communicates the spatial forces being applied to a planar manipuland.
+struct lcmt_planar_gripper_finger_face_assignments {
+  // in microseconds
+  int64_t utime;
+
+  int32_t num_fingers;
+  lcmt_planar_gripper_finger_face_assignment
+      finger_face_assignments[num_fingers];
+}

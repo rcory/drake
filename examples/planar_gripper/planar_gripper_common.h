@@ -5,6 +5,8 @@
 #include <utility>
 
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/plant/spatial_force_output.h"
+#include "drake/lcm/drake_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -13,8 +15,30 @@ namespace planar_gripper {
 using drake::multibody::MultibodyPlant;
 using Eigen::Vector3d;
 
+// TODO(rcory) These values should be moved to PlanarGripper class.
 constexpr int kNumFingers = 3;
-constexpr int kNumJoints = kNumFingers * 2;
+constexpr int kNumJointsPerFinger = 2;
+constexpr int kNumGripperJoints = kNumFingers * kNumJointsPerFinger;
+
+enum class Finger {
+  kFinger1,
+  kFinger2,
+  kFinger3,
+};
+std::string to_string(Finger finger);
+int to_num(Finger finger);
+Finger to_Finger(int i);
+Finger to_Finger(std::string finger_name);
+
+enum class BrickFace {
+  kPosZ,
+  kNegZ,
+  kPosY,
+  kNegY,
+  kClosest,  // Force controller chooses the closest face/point.
+};
+BrickFace to_BrickFace(std::string brick_face_name);
+std::string to_string(BrickFace brick_face);
 
 // The planar-gripper coordinate frame G (with origin Go) and finger layout are
 // defined as follows (assuming all finger joint angles are set to zero):
@@ -44,11 +68,15 @@ constexpr int kNumJoints = kNumFingers * 2;
  * fingertips. This method welds the planar-gripper such that all motion lies in
  * the Y-Z plane (in frame G). Note: The planar gripper frame G perfectly
  * coincides with the world coordinate frame W when welded via this method.
+ * @tparam T The scalar type. Currently only supports double.
  * @param plant The plant containing the planar-gripper.
+ * @param X_WG A RigidTransform containing the pose of the gripper frame (G)
+ * w.r.t. the world.
  * @tparam_double_only
  */
 template <typename T>
-void WeldGripperFrames(MultibodyPlant<T>* plant);
+void WeldGripperFrames(MultibodyPlant<T>* plant,
+                       math::RigidTransformd X_WG = math::RigidTransformd());
 
 /**
  * Parses a text file containing keyframe joint positions for the planar gripper
@@ -101,8 +129,91 @@ MatrixX<double> ReorderKeyframesForPlant(
     const MatrixX<double> keyframes,
     std::map<std::string, int>* finger_joint_name_to_row_index_map);
 
-/// Returns the planar gripper frame G's transform w.r.t. the world frame W.
-const math::RigidTransformd X_WGripper();
+/// Returns a specific finger's weld angle from the +Gz axis
+/// (gripper frame, +z axis)
+double FingerWeldAngle(Finger finger);
+
+/// Utility to publish frames to LCM.
+void PublishFramesToLcm(
+    const std::string& channel_name,
+    const std::unordered_map<std::string, math::RigidTransformd>&
+        name_to_frame_map,
+    drake::lcm::DrakeLcmInterface* lcm);
+
+void PublishFramesToLcm(
+    const std::string &channel_name,
+    const std::vector<math::RigidTransformd> &frames,
+    const std::vector<std::string> &frame_names,
+    drake::lcm::DrakeLcmInterface *lcm);
+
+/// Publishes pre-defined body frames once.
+void PublishBodyFrames(systems::Context<double>& plant_context,
+                       const multibody::MultibodyPlant<double>& plant,
+                       lcm::DrakeLcm& lcm);
+
+/// Returns the preferred state ordering for the planar gripper states (e.g.,
+/// used to create the state selector matrix using MBP).
+std::vector<std::string> GetPreferredGripperStateOrdering();
+
+/// A system that publishes frames at a specified period.
+ class FrameViz final : public systems::LeafSystem<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
+
+   FrameViz(const multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
+            double period, bool frames_input = false);
+
+  private:
+   systems::EventStatus PublishFramePose(
+       const systems::Context<double>& context) const;
+
+   const multibody::MultibodyPlant<double>& plant_;
+   std::unique_ptr<systems::Context<double>> plant_context_;
+   lcm::DrakeLcm& lcm_;
+   bool frames_input_{false};
+ };
+
+ /// Visualizes the spatial forces via Evan's spatial force visualization PR.
+ /// A system that takes an `ExternallyAppliedSpatialForce` as input, and
+ /// outputs a std::vector of type `SpatialForceOutput`, which is then used for
+ /// visualization. The latter omits the body index, and expresses the contact
+ /// point in the world frame, instead of the body frame. The force is expressed
+ /// in the world frame for both.
+ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+
+   ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
+                               multibody::ModelInstanceIndex instance,
+                               double force_scale_factor = 10);
+
+   void CalcOutput(const systems::Context<double>& context,
+                   std::vector<multibody::SpatialForceOutput<double>>*
+                       spatial_forces_viz_output) const;
+
+  private:
+   const multibody::MultibodyPlant<double>& plant_;
+   multibody::ModelInstanceIndex instance_;
+   std::unique_ptr<systems::Context<double>> plant_context_;
+   double force_scale_factor_;
+};
+
+/// Takes in a state vector from MBP state output port, and outputs a state
+/// whose order is dictated by `user_order`. The user ordered output state can
+/// be a subset of the full state.
+class MapStateToUserOrderedState final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapStateToUserOrderedState)
+
+  MapStateToUserOrderedState(const MultibodyPlant<double>& plant,
+                             std::vector<std::string> user_order_vec);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  systems::BasicVector<double>* output_vector) const;
+
+ private:
+  MatrixX<double> Sx_;  // state selector matrix.
+};
 
 }  // namespace planar_gripper
 }  // namespace examples
