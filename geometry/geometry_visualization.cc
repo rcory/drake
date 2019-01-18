@@ -284,6 +284,7 @@ void DispatchLoadMessage(const SceneGraph<double>& scene_graph,
           *scene_graph.initial_state_, role);
   // Send a load message.
   Publish(lcm, "DRAKE_VIEWER_LOAD_ROBOT", message);
+//unused(lcm);
 }
 
 systems::lcm::LcmPublisherSystem* ConnectDrakeVisualizer(
