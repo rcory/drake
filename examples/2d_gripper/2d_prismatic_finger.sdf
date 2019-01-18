@@ -1,0 +1,129 @@
+<sdf version='1.6'>
+  <model name='2d_finger'>
+    <link name="ground">
+      <visual name='ground_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.04 0.04 0.004</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name='Link1'>
+      <pose>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.05 0 0 0</pose>
+        <mass>0.1</mass>
+        <inertia>
+          <ixx>0.0083</ixx><iyy>0.0083</iyy><izz>5e-7</izz>
+          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name='Link1_visual'>
+        <pose>0 0 -0.05 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.1</length>
+            <radius>0.005</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0 1 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <!--<joint name='ground_weld' type='fixed'>-->
+      <!--<child>ground</child>-->
+      <!--<parent>world</parent>-->
+    <!--</joint>-->
+    <joint name='ShoulderJoint' type='revolute'>
+      <child>Link1</child>
+      <parent>ground</parent>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <!-- Drake parses a zero effort joint as an un-actuated joint. -->
+          <effort>100</effort>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
+        </limit>
+        <dynamics>
+          <damping>0.1</damping>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+    <link name='Link2'>
+      <!-- The origin of the Link2 frame is defined to be coincident with
+           the origin of the x-z plane in the elbow joint frame. -->
+      <pose>0 0 -0.05 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.05 0 0 0</pose>
+        <mass>0.1</mass>
+        <!-- This inertia is based on a solid cylinder with
+             radius=1.0 meters and height=2.0 meters. -->
+        <!-- For this model we could make izz = 0 however, sdformat will throw
+             an exception. -->
+        <inertia>
+          <ixx>0.0083</ixx><iyy>0.0083</iyy><izz>5e-7</izz>
+          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name='Link2_visual'>
+        <pose>0 0 -0.05 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.1</length>
+            <radius>0.005</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name='Link2_pad_collision'>
+        <pose>0 0 -0.1 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.008</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='Link2_pad_visual'>
+        <pose>0 0 -0.1 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.008</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <joint name='ElbowJoint' type='prismatic'>
+      <parent>Link1</parent>
+      <child>Link2</child>
+      <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
+      <pose>0 0 0 0 0 0</pose>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <effort>100</effort>
+          <!-- No limit provided. sdformat defaults to -1, which we parse as
+               an actuated joint. -->
+          <lower>-0.05</lower>
+          <upper>0.05</upper>
+        </limit>
+        <dynamics>
+          <damping>0.1</damping>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+  </model>
+</sdf>
