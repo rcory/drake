@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/lcm/drake_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -103,6 +104,66 @@ MatrixX<double> ReorderKeyframesForPlant(
 
 /// Returns the planar gripper frame G's transform w.r.t. the world frame W.
 const math::RigidTransformd X_WGripper();
+
+/// Utility to publish frames to LCM.
+void PublishFramesToLcm(
+    const std::string &channel_name,
+    const std::unordered_map<std::string, math::RigidTransformd> &name_to_frame_map,
+    drake::lcm::DrakeLcmInterface *lcm);
+
+void PublishFramesToLcm(
+    const std::string &channel_name,
+    const std::vector<math::RigidTransformd> &frames,
+    const std::vector<std::string> &frame_names,
+    drake::lcm::DrakeLcmInterface *lcm);
+
+/// Publishes pre-defined body frames once.
+void PublishBodyFrames(systems::Context<double>& plant_context,
+                          multibody::MultibodyPlant<double>& plant,
+                          lcm::DrakeLcm &lcm);
+
+/// A system that publishes frames at a specified period.
+ class FrameViz final : public systems::LeafSystem<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
+
+   FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
+            double period, bool frames_input = false);
+
+  private:
+   systems::EventStatus PublishFramePose(
+       const systems::Context<double>& context) const;
+
+   multibody::MultibodyPlant<double>& plant_;
+   std::unique_ptr<systems::Context<double>> plant_context_;
+   lcm::DrakeLcm& lcm_;
+   bool frames_input_{false};
+ };
+
+/// Visualizes the spatial forces via Evan's spatial force visualization PR.
+class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+
+  ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
+                              multibody::ModelInstanceIndex instance,
+                              double force_scale_factor = 10);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  std::vector<multibody::SpatialForceOutput<double>>*
+                  spatial_forces_viz_output) const;
+
+ private:
+  const multibody::MultibodyPlant<double>& plant_;
+  multibody::ModelInstanceIndex instance_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
+  double force_scale_factor_;
+};
+
+
+// This system takes in a vector of spatial force outputs, and converts them
+// to a set of transforms, which can produce a set of frame visualization.
+class SpatialForceOutputToFrame final : public systems::LeafSystem<double> {};
 
 }  // namespace planar_gripper
 }  // namespace examples

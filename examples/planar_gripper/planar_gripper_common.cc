@@ -11,6 +11,8 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/lcmt_viewer_draw.hpp"
 
 namespace drake {
 namespace examples {
@@ -221,6 +223,146 @@ MatrixX<double> ReorderKeyframesForPlant(
 
 const RigidTransformd X_WGripper() {
   return math::RigidTransformd::Identity();
+}
+
+/// Utility to publish frames to LCM.
+void PublishFramesToLcm(
+    const std::string& channel_name,
+    const std::unordered_map<std::string, RigidTransformd>& name_to_frame_map,
+    drake::lcm::DrakeLcmInterface* lcm) {
+  std::vector<RigidTransformd> poses;
+  std::vector<std::string> names;
+  for (const auto& pair : name_to_frame_map) {
+    poses.push_back(pair.second);
+    names.push_back(pair.first);
+  }
+  PublishFramesToLcm(channel_name, poses, names, lcm);
+}
+
+void PublishFramesToLcm(const std::string& channel_name,
+                        const std::vector<RigidTransformd>& poses,
+                        const std::vector<std::string>& names,
+                        drake::lcm::DrakeLcmInterface* dlcm) {
+  DRAKE_DEMAND(poses.size() == names.size());
+  lcmt_viewer_draw frame_msg{};
+  frame_msg.timestamp = 0;
+  int32_t vsize = poses.size();
+  frame_msg.num_links = vsize;
+  frame_msg.link_name.resize(vsize);
+  frame_msg.robot_num.resize(vsize, 0);
+
+  for (size_t i = 0; i < poses.size(); i++) {
+    math::RigidTransform<float> pose = poses[i].cast<float>();
+    // Create a frame publisher
+    Eigen::Vector3f goal_pos = pose.translation();
+    Eigen::Quaternion<float> goal_quat =
+        Eigen::Quaternion<float>(pose.rotation().matrix());
+    frame_msg.link_name[i] = names[i];
+    frame_msg.position.push_back({goal_pos(0), goal_pos(1), goal_pos(2)});
+    frame_msg.quaternion.push_back(
+        {goal_quat.w(), goal_quat.x(), goal_quat.y(), goal_quat.z()});
+  }
+
+  const int num_bytes = frame_msg.getEncodedSize();
+  const size_t size_bytes = static_cast<size_t>(num_bytes);
+  std::vector<uint8_t> bytes(size_bytes);
+  frame_msg.encode(bytes.data(), 0, num_bytes);
+  dlcm->Publish(
+      "DRAKE_DRAW_FRAMES_" + channel_name, bytes.data(), num_bytes, {});
+}
+
+/// Publishes pre-defined body frames once.
+void PublishBodyFrames(systems::Context<double>& plant_context,
+                          multibody::MultibodyPlant<double>& plant,
+                          lcm::DrakeLcm &lcm) {
+  std::vector<std::string> body_names;
+  std::vector<RigidTransformd> poses;
+
+  // list the body names that we want to visualize.
+  body_names.push_back("brick_base_link");
+  body_names.push_back("finger_base");
+
+  for (size_t i = 0; i < body_names.size(); i++) {
+    auto& body = plant.GetBodyByName(body_names[i]);
+    math::RigidTransform<double> X_WB =
+        plant.EvalBodyPoseInWorld(plant_context, body);
+    poses.push_back(X_WB);
+  }
+
+  PublishFramesToLcm("SIM", poses, body_names, &lcm);
+}
+
+/// A system that publishes frames at a specified period.
+FrameViz::FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
+                   double period, bool frames_input)
+    : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
+  this->DeclareVectorInputPort("x",
+                               systems::BasicVector<double>(6 /* mbp state*/));
+  // if true, then we create an additional input port which takes arbitrary
+  // frames to visualize (a vector of type RigidTransform).
+  if (frames_input_) {
+    this->DeclareAbstractInputPort(Value<std::vector<math::RigidTransformd>>());
+  }
+  this->DeclarePeriodicPublishEvent(period, 0.,
+                                    &FrameViz::PublishFramePose);
+  plant_context_ = plant.CreateDefaultContext();
+}
+
+systems::EventStatus FrameViz::PublishFramePose(
+    const drake::systems::Context<double>& context) const {
+  auto state = this->EvalVectorInput(context, 0)->get_value();
+  plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+  PublishBodyFrames(*plant_context_, plant_, lcm_);
+  return systems::EventStatus::Succeeded();
+}
+
+/// Visualizes the spatial forces via Evan's spatial force visualization PR.
+ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
+    const MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
+    double force_scale_factor)
+    : plant_(plant),
+      instance_(instance),
+      force_scale_factor_(force_scale_factor) {
+  // Make context with default parameters.
+  plant_context_ = plant.CreateDefaultContext();
+  this->DeclareAbstractInputPort(
+      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
+  this->DeclareVectorInputPort("x",
+                               systems::BasicVector<double>(2 /* state */));
+
+  // This output port produces a SpatialForceOutput, which feeds the spatial
+  // forces visualization plugin of DrakeVisualizer.
+  this->DeclareAbstractOutputPort(&ExternalSpatialToSpatialViz::CalcOutput);
+}
+
+// Computes the contact point in the world frame. Incoming spatial
+// forces are already in the world frame.
+void ExternalSpatialToSpatialViz::CalcOutput(
+    const systems::Context<double>& context,
+    std::vector<multibody::SpatialForceOutput<double>>*
+    spatial_forces_viz_output) const {
+  auto external_spatial_forces_vec =
+      this->get_input_port(0)
+          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  auto state = this->EvalVectorInput(context, 1)->get_value();
+  plant_.SetPositionsAndVelocities(plant_context_.get(), instance_, state);
+  spatial_forces_viz_output->clear();
+  for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
+    // Convert contact point from brick frame to world frame
+    auto ext_spatial_force = external_spatial_forces_vec[i];
+    //     drake::log()->info("p: \n{}", ext_spatial_force.p_BoBq_B);
+    //     drake::log()->info("f: \n{}",
+    //     ext_spatial_force.F_Bq_W.translational());
+
+    auto& body = plant_.get_body(ext_spatial_force.body_index);
+    auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);
+    auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
+
+    spatial_forces_viz_output->emplace_back(
+        p_BoBq_W,
+        ext_spatial_force.F_Bq_W * force_scale_factor_);
+  }
 }
 
 }  // namespace planar_gripper
