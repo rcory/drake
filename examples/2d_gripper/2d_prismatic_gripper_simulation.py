@@ -5,6 +5,7 @@ import argparse
 from pydrake.common import FindResourceOrThrow
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph)
 from pydrake.lcm import DrakeLcm
+from pydrake.systems.lcm import LcmPublisherSystem
 from pydrake.multibody.multibody_tree import UniformGravityFieldElement
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.parsing import Parser
@@ -12,6 +13,11 @@ from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.math import RigidTransform, RollPitchYaw, RotationMatrix
 from pydrake.multibody.multibody_tree.multibody_plant import ContactResultsToLcmSystem
+
+from drake import lcmt_contact_results_for_viz
+
+#from pydrake.systems.primitives import Sine
+
 import numpy as np
 
 def main():
@@ -36,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     file_name = FindResourceOrThrow(
-        "drake/examples/2d_gripper/2d_prismatic_gripper.sdf")
+        "drake/examples/2d_gripper/2d_prismatic_finger.sdf")
     builder = DiagramBuilder()
     scene_graph = builder.AddSystem(SceneGraph())
     gripper = builder.AddSystem(MultibodyPlant(time_step=args.time_step))
@@ -48,7 +54,8 @@ def main():
     # add the object
     object_file_name = FindResourceOrThrow(
         "drake/examples/2d_gripper/061_foam_brick.sdf")
-    Parser(plant=gripper).AddModelFromFile(object_file_name, "object")
+    object_model = \
+        Parser(plant=gripper).AddModelFromFile(object_file_name, "object")
 
     # Weld the 1st finger
     finger1_model = Parser(plant=gripper).AddModelFromFile(file_name, "finger1")
@@ -76,6 +83,7 @@ def main():
     gripper.Finalize()
     assert gripper.geometry_source_is_registered()
 
+    # Connect the SceneGraph with MBP.
     builder.Connect(
         scene_graph.get_query_output_port(),
         gripper.get_geometry_query_input_port())
@@ -83,7 +91,35 @@ def main():
         gripper.get_geometry_poses_output_port(),
         scene_graph.get_source_pose_port(gripper.get_source_id()))
 
+    # Add a sine wave source to the actuator inputs.
+    # This code is WIP.
+    # sine_source = builder.AddSystem(Sine(0.5, 1.0, 0.0, 3))
+
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph)
+
+    # Publish contact results
+    lcm = DrakeLcm()
+    contact_results_to_lcm = builder.AddSystem(
+        ContactResultsToLcmSystem(gripper))
+
+    # # Long version...
+    # lcm_pub_system = LcmPublisherSystem.Make(
+    #     channel="CONTACT_RESULTS", lcm_type=lcmt_contact_results_for_viz,
+    #     lcm=lcm, publish_period=1.0/30.0, use_cpp_serializer=True)
+    # contact_results_publisher = builder.AddSystem(lcm_pub_system)
+
+    # Connect contact result to LCM.
+    contact_results_publisher = builder.AddSystem(
+        LcmPublisherSystem.Make(channel="CONTACT_RESULTS",
+                                lcm_type=lcmt_contact_results_for_viz, lcm=lcm,
+                                publish_period=1.0/30.0,
+                                use_cpp_serializer=True))
+
+    # Connect contact results to lcm msg.
+    builder.Connect(gripper.get_contact_results_output_port(),
+                    contact_results_to_lcm.get_contact_result_input_port())
+    builder.Connect(contact_results_to_lcm.get_lcm_message_output_port(),
+                    contact_results_publisher.get_input_port(0))
 
     diagram = builder.Build()
 

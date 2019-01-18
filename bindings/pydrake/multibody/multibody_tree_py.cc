@@ -17,6 +17,7 @@
 #include "drake/multibody/parsing/sdf_parser.h"
 #include "drake/multibody/plant/contact_info.h"
 #include "drake/multibody/plant/contact_results.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/multibody_forces.h"
 #include "drake/multibody/tree/multibody_tree.h"
@@ -1035,6 +1036,17 @@ void init_multibody_plant(py::module m) {
             py::arg("point_pair_info"))
         .def("contact_info", &Class::contact_info, py::arg("i"));
     pysystems::AddValueInstantiation<Class>(m);
+  }
+
+  // ContactResultsToLcmSystem
+  {
+    using Class = ContactResultsToLcmSystem<T>;
+    py::class_<Class, systems::LeafSystem<T>>(m, "ContactResultsToLcmSystem")
+        .def(py::init<const MultibodyPlant<double>&>(), py::arg("plant"))
+        .def("get_contact_result_input_port",
+            &Class::get_contact_result_input_port, py_reference_internal)
+        .def("get_lcm_message_output_port",
+            &Class::get_lcm_message_output_port, py_reference_internal);
   }
 
   m.def("AddMultibodyPlantSceneGraph",

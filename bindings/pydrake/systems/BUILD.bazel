@@ -231,6 +231,7 @@ drake_pybind_library(
         ":framework_py",
         ":module_py",
         "//bindings/pydrake:lcm_py",
+        "//lcmtypes:lcmtypes_drake_py",
         "@lcmtypes_robotlocomotion//:lcmtypes_robotlocomotion_py",
     ],
     py_srcs = ["_lcm_extra.py"],
@@ -295,8 +296,8 @@ drake_py_library(
 
 install(
     name = "install",
-    targets = PY_LIBRARIES + [":all_py"],
     py_dest = PACKAGE_INFO.py_dest,
+    targets = PY_LIBRARIES + [":all_py"],
     deps = get_drake_py_installs(PY_LIBRARIES_WITH_INSTALL),
 )
 

@@ -1,5 +1,5 @@
 <sdf version='1.6'>
-  <model name='2d_gripper'>
+  <model name='2d_finger'>
     <link name="ground">
       <visual name='ground_visual'>
         <pose>0 0 0 0 0 0</pose>
