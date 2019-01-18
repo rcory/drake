@@ -1,0 +1,12 @@
+package drake;
+
+// Communicates the spatial forces being applied to a planar manipuland.
+struct lcmt_planar_manipuland_spatial_forces {
+  // in microseconds
+  int64_t utime;
+
+  string manip_body_name;
+
+  int32_t num_forces;
+  lcmt_planar_manipuland_spatial_force forces[num_forces];
+}

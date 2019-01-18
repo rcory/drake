@@ -1,3 +1,6 @@
+// TODO(rcory) This file will be deprecated once `run_planar_gripper_simulation`
+//  is brought up to parity.
+
 /// @file
 ///
 /// This demo simulates a planar-gripper (three two-degree-of-freedom fingers
@@ -261,7 +264,7 @@ int DoMain() {
   // -Z axis (vertical case), or world -X axis (horizontal case).
   if (FLAGS_orientation == "vertical") {
     const multibody::Frame<double>& brick_base_frame =
-        plant.GetFrameByName("brick_base", brick_index);
+        plant.GetFrameByName("brick_base_link", brick_index);
     plant.WeldFrames(plant.world_frame(), brick_base_frame);
     gravity = Vector3d(
         0, 0, -multibody::UniformGravityFieldElement<double>::kDefaultStrength);
@@ -269,7 +272,7 @@ int DoMain() {
     plant.AddJoint<PrismaticJoint>(
         "brick_translate_x_joint",
         plant.world_body(), std::nullopt,
-        plant.GetBodyByName("brick_base"), std::nullopt,
+        plant.GetBodyByName("brick_base_link"), std::nullopt,
         Vector3d::UnitX());
     gravity = Vector3d(
         -multibody::UniformGravityFieldElement<double>::kDefaultStrength, 0, 0);
@@ -376,7 +379,7 @@ int DoMain() {
   // Extract the initial gripper and brick poses by parsing the keyframe file.
   // The brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/postures.txt";
+      "drake/examples/planar_gripper/postures_vertical.txt";
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   Vector3<double> brick_initial_2D_pose_G;
