@@ -122,8 +122,6 @@ PYBIND11_MODULE(lcm, m) {
             py::arg("publish_period") = 0.0,
             // Keep alive: `self` keeps `DrakeLcmInterface` alive.
             py::keep_alive<1, 3>(), doc.LcmPublisherSystem.ctor.doc)
-//        .def("get_input_port", &Class::get_input_port,
-//             doc.LcmPublisherSystem.get_input_port.doc)
         .def("set_publish_period",
             [](Class* self, double period) {
               WarnDeprecated("set_publish_period() is deprecated");

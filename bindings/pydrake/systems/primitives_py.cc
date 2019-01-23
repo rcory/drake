@@ -124,12 +124,12 @@ PYBIND11_MODULE(primitives, m) {
         m, "Sine", GetPyParam<T>(), doc.Sine.doc)
         .def(py::init<double, double, double, int, bool>(), py::arg("amplitude"),
             py::arg("frequency"), py::arg("phase"), py::arg("size"),
-            py::arg("is_time_based") = false, doc.Sine.ctor.doc_5args)
+            py::arg("is_time_based") = true, doc.Sine.ctor.doc_5args)
         .def(py::init<const Eigen::Ref<const VectorXd>&,
             const Eigen::Ref<const VectorXd>&,
                 const Eigen::Ref<const VectorXd>&, bool>(), py::arg("amplitudes"),
              py::arg("frequencies"), py::arg("phases"),
-             py::arg("is_time_based") = false,
+             py::arg("is_time_based") = true,
              doc.Sine.ctor.doc_4args);
 
     DefineTemplateClassWithDefault<Integrator<T>, LeafSystem<T>>(

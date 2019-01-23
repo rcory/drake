@@ -7,6 +7,17 @@ load(
     "drake_py_binary",
     "drake_py_library",
 )
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_googletest",
+    "drake_cc_library",
+)
+load("//tools/install:install_data.bzl", "install_data")
+load(
+    "@drake//tools/vector_gen:vector_gen.bzl",
+    "drake_cc_vector_gen_library",
+)
 
 drake_py_binary(
     name = "2d_prismatic_gripper_simulation",
@@ -23,5 +34,26 @@ drake_py_binary(
     visibility = ["//visibility:public"],
     deps = [
         "//bindings/pydrake",
+    ],
+)
+
+drake_cc_binary(
+    name = "toy_gripper",
+    srcs = ["toy_gripper.cc"],
+    add_test_rule = 1,
+    data = ["2d_prismatic_finger.sdf"],
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0.0",
+    ],
+    deps = [
+        "//common:find_resource",
+        "//common:text_logging_gflags",
+        "//geometry:geometry_visualization",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "@gflags",
     ],
 )

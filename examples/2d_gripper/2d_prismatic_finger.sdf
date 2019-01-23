@@ -47,7 +47,7 @@
         <xyz>1 0 0</xyz>
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
-          <effort>1</effort>
+          <effort>100</effort>
           <lower>-1.57</lower>
           <upper>1.57</upper>
         </limit>
@@ -113,6 +113,7 @@
       <axis>
         <xyz>0 0 1</xyz>
         <limit>
+          <effort>100</effort>
           <!-- No limit provided. sdformat defaults to -1, which we parse as
                an actuated joint. -->
           <lower>-0.05</lower>
