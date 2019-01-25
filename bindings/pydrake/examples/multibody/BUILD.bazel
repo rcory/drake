@@ -46,6 +46,7 @@ drake_py_binary(
         "//bindings/pydrake:lcm_py",
         "//bindings/pydrake/multibody:multibody_tree_py",
         "//bindings/pydrake/systems:analysis_py",
+        "//bindings/pydrake/systems:primitives_py",
     ],
 )
 
@@ -63,8 +64,8 @@ drake_py_library(
 
 install(
     name = "install",
-    targets = PY_LIBRARIES,
     py_dest = PACKAGE_INFO.py_dest,
+    targets = PY_LIBRARIES,
 )
 
 add_lint_tests(

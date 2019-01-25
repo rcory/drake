@@ -10,6 +10,7 @@ from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
+from pydrake.systems.primitives import ConstantVectorSource
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
         help="Desired rate relative to real time.  See documentation for "
              "Simulator::set_target_realtime_rate() for details.")
     parser.add_argument(
-        "--simulation_time", type=float, default=10.0,
+        "--simulation_time", type=float, default=3.0,
         help="Desired duration of the simulation in seconds.")
     parser.add_argument(
         "--time_step", type=float, default=0.,
@@ -38,6 +39,11 @@ def main():
     cart_pole.AddForceElement(UniformGravityFieldElement())
     cart_pole.Finalize()
     assert cart_pole.geometry_source_is_registered()
+
+    # apply a constant force (100 N) to the cart
+    const_src = builder.AddSystem(ConstantVectorSource([100]))
+    builder.Connect(const_src.get_output_port(0),
+                    cart_pole.get_actuation_input_port())
 
     builder.Connect(
         scene_graph.get_query_output_port(),
@@ -59,7 +65,7 @@ def main():
     cart_slider = cart_pole.GetJointByName("CartSlider")
     pole_pin = cart_pole.GetJointByName("PolePin")
     cart_slider.set_translation(context=cart_pole_context, translation=0.)
-    pole_pin.set_angle(context=cart_pole_context, angle=2.)
+    pole_pin.set_angle(context=cart_pole_context, angle=0.)
 
     simulator = Simulator(diagram, diagram_context)
     simulator.set_publish_every_time_step(False)
