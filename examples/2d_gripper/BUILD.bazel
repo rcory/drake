@@ -1,0 +1,27 @@
+# -*- python -*-
+
+load("@drake//tools/install:install.bzl", "install")
+load("//tools/lint:lint.bzl", "add_lint_tests")
+load(
+    "@drake//tools/skylark:drake_py.bzl",
+    "drake_py_binary",
+    "drake_py_library",
+)
+load("//tools/install:install_data.bzl", "install_data")
+
+drake_py_binary(
+    name = "2d_prismatic_gripper_simulation",
+    srcs = ["2d_prismatic_gripper_simulation.py"],
+    add_test_rule = 1,
+    data = [
+        "//examples/2d_gripper:2d_prismatic_finger.sdf",
+    ],
+    test_rule_args = [
+        "--target_realtime_rate=0",
+        "--simulation_time=0.1",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
