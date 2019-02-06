@@ -26,6 +26,7 @@ drake_py_binary(
     data = [
         "//examples/2d_gripper:061_foam_brick.sdf",
         "//examples/2d_gripper:2d_prismatic_finger.sdf",
+        "//examples/2d_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [
         "--target_realtime_rate=0",

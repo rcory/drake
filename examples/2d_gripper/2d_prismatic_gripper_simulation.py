@@ -22,31 +22,26 @@ from pydrake.multibody.plant import ConnectContactResultsToDrakeVisualizer
 import numpy as np
 
 
-def add_gripper_model(gripper, file_name):
+def weld_gripper_frames(gripper):
     # Weld the first finger
-    finger1 = Parser(plant=gripper).AddModelFromFile(file_name, "finger1")
     X_PC1 = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0.18])
-    child_frame = gripper.GetFrameByName("ground", finger1)
+    child_frame = gripper.GetFrameByName("finger1_base")
     gripper.WeldFrames(gripper.world_frame(),
                        child_frame, X_PC1.GetAsIsometry3())
 
-    # Weld the 2nd finger
-    finger2 = Parser(plant=gripper).AddModelFromFile(file_name, "finger2")
+    # Weld the second finger
     X_PC2 = RigidTransform(
         RollPitchYaw([120*(np.pi/180.), 0, 0]), [0, 0, 0]).multiply(X_PC1)
-    child_frame = gripper.GetFrameByName("ground", finger2)
+    child_frame = gripper.GetFrameByName("finger2_base")
     gripper.WeldFrames(gripper.world_frame(),
                        child_frame, X_PC2.GetAsIsometry3())
 
     # Weld the 3rd finger
-    finger3 = Parser(plant=gripper).AddModelFromFile(file_name, "finger3")
     X_PC3 = RigidTransform(
         RollPitchYaw([120*(np.pi/180.), 0, 0]), [0, 0, 0]).multiply(X_PC2)
-    child_frame = gripper.GetFrameByName("ground", finger3)
+    child_frame = gripper.GetFrameByName("finger3_base")
     gripper.WeldFrames(gripper.world_frame(),
                        child_frame, X_PC3.GetAsIsometry3())
-
-    return finger1, finger2, finger3
 
 
 def main():
@@ -71,11 +66,13 @@ def main():
     args = parser.parse_args()
 
     file_name = FindResourceOrThrow(
-        "drake/examples/2d_gripper/2d_prismatic_finger.sdf")
+        "drake/examples/2d_gripper/planar_gripper.sdf")
     builder = DiagramBuilder()
     scene_graph = builder.AddSystem(SceneGraph())
     gripper = builder.AddSystem(MultibodyPlant(time_step=args.time_step))
     gripper.RegisterAsSourceForSceneGraph(scene_graph)
+    gripper_id = Parser(plant=gripper).AddModelFromFile(file_name, "gripper")
+    weld_gripper_frames(gripper)
 
     # Adds the object to be manipulated.
     # TODO(rcory) adding this object changes the state dimension
@@ -84,16 +81,11 @@ def main():
     #     "drake/examples/2d_gripper/061_foam_brick.sdf")
     # Parser(plant=gripper).AddModelFromFile(object_file_name, "object")
 
-    # Add the fingers to the simulation plant.
-    (finger1_id, finger2_id, finger3_id) = \
-        add_gripper_model(gripper, file_name)
-
     # Create the controlled plant. Contains only the fingers (no objects).
     control_gripper = MultibodyPlant(time_step=args.time_step)
-
-    # Add the fingers to the control plant.
-    (control_finger1_id, control_finger2_id, control_finger3_id) = \
-        add_gripper_model(control_gripper, file_name)
+    control_gripper_id = \
+        Parser(plant=control_gripper).AddModelFromFile(file_name, "gripper")
+    weld_gripper_frames(control_gripper)
 
     # Add gravity?
     if args.add_gravity:
@@ -104,14 +96,6 @@ def main():
     gripper.Finalize()
     control_gripper.Finalize()
     assert gripper.geometry_source_is_registered()
-
-    # Connect the SceneGraph with MBP.
-    builder.Connect(
-        scene_graph.get_query_output_port(),
-        gripper.get_geometry_query_input_port())
-    builder.Connect(
-        gripper.get_geometry_poses_output_port(),
-        scene_graph.get_source_pose_port(gripper.get_source_id()))
 
     # ===== Inverse Dynamics Source ============================================
     # Add an ID controller to hold the fingers in place.
@@ -127,47 +111,24 @@ def main():
     builder.Connect(gripper.get_continuous_state_output_port(),
                     id_controller.get_input_port_estimated_state())
 
-    # Set the constant reference positions and velocities.
-    q_ref = np.zeros(6)
-    v_ref = np.zeros(6)
-    control_gripper.SetPositionsInArray(
-        control_finger1_id, np.array([0, 0]), q_ref)
-    control_gripper.SetPositionsInArray(
-        control_finger2_id, np.array([0, 0]), q_ref)
-    control_gripper.SetPositionsInArray(
-        control_finger3_id, np.array([0, 0]), q_ref)
-    x_ref = np.concatenate((q_ref, v_ref))
+    x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
 
     # Connect the desired state
     const_src = builder.AddSystem(ConstantVectorSource(x_ref))
     builder.Connect(const_src.get_output_port(0),
                     id_controller.get_input_port_desired_state())
 
-    # TODO(rcory) These mux gymnastics are a hack. I shouldn't need this.
-    demux = builder.AddSystem(Demultiplexer(6, 1))
-    mux1 = builder.AddSystem(Multiplexer(2))
-    mux2 = builder.AddSystem(Multiplexer(2))
-    mux3 = builder.AddSystem(Multiplexer(2))
-
     builder.Connect(id_controller.get_output_port_control(),
-                    demux.get_input_port(0))
-
-    builder.Connect(demux.get_output_port(0), mux1.get_input_port(0))
-    builder.Connect(demux.get_output_port(3), mux1.get_input_port(1))
-
-    builder.Connect(demux.get_output_port(1), mux2.get_input_port(0))
-    builder.Connect(demux.get_output_port(4), mux2.get_input_port(1))
-
-    builder.Connect(demux.get_output_port(2), mux3.get_input_port(0))
-    builder.Connect(demux.get_output_port(5), mux3.get_input_port(1))
-
-    builder.Connect(mux1.get_output_port(0),
-                    gripper.get_actuation_input_port(finger1_id))
-    builder.Connect(mux2.get_output_port(0),
-                    gripper.get_actuation_input_port(finger2_id))
-    builder.Connect(mux3.get_output_port(0),
-                    gripper.get_actuation_input_port(finger3_id))
+                    gripper.get_actuation_input_port())
     # ==========================================================================
+
+    # Connect the SceneGraph with MBP.
+    builder.Connect(
+        scene_graph.get_query_output_port(),
+        gripper.get_geometry_query_input_port())
+    builder.Connect(
+        gripper.get_geometry_poses_output_port(),
+        scene_graph.get_source_pose_port(gripper.get_source_id()))
 
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph)
 
@@ -181,13 +142,8 @@ def main():
     gripper_context = diagram.GetMutableSubsystemContext(
         gripper, diagram_context)
 
-    # Fix the actuation ports to zero.
-    # gripper_context.FixInputPort(
-    #     gripper.get_actuation_input_port(finger1_id).get_index(), [0, 0])
-    # gripper_context.FixInputPort(
-    #     gripper.get_actuation_input_port(finger2_id).get_index(), [0, 0])
-    # gripper_context.FixInputPort(
-    #     gripper.get_actuation_input_port(finger3_id).get_index(), [0, 0])
+    # gripper_context.FixInputPort(gripper.get_actuation_input_port().get_index(),
+    #                              [0, 0, 0, 0, 0, 0])
 
     # Set the initial conditions.
     # link2_slider = gripper.GetJointByName("ElbowJoint", finger1_model)
