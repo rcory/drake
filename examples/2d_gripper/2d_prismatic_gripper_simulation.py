@@ -118,7 +118,15 @@ def main():
     builder.Connect(const_src.get_output_port(0),
                     id_controller.get_input_port_desired_state())
 
+    # TODO(rcory) This connect code doesn't work...seems indices don't match
+    # builder.Connect(id_controller.get_output_port_control(),
+    #                 gripper.get_actuation_input_port())
+
+    # TODO(rcory) This version is the workaround
     builder.Connect(id_controller.get_output_port_control(),
+                    gripper.get_applied_generalized_force_input_port())
+    const_actuator_src = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, 0, 0]))
+    builder.Connect(const_actuator_src.get_output_port(0),
                     gripper.get_actuation_input_port())
     # ==========================================================================
 
