@@ -5,8 +5,8 @@ import argparse
 from pydrake.common import FindResourceOrThrow
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph)
 from pydrake.lcm import DrakeLcm
-from pydrake.multibody.multibody_tree import UniformGravityFieldElement
-from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
+from pydrake.multibody.tree import UniformGravityFieldElement
+from pydrake.multibody.plant import MultibodyPlant
 from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
@@ -18,13 +18,21 @@ from pydrake.systems.primitives import ConstantVectorSource
 from pydrake.systems.primitives import Demultiplexer
 from pydrake.systems.primitives import Multiplexer
 from pydrake.multibody.plant import ConnectContactResultsToDrakeVisualizer
+from pydrake.systems.primitives import Sine
+from pydrake.systems.primitives import Adder
 
 import numpy as np
 
 
 def weld_gripper_frames(gripper):
+    outer_radius = 0.185
+    f1_angle = 60*(np.pi/180.)
+
+    XT = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, outer_radius])
+
     # Weld the first finger
-    X_PC1 = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0.18])
+    # X_PC1 = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, outer_radius])
+    X_PC1 = RigidTransform(RollPitchYaw([f1_angle, 0, 0]), [0, 0, 0]).multiply(XT)
     child_frame = gripper.GetFrameByName("finger1_base")
     gripper.WeldFrames(gripper.world_frame(),
                        child_frame, X_PC1.GetAsIsometry3())
@@ -60,7 +68,7 @@ def main():
              "If 0, the plant is modeled as a continuous system.")
     # Note: continuous system doesn't seem to model joint limits
     parser.add_argument(
-        "--add_gravity", type=bool, default=False,
+        "--add_gravity", type=bool, default=True,
         help="Determines whether gravity is added to the simulation.")
 
     args = parser.parse_args()
@@ -75,11 +83,11 @@ def main():
     weld_gripper_frames(gripper)
 
     # Adds the object to be manipulated.
-    # TODO(rcory) adding this object changes the state dimension
+    # TODO(rcory) adding this object changes the estimated state dimension
     #   (affects the controller).
-    # object_file_name = FindResourceOrThrow(
-    #     "drake/examples/2d_gripper/061_foam_brick.sdf")
-    # Parser(plant=gripper).AddModelFromFile(object_file_name, "object")
+    object_file_name = FindResourceOrThrow(
+        "drake/examples/2d_gripper/061_foam_brick.sdf")
+    Parser(plant=gripper).AddModelFromFile(object_file_name, "object")
 
     # Create the controlled plant. Contains only the fingers (no objects).
     control_gripper = MultibodyPlant(time_step=args.time_step)
@@ -97,37 +105,88 @@ def main():
     control_gripper.Finalize()
     assert gripper.geometry_source_is_registered()
 
-    # ===== Inverse Dynamics Source ============================================
+    # gripper.set_penetration_allowance(0.5)
+
+# ===== Inverse Dynamics Source ============================================
     # Add an ID controller to hold the fingers in place.
-    Kp = np.array([1, 1, 1, 1, 1, 1]) * 50
-    Kd = np.array([1, 1, 1, 1, 1, 1]) * 10
-    Ki = np.array([1, 1, 1, 1, 1, 1]) * 10
+    Kp = np.array([1, 1, 1, 1, 1, 1]) * 1500
+    Kd = np.array([1, 1, 1, 1, 1, 1]) * 500
+    Ki = np.array([1, 1, 1, 1, 1, 1]) * 500
     id_controller = builder.AddSystem(
         InverseDynamicsController(control_gripper, Kp, Ki, Kd, False))
 
     # Connect the ID controller
     # TODO(rcory) modify this when I add the object, since the state output will
     #  contain the object state, which the ID controller doesn't need)
-    builder.Connect(gripper.get_continuous_state_output_port(),
+    builder.Connect(gripper.get_continuous_state_output_port(gripper_id),
                     id_controller.get_input_port_estimated_state())
 
-    x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
+    # # Constant reference
+    # x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
+    #
+    # # Connect the desired state
+    # const_src = builder.AddSystem(ConstantVectorSource(x_ref))
+    # builder.Connect(const_src.get_output_port(0),
+    #                 id_controller.get_input_port_desired_state())
 
-    # Connect the desired state
-    const_src = builder.AddSystem(ConstantVectorSource(x_ref))
-    builder.Connect(const_src.get_output_port(0),
+    # Sine reference
+    amplitudes = [0.05, 0.05, 0.05, 0, 0, 0]
+    # amplitudes = [0, 0, 0, 0, 0, 0]
+    frequencies = [6, 6, 6, 6, 6, 6]
+    phases = [0, 0, 0.5, 0, 0, 0]
+    sine_source = builder.AddSystem(Sine(amplitudes, frequencies, phases))
+    smux = builder.AddSystem(Multiplexer([6, 6]))  # [q, qdot]
+
+    # add the offsets
+    adder = builder.AddSystem(Adder(2, 6))
+    offsets = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, -0.02, 0]))
+    builder.Connect(sine_source.get_output_port(0),
+                    adder.get_input_port(0))
+    builder.Connect(offsets.get_output_port(0),
+                    adder.get_input_port(1))
+
+    # builder.Connect(sine_source.get_output_port(0), smux.get_input_port(0))
+    builder.Connect(adder.get_output_port(0), smux.get_input_port(0))
+    builder.Connect(sine_source.get_output_port(1), smux.get_input_port(1))
+    builder.Connect(smux.get_output_port(0),
                     id_controller.get_input_port_desired_state())
 
-    # TODO(rcory) This connect code doesn't work...seems indices don't match
+    # TODO(rcory) This connect code doesn't work...seems indices don't match.
     # builder.Connect(id_controller.get_output_port_control(),
     #                 gripper.get_actuation_input_port())
 
-    # TODO(rcory) This version is the workaround
+    # This is the demux/mux hack
+    demux = builder.AddSystem(Demultiplexer(6, 1))
+    mux = builder.AddSystem(Multiplexer(6))
     builder.Connect(id_controller.get_output_port_control(),
-                    gripper.get_applied_generalized_force_input_port())
-    const_actuator_src = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, 0, 0]))
-    builder.Connect(const_actuator_src.get_output_port(0),
-                    gripper.get_actuation_input_port())
+                    demux.get_input_port(0))
+    builder.Connect(demux.get_output_port(0), mux.get_input_port(0))
+    builder.Connect(demux.get_output_port(1), mux.get_input_port(2))
+    builder.Connect(demux.get_output_port(2), mux.get_input_port(4))
+    builder.Connect(demux.get_output_port(3), mux.get_input_port(1))
+    builder.Connect(demux.get_output_port(4), mux.get_input_port(3))
+    builder.Connect(demux.get_output_port(5), mux.get_input_port(5))
+    builder.Connect(mux.get_output_port(0),
+                    gripper.get_actuation_input_port(gripper_id))
+
+    # ==== For testing indices ============
+    # cs = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0.1, 0, 0]))
+    # builder.Connect(cs.get_output_port(0),
+    #                 gripper.get_actuation_input_port(gripper_id))
+
+    # cs = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0, 0]))
+    # builder.Connect(cs.get_output_port(0),
+    #                 gripper.get_applied_generalized_force_input_port())
+    # ======================================
+
+    # TODO(rcory) This version doesn't work when the box is added
+    # builder.Connect(id_controller.get_output_port_control(),
+    #                 gripper.get_applied_generalized_force_input_port())
+    #
+    # # Plug the actuator input port
+    # const_actuator_src = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, 0, 0]))
+    # builder.Connect(const_actuator_src.get_output_port(0),
+    #                 gripper.get_actuation_input_port())
     # ==========================================================================
 
     # Connect the SceneGraph with MBP.
@@ -154,10 +213,10 @@ def main():
     #                              [0, 0, 0, 0, 0, 0])
 
     # Set the initial conditions.
-    # link2_slider = gripper.GetJointByName("ElbowJoint", finger1_model)
-    # link1_pin = gripper.GetJointByName("ShoulderJoint", finger1_model)
-    # link2_slider.set_translation(context=gripper_context, translation=0.)
-    # link1_pin.set_angle(context=gripper_context, angle=0.)
+    f1_slider = gripper.GetJointByName("finger2_ElbowJoint")
+    f1_pin = gripper.GetJointByName("finger2_ShoulderJoint")
+    f1_slider.set_translation(context=gripper_context, translation=0)
+    f1_pin.set_angle(context=gripper_context, angle=0.)
 
     simulator = Simulator(diagram, diagram_context)
     simulator.set_publish_every_time_step(False)

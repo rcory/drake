@@ -13,8 +13,8 @@
     <xacro:property name="l2_mass" value="0.1" />
     <xacro:property name="l2_inertia" value="0.0083" />
     <xacro:property name="tip_radius" value="0.008" />
-    <xacro:property name="config_radius" value="0.18" />
-    <xacro:property name="config_angle" value="2.1" />
+    <!--<xacro:property name="config_radius" value="0.18" />-->
+    <!--<xacro:property name="config_angle" value="2.1" />-->
 
     <xacro:macro name="finger" params="fnum">
       <link name="finger${fnum}_base">
