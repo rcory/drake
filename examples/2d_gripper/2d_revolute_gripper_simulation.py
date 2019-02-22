@@ -43,22 +43,40 @@ class ActuatorTranslator(LeafSystem):
             output_value[i] = input_value[self.ordering[i]]
 
 
-def print_names(plant):
-    # Print actuator names
-    for i in range(0, plant.num_actuators()):
-        print str(i) + ": " + plant.get_joint_actuator(JointActuatorIndex(i)).name()
+# def print_names(plant):
+# # Print actuator names
+#     for i in range(0, plant.num_actuators()):
+#         print str(i) + ": " + plant.get_joint_actuator(JointActuatorIndex(i)).name()
+#
+#     print ""
+#
+#     # Print joint names
+#     for i in range(0, plant.num_joints()):
+#         print str(i) + ": " + plant.get_joint(JointIndex(i)).name()
+#
+#     print plant.num_positions()
 
-    print ""
 
-    # Print joint names
-    for i in range(0, plant.num_joints()):
-        print str(i) + ": " + plant.get_joint(JointIndex(i)).name()
-
-    print plant.num_positions()
+# def get_control_port_mapping(plant, control_plant):
+#
+#     joint_ordering_names = [str]*control_plant.num_joints()
+#
+#     for i in range(0, control_plant.num_joints()):
+#         joint_ordering_names[i] = \
+#             str(control_plant.get_joint(JointIndex(i)).name())
+#
+#     joint_index_mapping = [None]*plant.num_joints()
+#     for i in range(0, len(joint_ordering_names)):
+#         joint_index_mapping[i] = plant.GetJointByName(joint_ordering_names[i]).index()
+#
+#     Sx = plant.MakeStateSelectorMatrix(joint_index_mapping)
+#     Sy = plant.MakeActuatorSelectorMatrix(joint_index_mapping)
+#
+#     return joint_index_mapping
 
 
 def weld_gripper_frames(plant):
-    outer_radius = 0.185
+    outer_radius = 0.19  # 19 - 22
     f1_angle = 60*(np.pi/180.)
 
     XT = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, outer_radius])
@@ -161,16 +179,19 @@ def main():
     #                 id_controller.get_input_port_desired_state())
 
     # Sine reference
-    amplitudes = [0.05, 0.05, 0.05, 0, 0, 0]
+    amplitudes = [0.03, 0.03, 0.03, 0.05, 0.05, 0.05]
     # amplitudes = [0, 0, 0, 0, 0, 0]
-    frequencies = [6, 6, 6, 6, 6, 6]
-    phases = [0, 0, 0.5, 0, 0, 0]
+    frequencies = [6, 6.1, 6.2, 6.3, 6.4, 6.5]
+    phases = [0, 0.2, 0.5, 0, 0, 0]
     sine_source = builder.AddSystem(Sine(amplitudes, frequencies, phases))
     smux = builder.AddSystem(Multiplexer([6, 6]))  # [q, qdot]
 
     # Add Sine offsets
+    # Order is [l1_sh, l2_sh, l3_sh, l1_el, l2_el, l3_el]
+    # where sh: shoulder, el: elbow
     adder = builder.AddSystem(Adder(2, 6))
-    offsets = builder.AddSystem(ConstantVectorSource([0, 0, 0, 0, -0.02, 0]))
+    offsets = builder.AddSystem(
+        ConstantVectorSource([-0.65, -0.5, 0.65, 1.0, 0.95, -1.0]))
     builder.Connect(sine_source.get_output_port(0),
                     adder.get_input_port(0))
     builder.Connect(offsets.get_output_port(0),
@@ -219,10 +240,22 @@ def main():
     #                              [0, 0, 0, 0, 0, 0])
 
     # Set the plant initial conditions.
-    f1_slider = plant.GetJointByName("finger2_ElbowJoint")
-    f1_pin = plant.GetJointByName("finger2_ShoulderJoint")
-    f1_slider.set_translation(context=plant_context, translation=0)
-    f1_pin.set_angle(context=plant_context, angle=0.)
+    sh_pin = plant.GetJointByName("finger1_ShoulderJoint")
+    el_pin = plant.GetJointByName("finger1_ElbowJoint")
+    sh_pin.set_angle(context=plant_context, angle=-0.65)
+    el_pin.set_angle(context=plant_context, angle=1.0)
+
+    # Set the plant initial conditions.
+    sh_pin = plant.GetJointByName("finger2_ShoulderJoint")
+    el_pin = plant.GetJointByName("finger2_ElbowJoint")
+    sh_pin.set_angle(context=plant_context, angle=-0.5)
+    el_pin.set_angle(context=plant_context, angle=0.95)
+
+    # Set the plant initial conditions.
+    sh_pin = plant.GetJointByName("finger3_ShoulderJoint")
+    el_pin = plant.GetJointByName("finger3_ElbowJoint")
+    sh_pin.set_angle(context=plant_context, angle=0.65)
+    el_pin.set_angle(context=plant_context, angle=-1.0)
 
     # Set the box initial conditions
     X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0])
