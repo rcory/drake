@@ -20,12 +20,11 @@ load(
 )
 
 drake_py_binary(
-    name = "2d_prismatic_gripper_simulation",
-    srcs = ["2d_prismatic_gripper_simulation.py"],
+    name = "2d_revolute_gripper_simulation",
+    srcs = ["2d_revolute_gripper_simulation.py"],
     add_test_rule = 1,
     data = [
         "//examples/2d_gripper:061_foam_brick.sdf",
-        "//examples/2d_gripper:2d_prismatic_finger.sdf",
         "//examples/2d_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [

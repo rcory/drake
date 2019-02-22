@@ -12,7 +12,7 @@
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.04 0.04 0.004</size>
+            <size>0.08 0.08 0.008</size>
           </box>
         </geometry>
         <material>
@@ -23,7 +23,7 @@
     <link name="finger1_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <inertia>
           <ixx>0.0083</ixx>
@@ -35,15 +35,26 @@
         </inertia>
       </inertial>
       <visual name="link1_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
-          <diffuse>0 1 0 1</diffuse>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+      <visual name="link1_joint_visual">
+        <pose>0 0 -0.07 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.0132</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>.1 .1 .1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -67,9 +78,9 @@
     <link name="finger1_link2">
       <!-- The origin of the Link2 frame is defined to be coincident with
        the origin of the x-z plane in the elbow joint frame. -->
-      <pose>0 0 -0.05 0 0 0</pose>
+      <pose>0 0 -0.07 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <!-- This inertia is based on a solid cylinder with
                radius=1.0 meters and height=2.0 meters. -->
@@ -85,50 +96,61 @@
         </inertia>
       </inertial>
       <visual name="link2_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
           <diffuse>1 0 0 1</diffuse>
         </material>
       </visual>
-      <collision name="Link2_pad_collision">
-        <pose>0 0 -0.1 0 0 0</pose>
+      <visual name="link2_sensor">
+        <pose>0 0 -0.071 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.008</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <visual name="Link2_pad_visual">
-        <pose>0 0 -0.1 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>0.008</radius>
+            <radius>0.011</radius>
           </sphere>
         </geometry>
         <material>
-          <diffuse>0 0 1 1</diffuse>
+          <diffuse>.1 .1 .1 1</diffuse>
+        </material>
+      </visual>
+      <collision name="link2_pad_collision">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name="link2_pad_visual">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
         </material>
       </visual>
     </link>
-    <joint name="finger1_ElbowJoint" type="prismatic">
+    <joint name="finger1_ElbowJoint" type="revolute">
       <parent>finger1_link1</parent>
       <child>finger1_link2</child>
       <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <pose>0 0 0 0 0 0</pose>
       <axis>
-        <xyz>0 0 1</xyz>
+        <xyz>1 0 0</xyz>
         <limit>
           <effort>100</effort>
           <!-- No limit provided. sdformat defaults to -1, which we parse as
                  an actuated joint. -->
-          <lower>-0.05</lower>
-          <upper>0.05</upper>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -141,7 +163,7 @@
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.04 0.04 0.004</size>
+            <size>0.08 0.08 0.008</size>
           </box>
         </geometry>
         <material>
@@ -152,7 +174,7 @@
     <link name="finger2_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <inertia>
           <ixx>0.0083</ixx>
@@ -164,15 +186,26 @@
         </inertia>
       </inertial>
       <visual name="link1_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
-          <diffuse>0 1 0 1</diffuse>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+      <visual name="link1_joint_visual">
+        <pose>0 0 -0.07 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.0132</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>.1 .1 .1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -196,9 +229,9 @@
     <link name="finger2_link2">
       <!-- The origin of the Link2 frame is defined to be coincident with
        the origin of the x-z plane in the elbow joint frame. -->
-      <pose>0 0 -0.05 0 0 0</pose>
+      <pose>0 0 -0.07 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <!-- This inertia is based on a solid cylinder with
                radius=1.0 meters and height=2.0 meters. -->
@@ -214,50 +247,61 @@
         </inertia>
       </inertial>
       <visual name="link2_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
           <diffuse>1 0 0 1</diffuse>
         </material>
       </visual>
-      <collision name="Link2_pad_collision">
-        <pose>0 0 -0.1 0 0 0</pose>
+      <visual name="link2_sensor">
+        <pose>0 0 -0.071 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.008</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <visual name="Link2_pad_visual">
-        <pose>0 0 -0.1 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>0.008</radius>
+            <radius>0.011</radius>
           </sphere>
         </geometry>
         <material>
-          <diffuse>0 0 1 1</diffuse>
+          <diffuse>.1 .1 .1 1</diffuse>
+        </material>
+      </visual>
+      <collision name="link2_pad_collision">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name="link2_pad_visual">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
         </material>
       </visual>
     </link>
-    <joint name="finger2_ElbowJoint" type="prismatic">
+    <joint name="finger2_ElbowJoint" type="revolute">
       <parent>finger2_link1</parent>
       <child>finger2_link2</child>
       <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <pose>0 0 0 0 0 0</pose>
       <axis>
-        <xyz>0 0 1</xyz>
+        <xyz>1 0 0</xyz>
         <limit>
           <effort>100</effort>
           <!-- No limit provided. sdformat defaults to -1, which we parse as
                  an actuated joint. -->
-          <lower>-0.05</lower>
-          <upper>0.05</upper>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -270,7 +314,7 @@
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.04 0.04 0.004</size>
+            <size>0.08 0.08 0.008</size>
           </box>
         </geometry>
         <material>
@@ -281,7 +325,7 @@
     <link name="finger3_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <inertia>
           <ixx>0.0083</ixx>
@@ -293,15 +337,26 @@
         </inertia>
       </inertial>
       <visual name="link1_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
-          <diffuse>0 1 0 1</diffuse>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+      <visual name="link1_joint_visual">
+        <pose>0 0 -0.07 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.0132</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>.1 .1 .1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -325,9 +380,9 @@
     <link name="finger3_link2">
       <!-- The origin of the Link2 frame is defined to be coincident with
        the origin of the x-z plane in the elbow joint frame. -->
-      <pose>0 0 -0.05 0 0 0</pose>
+      <pose>0 0 -0.07 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <mass>0.1</mass>
         <!-- This inertia is based on a solid cylinder with
                radius=1.0 meters and height=2.0 meters. -->
@@ -343,50 +398,61 @@
         </inertia>
       </inertial>
       <visual name="link2_visual">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.035 0 0 0</pose>
         <geometry>
           <cylinder>
-            <length>0.1</length>
-            <radius>0.005</radius>
+            <length>0.07</length>
+            <radius>0.011</radius>
           </cylinder>
         </geometry>
         <material>
           <diffuse>1 0 0 1</diffuse>
         </material>
       </visual>
-      <collision name="Link2_pad_collision">
-        <pose>0 0 -0.1 0 0 0</pose>
+      <visual name="link2_sensor">
+        <pose>0 0 -0.071 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.008</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <visual name="Link2_pad_visual">
-        <pose>0 0 -0.1 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>0.008</radius>
+            <radius>0.011</radius>
           </sphere>
         </geometry>
         <material>
-          <diffuse>0 0 1 1</diffuse>
+          <diffuse>.1 .1 .1 1</diffuse>
+        </material>
+      </visual>
+      <collision name="link2_pad_collision">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name="link2_pad_visual">
+        <pose>0 0 -0.086 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
         </material>
       </visual>
     </link>
-    <joint name="finger3_ElbowJoint" type="prismatic">
+    <joint name="finger3_ElbowJoint" type="revolute">
       <parent>finger3_link1</parent>
       <child>finger3_link2</child>
       <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <pose>0 0 0 0 0 0</pose>
       <axis>
-        <xyz>0 0 1</xyz>
+        <xyz>1 0 0</xyz>
         <limit>
           <effort>100</effort>
           <!-- No limit provided. sdformat defaults to -1, which we parse as
                  an actuated joint. -->
-          <lower>-0.05</lower>
-          <upper>0.05</upper>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
