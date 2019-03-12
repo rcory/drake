@@ -9,6 +9,8 @@
 #include "drake/examples/pendulum/trajectory_optimization_common.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/solve.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/controllers/pid_controlled_system.h"
@@ -18,7 +20,9 @@
 #include "drake/systems/trajectory_optimization/direct_collocation.h"
 #include "drake/systems/trajectory_optimization/direct_transcription.h"
 
-using drake::solvers::SolutionResult;
+using drake::multibody::MultibodyPlant;
+using drake::multibody::Parser;
+using drake::multibody::UniformGravityFieldElement;
 
 namespace drake {
 namespace examples {
@@ -35,13 +39,29 @@ DEFINE_bool(use_dircol, true,
               "Indicates whether the optimization uses DirectCollocation. If"
               "this is false, use DirectTranscription.");
 
+std::unique_ptr<MultibodyPlant<double>> BuildPlant(
+    double time_step, geometry::SceneGraph<double>* scene_graph) {
+  const char* const urdf_path = "drake/examples/pendulum/Pendulum.urdf";
+  auto spendulum = std::make_unique<MultibodyPlant<double>>(time_step);
+  spendulum->AddForceElement<UniformGravityFieldElement>();
+  Parser sparser(spendulum.get(), scene_graph);
+  sparser.AddModelFromFile(FindResourceOrThrow(urdf_path));
+  spendulum->WeldFrames(spendulum->world_frame(),
+                        spendulum->GetFrameByName("base_part2"));
+
+  spendulum->Finalize(scene_graph);
+  spendulum->set_name("spendulum");
+  return spendulum;
+}
+
 int DoMain() {
   // Declare some common simulation components.
   systems::DiagramBuilder<double> builder;
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
 
   if (FLAGS_use_dircol) {
-    auto pendulum = std::make_unique<PendulumPlant<double>>();
+    drake::log()->info("Using dircol");
+    auto pendulum = BuildPlant(0, nullptr);
     auto context = pendulum->CreateDefaultContext();
     const int actuation_port_index =
         pendulum->get_actuation_input_port().get_index();
@@ -60,14 +80,14 @@ int DoMain() {
     if (!ResultIsSuccess(result)) {
       return 1;
     }
-    // Run the simulation.
-    pendulum->RegisterGeometry(pendulum->get_parameters(*context), scene_graph);
-    const geometry::SourceId source_id = pendulum->source_id();
-    SimulateTrajectory(scene_graph, source_id, std::move(pendulum), &dircol,
+    // Simulate
+    auto sim_pendulum = BuildPlant(0.0, scene_graph);  // Continuous time MBP.
+    const geometry::SourceId source_id = sim_pendulum->get_source_id().value();
+    SimulateTrajectory(scene_graph, source_id, std::move(sim_pendulum), &dircol,
                        result, &builder, FLAGS_target_realtime_rate);
   } else {
-    // DirectTranscription uses a discrete plant.
-    auto dpendulum = std::make_unique<PendulumPlant<double>>(0.05);
+    drake::log()->info("Using dirtran");
+    auto dpendulum = BuildPlant(0.05, nullptr);
     auto dcontext = dpendulum->CreateDefaultContext();
     const int actuation_port_index =
         dpendulum->get_actuation_input_port().get_index();
@@ -82,13 +102,11 @@ int DoMain() {
     if (!ResultIsSuccess(result)) {
       return 1;
     }
-    // Run the simulation with the continuous time plant.
-    auto pendulum = std::make_unique<PendulumPlant<double>>();
-    auto context = pendulum->CreateDefaultContext();
-    pendulum->RegisterGeometry(pendulum->get_parameters(*context), scene_graph);
-    const geometry::SourceId source_id = pendulum->source_id();
-    SimulateTrajectory(scene_graph, source_id, std::move(pendulum), &dirtran,
-                       result, &builder, FLAGS_target_realtime_rate);
+    // Simulate
+    auto sim_pendulum = BuildPlant(0.0, scene_graph);  // Continuous time MBP.
+    const geometry::SourceId source_id = sim_pendulum->get_source_id().value();
+    SimulateTrajectory(scene_graph, source_id, std::move(sim_pendulum),
+                       &dirtran, result, &builder, FLAGS_target_realtime_rate);
   }
   return 0;
 }
