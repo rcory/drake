@@ -19,6 +19,7 @@ namespace {
 DEFINE_double(target_realtime_rate, 1.0,
               "Playback speed.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
+DEFINE_double(sim_time, 10, "The time to simulate");
 
 int DoMain() {
   PendulumParams<double> params;
@@ -53,7 +54,7 @@ int DoMain() {
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
-  simulator.StepTo(10);
+  simulator.StepTo(FLAGS_sim_time);
 
   const double final_energy = pendulum->CalcTotalEnergy(pendulum_context);
 

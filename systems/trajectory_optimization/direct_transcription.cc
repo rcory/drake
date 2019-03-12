@@ -128,6 +128,7 @@ DirectTranscription::DirectTranscription(const System<double>* system,
   if (!AddSymbolicDynamicConstraints(system, context)) {
     AddAutodiffDynamicConstraints(system, context);
   }
+
   ConstrainEqualInputAtFinalTwoTimesteps();
 }
 

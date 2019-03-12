@@ -14,6 +14,7 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/trajectory_source.h"
+#include "drake/systems/trajectory_optimization/direct_transcription.h"
 #include "drake/systems/trajectory_optimization/direct_collocation.h"
 
 using drake::solvers::SolutionResult;
@@ -38,21 +39,16 @@ int DoMain() {
 
   auto context = pendulum->CreateDefaultContext();
 
-  const int kNumTimeSamples = 21;
-  const double kMinimumTimeStep = 0.2;
-  const double kMaximumTimeStep = 0.5;
-  systems::trajectory_optimization::DirectCollocation dircol(
-      pendulum.get(), *context, kNumTimeSamples, kMinimumTimeStep,
-      kMaximumTimeStep);
-
-  dircol.AddEqualTimeIntervalsConstraints();
+  const int kNumTimeSamples = 500;
+  systems::trajectory_optimization::DirectTranscription dirtran(
+      pendulum.get(), *context, kNumTimeSamples);
 
   // TODO(russt): Add this constraint to PendulumPlant and get it automatically
   // through DirectCollocation.
+  const solvers::VectorXDecisionVariable& u = dirtran.input();
   const double kTorqueLimit = 3.0;  // N*m.
-  const solvers::VectorXDecisionVariable& u = dircol.input();
-  dircol.AddConstraintToAllKnotPoints(-kTorqueLimit <= u(0));
-  dircol.AddConstraintToAllKnotPoints(u(0) <= kTorqueLimit);
+  dirtran.AddConstraintToAllKnotPoints(-kTorqueLimit <= u(0));
+  dirtran.AddConstraintToAllKnotPoints(u(0) <= kTorqueLimit);
 
   PendulumState<double> initial_state, final_state;
   initial_state.set_theta(0.0);
@@ -60,28 +56,31 @@ int DoMain() {
   final_state.set_theta(M_PI);
   final_state.set_thetadot(0.0);
 
-  dircol.AddLinearConstraint(dircol.initial_state() ==
+  dirtran.AddLinearConstraint(dirtran.initial_state() ==
                              initial_state.get_value());
-  dircol.AddLinearConstraint(dircol.final_state() == final_state.get_value());
+  dirtran.AddLinearConstraint(dirtran.final_state() == final_state.get_value());
 
   const double R = 10;  // Cost on input "effort".
-  dircol.AddRunningCost((R * u) * u);
+  dirtran.AddRunningCost((R * u) * u);
 
-  const double timespan_init = 4;
+  const double timespan_init = 5;
   auto traj_init_x = PiecewisePolynomial<double>::FirstOrderHold(
       {0, timespan_init}, {initial_state.get_value(), final_state.get_value()});
-  dircol.SetInitialTrajectory(PiecewisePolynomial<double>(), traj_init_x);
-  const auto result = solvers::Solve(dircol);
+  dirtran.SetInitialTrajectory(PiecewisePolynomial<double>(), traj_init_x);
+  const auto result = solvers::Solve(dirtran);
   if (!result.is_success()) {
     std::cerr << "Failed to solve optimization for the swing-up trajectory"
-              << std::endl;
+              << " using solver "<< result.get_solver_id().name() << std::endl;
+    std::cerr << "Solution result: " << result.get_solution_result();
     return 1;
+  } else {
+    std::cerr << "Solved with solver "<< result.get_solver_id().name() << std::endl;
   }
 
   const PiecewisePolynomial<double> pp_traj =
-      dircol.ReconstructInputTrajectory(result);
+      dirtran.ReconstructInputTrajectory(result);
   const PiecewisePolynomial<double> pp_xtraj =
-      dircol.ReconstructStateTrajectory(result);
+      dirtran.ReconstructStateTrajectory(result);
   auto input_trajectory = builder.AddSystem<systems::TrajectorySource>(pp_traj);
   input_trajectory->set_name("input trajectory");
   auto state_trajectory =

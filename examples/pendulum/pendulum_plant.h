@@ -75,21 +75,21 @@ class PendulumPlant final : public systems::LeafSystem<T> {
   }
 
   static const PendulumState<T>& get_state(
-      const systems::ContinuousState<T>& cstate) {
-    return dynamic_cast<const PendulumState<T>&>(cstate.get_vector());
+      const systems::DiscreteValues<T>& dstate) {
+    return dynamic_cast<const PendulumState<T>&>(dstate.get_vector());
   }
 
   static const PendulumState<T>& get_state(const systems::Context<T>& context) {
-    return get_state(context.get_continuous_state());
+    return get_state(context.get_discrete_state());
   }
 
   static PendulumState<T>& get_mutable_state(
-      systems::ContinuousState<T>* cstate) {
-    return dynamic_cast<PendulumState<T>&>(cstate->get_mutable_vector());
+      systems::DiscreteValues<T>* dstate) {
+    return dynamic_cast<PendulumState<T>&>(dstate->get_mutable_vector());
   }
 
   static PendulumState<T>& get_mutable_state(systems::Context<T>* context) {
-    return get_mutable_state(&context->get_mutable_continuous_state());
+    return get_mutable_state(&context->get_mutable_discrete_state());
   }
 
 
@@ -115,10 +115,13 @@ class PendulumPlant final : public systems::LeafSystem<T> {
   void CopyPoseOut(const systems::Context<T>& context,
                    geometry::FramePoseVector<T>* poses) const;
 
-  void DoCalcTimeDerivatives(
+  void DoCalcDiscreteVariableUpdates(
       const systems::Context<T>& context,
-      systems::ContinuousState<T>* derivatives) const override;
+      const std::vector<const systems::DiscreteUpdateEvent<T>*>& events,
+      systems::DiscreteValues<T>* discrete_state) const override;
 
+  void DoStateUpdate(const systems::Context<T>& context,
+      systems::DiscreteValues<T>* discrete_state) const;
 
   // Port handles.
   int state_port_{-1};
@@ -128,6 +131,8 @@ class PendulumPlant final : public systems::LeafSystem<T> {
   geometry::SourceId source_id_{};
   // The id for the pendulum (arm + point mass) frame.
   geometry::FrameId frame_id_{};
+
+  double dt_{0.01};
 };
 
 }  // namespace pendulum

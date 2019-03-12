@@ -33,8 +33,9 @@ PendulumPlant<T>::PendulumPlant()
   state_port_ = this->DeclareVectorOutputPort(PendulumState<T>(),
                                               &PendulumPlant::CopyStateOut)
                     .get_index();
-  this->DeclareContinuousState(PendulumState<T>(), 1 /* num_q */, 1 /* num_v */,
-                               0 /* num_z */);
+  this->DeclareDiscreteState(PendulumState<T>());
+  this->DeclarePeriodicDiscreteUpdateEvent(dt_, 0,
+      &PendulumPlant::DoStateUpdate);
   this->DeclareNumericParameter(PendulumParams<T>());
 }
 
@@ -102,21 +103,36 @@ T PendulumPlant<T>::CalcTotalEnergy(const systems::Context<T>& context) const {
   return kinetic_energy + potential_energy;
 }
 
-// Compute the actual physics.
 template <typename T>
-void PendulumPlant<T>::DoCalcTimeDerivatives(
+void PendulumPlant<T>::DoCalcDiscreteVariableUpdates(
     const systems::Context<T>& context,
-    systems::ContinuousState<T>* derivatives) const {
+    const std::vector<const systems::DiscreteUpdateEvent<T>*>& events,
+    systems::DiscreteValues<T>* discrete_state) const {
+  DoStateUpdate(context, discrete_state);
+  unused(events);
+}
+
+//// Compute the actual physics.
+template <typename T>
+void PendulumPlant<T>::DoStateUpdate(const systems::Context<T>& context,
+    systems::DiscreteValues<T>* discrete_state) const{
+
   const PendulumState<T>& state = get_state(context);
   const PendulumParams<T>& params = get_parameters(context);
-  PendulumState<T>& derivative_vector = get_mutable_state(derivatives);
+  PendulumState<T>& state_vector = get_mutable_state(discrete_state);
 
+  PendulumState<T> derivative_vector;
   derivative_vector.set_theta(state.thetadot());
   derivative_vector.set_thetadot(
       (get_tau(context) -
        params.mass() * params.gravity() * params.length() * sin(state.theta()) -
        params.damping() * state.thetadot()) /
       (params.mass() * params.length() * params.length()));
+
+  // compute the euler update
+  state_vector.set_theta(state.theta() + derivative_vector.theta()*dt_);
+  state_vector.set_thetadot(
+      state.thetadot() + derivative_vector.thetadot()*dt_);
 }
 
 template <typename T>
