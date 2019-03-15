@@ -8,6 +8,8 @@
 #include "drake/examples/pendulum/pendulum_plant.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/solve.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/controllers/pid_controlled_system.h"
@@ -17,7 +19,12 @@
 #include "drake/systems/trajectory_optimization/direct_transcription.h"
 #include "drake/systems/trajectory_optimization/direct_collocation.h"
 
+#include "drake/common/unused.h"
+
 using drake::solvers::SolutionResult;
+using drake::multibody::MultibodyPlant;
+using drake::multibody::Parser;
+using drake::multibody::UniformGravityFieldElement;
 
 namespace drake {
 namespace examples {
@@ -32,16 +39,28 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 
 int DoMain() {
-  systems::DiagramBuilder<double> builder;
+  double dt = 0.01;
+  const char* const urdf_path = "drake/examples/pendulum/Pendulum.urdf";
+  auto pendulum = std::make_unique<MultibodyPlant<double>>(dt);
+  pendulum->AddForceElement<UniformGravityFieldElement>();
+  Parser parser(pendulum.get());
+  parser.AddModelFromFile(FindResourceOrThrow(urdf_path));
+  pendulum->WeldFrames(pendulum->world_frame(), pendulum->GetFrameByName("base_part2"));
 
-  auto pendulum = std::make_unique<PendulumPlant<double>>();
+//  auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
+//  const geometry::SourceId source_id =
+//      pendulum->RegisterAsSourceForSceneGraph(scene_graph);
+//  pendulum->Finalize(scene_graph);
+  pendulum->Finalize();
   pendulum->set_name("pendulum");
 
   auto context = pendulum->CreateDefaultContext();
+  const int actuation_port_index =
+      pendulum->get_actuation_input_port().get_index();
 
   const int kNumTimeSamples = 500;
   systems::trajectory_optimization::DirectTranscription dirtran(
-      pendulum.get(), *context, kNumTimeSamples);
+      pendulum.get(), *context, kNumTimeSamples, actuation_port_index);
 
   // TODO(russt): Add this constraint to PendulumPlant and get it automatically
   // through DirectCollocation.
@@ -77,6 +96,13 @@ int DoMain() {
     std::cerr << "Solved with solver "<< result.get_solver_id().name() << std::endl;
   }
 
+  // === end of traj-opt
+  systems::DiagramBuilder<double> builder;
+
+  auto spendulum = std::make_unique<PendulumPlant<double>>();
+  spendulum->set_name("pendulum");
+
+  auto scontext = spendulum->CreateDefaultContext();
   const PiecewisePolynomial<double> pp_traj =
       dirtran.ReconstructInputTrajectory(result);
   const PiecewisePolynomial<double> pp_xtraj =
@@ -88,12 +114,12 @@ int DoMain() {
   state_trajectory->set_name("state trajectory");
 
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
-  pendulum->RegisterGeometry(pendulum->get_parameters(*context),
+  spendulum->RegisterGeometry(spendulum->get_parameters(*scontext),
                              scene_graph);
-  const geometry::SourceId source_id = pendulum->source_id();
-  const int state_port_index = pendulum->get_state_output_port().get_index();
+  const geometry::SourceId source_id = spendulum->source_id();
+  const int state_port_index = spendulum->get_state_output_port().get_index();
   const int geometry_port_index =
-      pendulum->get_geometry_pose_output_port().get_index();
+      spendulum->get_geometry_pose_output_port().get_index();
 
   // The choices of PidController constants here are fairly arbitrary,
   // but seem to effectively swing up the pendulum and hold it.
@@ -102,7 +128,7 @@ int DoMain() {
   const double Kd = 1;
   auto pid_controlled_pendulum =
       builder.AddSystem<systems::controllers::PidControlledSystem<double>>(
-          std::move(pendulum), Kp, Ki, Kd, state_port_index);
+          std::move(spendulum), Kp, Ki, Kd, state_port_index);
   pid_controlled_pendulum->set_name("PID Controlled Pendulum");
 
   builder.Connect(input_trajectory->get_output_port(),
@@ -121,14 +147,73 @@ int DoMain() {
   simulator.Initialize();
   simulator.StepTo(pp_xtraj.end_time());
 
-  const auto& pendulum_state =
-      PendulumPlant<double>::get_state(diagram->GetSubsystemContext(
-          *(pid_controlled_pendulum->plant()), simulator.get_context()));
 
-  if (!is_approx_equal_abstol(pendulum_state.get_value(),
-                              final_state.get_value(), 1e-3)) {
-    throw std::runtime_error("Did not reach trajectory target.");
-  }
+
+
+//  auto spendulum = std::make_unique<MultibodyPlant<double>>(dt);
+//  spendulum->AddForceElement<UniformGravityFieldElement>();
+//  Parser sparser(spendulum.get());
+//  sparser.AddModelFromFile(FindResourceOrThrow(urdf_path));
+//  spendulum->WeldFrames(spendulum->world_frame(), spendulum->GetFrameByName("base_part2"));
+//
+//  auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
+//  const geometry::SourceId source_id =
+//      spendulum->RegisterAsSourceForSceneGraph(scene_graph);
+//  spendulum->Finalize(scene_graph);
+//  spendulum->set_name("spendulum");
+//
+//  const PiecewisePolynomial<double> pp_traj =
+//      dirtran.ReconstructInputTrajectory(result);
+//  const PiecewisePolynomial<double> pp_xtraj =
+//      dirtran.ReconstructStateTrajectory(result);
+//  auto input_trajectory = builder.AddSystem<systems::TrajectorySource>(pp_traj);
+//  input_trajectory->set_name("input trajectory");
+//  auto state_trajectory =
+//      builder.AddSystem<systems::TrajectorySource>(pp_xtraj);
+//  state_trajectory->set_name("state trajectory");
+//
+//  const int state_port_index =
+//      spendulum->get_continuous_state_output_port().get_index();
+//  const int geometry_port_index =
+//      spendulum->get_geometry_poses_output_port().get_index();
+//
+//  // The choices of PidController constants here are fairly arbitrary,
+//  // but seem to effectively swing up the pendulum and hold it.
+//  const double Kp = 10;
+//  const double Ki = 0;
+//  const double Kd = 1;
+//  auto pid_controlled_pendulum =
+//      builder.AddSystem<systems::controllers::PidControlledSystem<double>>(
+//          std::move(spendulum), Kp, Ki, Kd, state_port_index);
+//  pid_controlled_pendulum->set_name("PID Controlled Pendulum");
+
+//  std::cerr << "connect 1";
+//  builder.Connect(input_trajectory->get_output_port(),
+//                  pid_controlled_pendulum->get_control_input_port());
+//  std::cerr << "connect 2";
+//  builder.Connect(state_trajectory->get_output_port(),
+//                  pid_controlled_pendulum->get_state_input_port());
+//  std::cerr << "connect 3";
+//  builder.Connect(pid_controlled_pendulum->get_output_port(geometry_port_index),
+//                  scene_graph->get_source_pose_port(source_id));
+//  std::cerr << "connect 4";
+//  geometry::ConnectDrakeVisualizer(&builder, *scene_graph);
+//  auto diagram = builder.Build();
+//
+
+//  systems::Simulator<double> simulator(*diagram);
+//  simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
+//  simulator.Initialize();
+//  simulator.StepTo(pp_xtraj.end_time());
+
+//  const auto& pendulum_state =
+//      PendulumPlant<double>::get_state(diagram->GetSubsystemContext(
+//          *(pid_controlled_pendulum->plant()), simulator.get_context()));
+//
+//  if (!is_approx_equal_abstol(pendulum_state.get_value(),
+//                              final_state.get_value(), 1e-3)) {
+//    throw std::runtime_error("Did not reach trajectory target.");
+//  }
   return 0;
 }
 

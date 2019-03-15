@@ -1440,8 +1440,9 @@ void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
         applied_generalized_force_input.Eval(context0);
 
   // TODO(amcastro-tri): Eval() point_pairs0 when caching lands.
-  const std::vector<PenetrationAsPointPair<T>> point_pairs0 =
-      CalcPointPairPenetrations(context0);
+  const std::vector<PenetrationAsPointPair<T>> point_pairs0;
+  //  const std::vector<PenetrationAsPointPair<T>> point_pairs0 =
+//      CalcPointPairPenetrations(context0);
 
   // Workspace for inverse dynamics:
   // Bodies' accelerations, ordered by BodyNodeIndex.
