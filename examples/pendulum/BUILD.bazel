@@ -39,6 +39,17 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "discrete_time_approximation",
+    hdrs = ["discrete_time_approximation.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":pendulum_plant",
+        ":pendulum_vector_types",
+        "//systems/framework",
+    ],
+)
+
 drake_cc_binary(
     name = "passive_simulation",
     srcs = ["passive_simulation.cc"],
@@ -118,6 +129,7 @@ drake_cc_binary(
     # Non-deterministic IPOPT-related failures on macOS, see #10276.
     test_rule_flaky = 1,
     deps = [
+        ":discrete_time_approximation",
         ":pendulum_plant",
         ":trajectory_optimization_common",
         "//common:find_resource",

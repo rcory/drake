@@ -5,6 +5,7 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/examples/pendulum/pendulum_plant.h"
+#include "drake/examples/pendulum/discrete_time_approximation.h"
 #include "drake/examples/pendulum/trajectory_optimization_common.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/solvers/solve.h"
@@ -33,11 +34,10 @@ int DoMain() {
   // DirectTranscription.
   std::unique_ptr<systems::trajectory_optimization::MultipleShooting> prog;
   drake::solvers::MathematicalProgramResult result;
-  std::unique_ptr<PendulumPlant<double>> pendulum;
 
   if (FLAGS_use_dircol) {
     // DirectCollocation uses a continuous time plant.
-    pendulum = std::make_unique<PendulumPlant<double>>();
+    auto pendulum = std::make_unique<PendulumPlant<double>>();
     auto context = pendulum->CreateDefaultContext();
     const int actuation_port_index =
         pendulum->get_actuation_input_port().get_index();
@@ -58,8 +58,9 @@ int DoMain() {
     prog = std::move(dircol);
   } else {
     // DirectTranscription uses a discrete time plant.
-    pendulum = std::make_unique<PendulumPlant<double>>(0.05);
+    auto pendulum = std::make_unique<DiscretePendulumPlant<double>>(0.05);
     auto context = pendulum->CreateDefaultContext();
+
     const int actuation_port_index =
         pendulum->get_actuation_input_port().get_index();
 
@@ -67,7 +68,8 @@ int DoMain() {
 
     auto dirtran =
         std::make_unique<systems::trajectory_optimization::DirectTranscription>(
-            pendulum.get(), *context, kNumTimeSamples, actuation_port_index);
+            pendulum.get(), *context, kNumTimeSamples, actuation_port_index,
+            true);
 
     AddSwingupConstraints(dirtran.get());
 
