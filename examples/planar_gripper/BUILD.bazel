@@ -20,12 +20,12 @@ load(
 )
 
 drake_py_binary(
-    name = "2d_revolute_gripper_simulation",
-    srcs = ["2d_revolute_gripper_simulation.py"],
+    name = "planar_gripper_simulation",
+    srcs = ["planar_gripper_simulation.py"],
     add_test_rule = 1,
     data = [
-        "//examples/2d_gripper:061_foam_brick.sdf",
-        "//examples/2d_gripper:planar_gripper.sdf",
+        "//examples/planar_gripper:brick.sdf",
+        "//examples/planar_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [
         "--target_realtime_rate=0",
@@ -41,7 +41,7 @@ drake_cc_binary(
     name = "toy_gripper",
     srcs = ["toy_gripper.cc"],
     add_test_rule = 1,
-    data = ["2d_prismatic_finger.sdf"],
+    data = ["planar_finger.sdf"],
     test_rule_args = [
         "--simulation_time=0.1",
         "--target_realtime_rate=0.0",
