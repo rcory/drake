@@ -37,23 +37,20 @@ drake_py_binary(
     ],
 )
 
-drake_cc_binary(
-    name = "toy_gripper",
-    srcs = ["toy_gripper.cc"],
+drake_py_binary(
+    name = "planar_finger_simulation",
+    srcs = ["planar_finger_simulation.py"],
     add_test_rule = 1,
-    data = ["planar_finger.sdf"],
-    test_rule_args = [
-        "--simulation_time=0.1",
-        "--target_realtime_rate=0.0",
+    data = [
+        "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:planar_finger.sdf",
     ],
+    test_rule_args = [
+        "--target_realtime_rate=0",
+        "--simulation_time=0.1",
+    ],
+    visibility = ["//visibility:public"],
     deps = [
-        "//common:find_resource",
-        "//common:text_logging_gflags",
-        "//geometry:geometry_visualization",
-        "//multibody/parsing",
-        "//multibody/plant",
-        "//systems/analysis:simulator",
-        "//systems/framework:diagram",
-        "@gflags",
+        "//bindings/pydrake",
     ],
 )

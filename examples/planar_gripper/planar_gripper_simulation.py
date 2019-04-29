@@ -29,8 +29,8 @@ class ActuatorTranslator(LeafSystem):
         LeafSystem.__init__(self)
         self.ordering = ordering
         size = len(ordering)
-        self._DeclareVectorInputPort("input1", BasicVector(size))
-        self._DeclareVectorOutputPort("output1", BasicVector(size),
+        self.DeclareVectorInputPort("input1", BasicVector(size))
+        self.DeclareVectorOutputPort("output1", BasicVector(size),
                                       self._reorder_output)
 
     def _reorder_output(self, context, output_vector):
@@ -86,21 +86,21 @@ def weld_gripper_frames(plant):
     X_PC1 = RigidTransform(RollPitchYaw([f1_angle, 0, 0]), [0, 0, 0]).multiply(XT)
     child_frame = plant.GetFrameByName("finger1_base")
     plant.WeldFrames(plant.world_frame(),
-                       child_frame, X_PC1.GetAsIsometry3())
+                       child_frame, X_PC1)
 
     # Weld the second finger
     X_PC2 = RigidTransform(
         RollPitchYaw([120*(np.pi/180.), 0, 0]), [0, 0, 0]).multiply(X_PC1)
     child_frame = plant.GetFrameByName("finger2_base")
     plant.WeldFrames(plant.world_frame(),
-                       child_frame, X_PC2.GetAsIsometry3())
+                       child_frame, X_PC2)
 
     # Weld the 3rd finger
     X_PC3 = RigidTransform(
         RollPitchYaw([120*(np.pi/180.), 0, 0]), [0, 0, 0]).multiply(X_PC2)
     child_frame = plant.GetFrameByName("finger3_base")
     plant.WeldFrames(plant.world_frame(),
-                       child_frame, X_PC3.GetAsIsometry3())
+                       child_frame, X_PC3)
 
 
 def main():
@@ -167,7 +167,7 @@ def main():
     # Connect the ID controller
     # TODO(rcory) modify this when I add the object, since the state output will
     #  contain the object state, which the ID controller doesn't need)
-    builder.Connect(plant.get_continuous_state_output_port(plant_id),
+    builder.Connect(plant.get_state_output_port(plant_id),
                     id_controller.get_input_port_estimated_state())
 
     # # Constant reference
@@ -261,7 +261,7 @@ def main():
     X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0])
     body_index_vec = plant.GetBodyIndices(object_id)
     box_body = plant.get_body(body_index_vec[0])
-    plant.SetFreeBodyPose(plant_context, box_body, X_WObj.GetAsIsometry3())
+    plant.SetFreeBodyPose(plant_context, box_body, X_WObj)
 
     # Start the simulator
     simulator = Simulator(diagram, diagram_context)
