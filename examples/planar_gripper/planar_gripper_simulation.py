@@ -125,7 +125,7 @@ def main():
     args = parser.parse_args()
 
     file_name = FindResourceOrThrow(
-        "drake/examples/2d_gripper/planar_gripper.sdf")
+        "drake/examples/planar_gripper/planar_gripper.sdf")
     builder = DiagramBuilder()
     scene_graph = builder.AddSystem(SceneGraph())
     plant = builder.AddSystem(MultibodyPlant(time_step=args.time_step))
@@ -137,7 +137,7 @@ def main():
     # TODO(rcory) adding this object changes the estimated state dimension
     #   (affects the controller).
     object_file_name = FindResourceOrThrow(
-        "drake/examples/2d_gripper/061_foam_brick.sdf")
+        "drake/examples/planar_gripper/brick.sdf")
     object_id = Parser(plant=plant).AddModelFromFile(object_file_name, "object")
 
     # Create the controlled plant. Contains only the fingers (no objects).
