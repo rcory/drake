@@ -44,7 +44,7 @@ DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
               "Desired duration of the simulation in seconds");
 DEFINE_bool(use_right_hand, true,
             "Which hand to model: true for right hand or false for left hand");
-DEFINE_double(max_time_step, 1.5e-4,
+DEFINE_double(max_time_step, 6e-4,
               "Simulation time step used for intergrator.");
 DEFINE_bool(add_gravity, false,
             "Whether adding gravity (9.81 m/s^2) in the simulation");
@@ -183,7 +183,7 @@ void DoMain() {
   Eigen::Vector3d rpy(M_PI / 2, 0, 0);
   X_WM.linear() =
       math::RotationMatrix<double>(math::RollPitchYaw<double>(rpy)).matrix();
-  X_WM.translation() = p_WHand + Eigen::Vector3d(0.095, 0.062, 0.095);
+  X_WM.translation() = p_WHand + Eigen::Vector3d(10.095, 0.062, 0.095);
   X_WM.makeAffine();
   plant.tree().SetFreeBodyPoseOrThrow(mug, X_WM, &plant_context);
 

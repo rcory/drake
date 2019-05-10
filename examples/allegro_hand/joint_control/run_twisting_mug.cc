@@ -12,6 +12,7 @@
 
 #include <Eigen/Dense>
 #include "lcm/lcm-cpp.hpp"
+#include <unistd.h>
 
 #include "drake/examples/allegro_hand/allegro_common.h"
 #include "drake/examples/allegro_hand/allegro_lcm.h"
@@ -43,22 +44,32 @@ class PositionCommander {
     Eigen::VectorXd target_joint_position(kAllegroNumJoints);
     target_joint_position.setZero();
     MovetoPositionUntilStuck(target_joint_position);
+    usleep(1e6);
 
-    // close thumb
-    target_joint_position(0) = 1.396;
-    target_joint_position(1) = 0.3;
+    // scissors
+    target_joint_position.segment<4>(12) << 1.0, 0.6331, 1.3509, 1.0;
+    target_joint_position.segment<4>(0) << 0.0885, 0.4, 0.6, -0.704;
+    target_joint_position.segment<4>(4) << 0.0312, 0.4, 0.6, 0;
+    target_joint_position.segment<4>(8) << 0.1019, 1.2375, 1.1346, 1.10244;
     MovetoPositionUntilStuck(target_joint_position);
+    usleep(1e6);
 
-    // close other fingers
-    target_joint_position.segment<4>(0) =
-        hand_state_.FingerGraspJointPosition(0);
-    target_joint_position.segment<4>(4) =
-        hand_state_.FingerGraspJointPosition(1);
-    target_joint_position.segment<4>(8) =
-        hand_state_.FingerGraspJointPosition(2);
-    target_joint_position.segment<4>(12) =
-        hand_state_.FingerGraspJointPosition(3);
+    // paper
+    target_joint_position.segment<4>(12) << 0.5284, 0.3693, 0.8977, 0.4863;
+    target_joint_position.segment<4>(0) << -0.1220, 0.4, 0.6, -0.769;
+    target_joint_position.segment<4>(4) << 0.0312, 0.4, 0.6, 0;
+    target_joint_position.segment<4>(8) << 0.1767, 0.4, 0.6, -0.0528;
     MovetoPositionUntilStuck(target_joint_position);
+    usleep(1e6);
+
+    // rock
+    target_joint_position.segment<4>(12) << 0.6017, 0.2976, 0.9034, 0.7929;
+    target_joint_position.segment<4>(0) << -0.1194, 1.2068, 1.0, 1.4042;
+    target_joint_position.segment<4>(4) << -0.0093, 1.2481, 1.4073, 0.8163;
+    target_joint_position.segment<4>(8) << 0.1116, 1.2712, 1.3881, 1.0122;
+    MovetoPositionUntilStuck(target_joint_position);
+    usleep(1e6);
+
     std::cout << "Hand is closed. \n";
     while (0 == lcm_.handleTimeout(10)) {
     }
@@ -67,39 +78,7 @@ class PositionCommander {
     // object
     Eigen::VectorXd close_hand_joint_position = Eigen::Map<Eigen::VectorXd>(
         &(allegro_status_.joint_position_measured[0]), kAllegroNumJoints);
-    // twisting the cup repeatly
-    while (true) {
-      target_joint_position = close_hand_joint_position;
-      // The middle finger works as a pivot finger for the rotation, and exert
-      // a little force to maintain the stabilization of the mug, which is
-      // realized by adding some extra pushing motion towards the balance
-      // position. Eigen::Vector3d(1, 1, 0.5) is a number based on experience
-      // to keep the finger position, and 0.1 is the coefficient related to
-      // the extra force to apply.
-      target_joint_position.segment<3>(9) +=
-          (0.1 * Eigen::Vector3d(1, 1, 0.5));
-      // The thumb works as another pivot finger, and is expected to exert a
-      // large force in order to keep stabilization.
-      target_joint_position.segment<4>(0) =
-          hand_state_.FingerGraspJointPosition(0);
-      // The index finger works as the actuating finger, where (1, 0.3, 0.5) is
-      // the portion of the joint motion for actuating the mug rotation, 0.6 is
-      // the coefficient to determine how much the rotation should be.
-      target_joint_position.segment<3>(5) +=
-          (0.6 * Eigen::Vector3d(1, 0.3, 0.5));
-      MovetoPositionUntilStuck(target_joint_position);
 
-      target_joint_position = close_hand_joint_position;
-      target_joint_position.segment<3>(9) +=
-          (0.1 * Eigen::Vector3d(1, 1, 0.5));
-      target_joint_position.segment<4>(0) =
-          hand_state_.FingerGraspJointPosition(0);
-      // The ring finger works as the actuating finger now to rotate the mug in
-      // the opposite direction.
-      target_joint_position.segment<3>(13) +=
-          (0.6 * Eigen::Vector3d(1, 0.3, 0.5));
-      MovetoPositionUntilStuck(target_joint_position);
-    }
   }
 
  private:
