@@ -47,6 +47,24 @@ drake_cc_library(
     ],
 )
 
+drake_py_binary(
+    name = "planar_finger_simulation",
+    srcs = ["planar_finger_simulation.py"],
+    add_test_rule = 1,
+    data = [
+        "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:planar_finger.sdf",
+    ],
+    test_rule_args = [
+        "--target_realtime_rate=0",
+        "--simulation_time=0.1",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
 drake_cc_binary(
     name = "planar_gripper_simulation",
     srcs = ["planar_gripper_simulation.cc"],
@@ -79,20 +97,29 @@ drake_cc_binary(
     ],
 )
 
-drake_py_binary(
-    name = "planar_finger_simulation",
-    srcs = ["planar_finger_simulation.py"],
-    add_test_rule = 1,
+drake_cc_library(
+    name = "gripper_brick",
+    testonly = 1,
+    srcs = ["gripper_brick.cc"],
+    hdrs = ["gripper_brick.h"],
     data = [
         "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:planar_finger.sdf",
+        "//examples/planar_gripper:planar_gripper.sdf",
     ],
-    test_rule_args = [
-        "--target_realtime_rate=0",
-        "--simulation_time=0.1",
-    ],
-    visibility = ["//visibility:public"],
     deps = [
-        "//bindings/pydrake",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/framework:diagram",
+    ],
+)
+
+drake_cc_binary(
+    name = "reorient_ik_demo",
+    testonly = 1,
+    srcs = ["reorient_ik_demo.cc"],
+    deps = [
+        ":gripper_brick",
+        "//multibody/inverse_kinematics",
     ],
 )
