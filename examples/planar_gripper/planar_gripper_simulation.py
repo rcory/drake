@@ -74,6 +74,10 @@ class ActuatorTranslator(LeafSystem):
 #
 #     return joint_index_mapping
 
+def get_keyframes():
+    keyframes = np.array([[0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0]])
+
 
 def weld_gripper_frames(plant):
     outer_radius = 0.19  # 19 - 22
@@ -148,8 +152,9 @@ def main():
 
     # Add gravity?
     if args.add_gravity:
-        plant.AddForceElement(UniformGravityFieldElement())
-        control_plant.AddForceElement(UniformGravityFieldElement())
+        gravity_vector = [0, 0, -9.81]
+        plant.mutable_gravity_field().set_gravity_vector(gravity_vector)
+        control_plant.mutable_gravity_field().set_gravity_vector(gravity_vector)
 
     # Finalize the plants.
     plant.Finalize()
@@ -157,7 +162,7 @@ def main():
     assert plant.geometry_source_is_registered()
 
 # ===== Inverse Dynamics Source ============================================
-    # Add an ID controller to hold the fingers in place.
+    # Gains for an ID controller.
     Kp = np.array([1, 1, 1, 1, 1, 1]) * 1500
     Kd = np.array([1, 1, 1, 1, 1, 1]) * 500
     Ki = np.array([1, 1, 1, 1, 1, 1]) * 500
@@ -170,37 +175,12 @@ def main():
     builder.Connect(plant.get_state_output_port(plant_id),
                     id_controller.get_input_port_estimated_state())
 
-    # # Constant reference
-    # x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
-    #
-    # # Connect the desired state
-    # const_src = builder.AddSystem(ConstantVectorSource(x_ref))
-    # builder.Connect(const_src.get_output_port(0),
-    #                 id_controller.get_input_port_desired_state())
+    # Constant reference
+    x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
 
-    # Sine reference
-    amplitudes = [0.03, 0.03, 0.03, 0.05, 0.05, 0.05]
-    # amplitudes = [0, 0, 0, 0, 0, 0]
-    frequencies = [6, 6.1, 6.2, 6.3, 6.4, 6.5]
-    phases = [0, 0.2, 0.5, 0, 0, 0]
-    sine_source = builder.AddSystem(Sine(amplitudes, frequencies, phases))
-    smux = builder.AddSystem(Multiplexer([6, 6]))  # [q, qdot]
-
-    # Add Sine offsets
-    # Order is [l1_sh, l2_sh, l3_sh, l1_el, l2_el, l3_el]
-    # where sh: shoulder, el: elbow
-    adder = builder.AddSystem(Adder(2, 6))
-    offsets = builder.AddSystem(
-        ConstantVectorSource([-0.65, -0.5, 0.65, 1.0, 0.95, -1.0]))
-    builder.Connect(sine_source.get_output_port(0),
-                    adder.get_input_port(0))
-    builder.Connect(offsets.get_output_port(0),
-                    adder.get_input_port(1))
-
-    # Connect the offset Sine reference to the IDC reference input
-    builder.Connect(adder.get_output_port(0), smux.get_input_port(0))
-    builder.Connect(sine_source.get_output_port(1), smux.get_input_port(1))
-    builder.Connect(smux.get_output_port(0),
+    # Connect the desired state
+    const_src = builder.AddSystem(ConstantVectorSource(x_ref))
+    builder.Connect(const_src.get_output_port(0),
                     id_controller.get_input_port_desired_state())
 
     # TODO(rcory) This connect code doesn't work...seems indices don't match.
@@ -258,7 +238,7 @@ def main():
     el_pin.set_angle(context=plant_context, angle=-1.0)
 
     # Set the box initial conditions
-    X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0])
+    X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, -1])
     body_index_vec = plant.GetBodyIndices(object_id)
     box_body = plant.get_body(body_index_vec[0])
     plant.SetFreeBodyPose(plant_context, box_body, X_WObj)
