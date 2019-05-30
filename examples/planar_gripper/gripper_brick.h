@@ -9,7 +9,7 @@ namespace examples {
 template <typename T>
 class GripperBrickSystem {
  public:
-  GripperBrickSystem(bool add_gravity);
+  GripperBrickSystem();
 
   const systems::Diagram<T>& diagram() const { return *diagram_; }
 

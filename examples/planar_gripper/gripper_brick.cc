@@ -85,9 +85,6 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
                        (*plant)->GetFrameByName("brick_base"),
                        math::RigidTransformd());
 
-  if (add_gravity) {
-  }
-
   (*plant)->Finalize();
 
   AddDrakeVisualizer<T>(&builder, **scene_graph);
@@ -95,8 +92,8 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
 }
 
 template <typename T>
-GripperBrickSystem<T>::GripperBrickSystem(bool add_gravity) {
-  diagram_ = ConstructDiagram<T>(add_gravity, &plant_, &scene_graph_);
+GripperBrickSystem<T>::GripperBrickSystem() {
+  diagram_ = ConstructDiagram<T>(&plant_, &scene_graph_);
   InitializeDiagramSimulator(*diagram_);
 }
 

@@ -1,9 +1,13 @@
 #include <memory>
 
+#include <iomanip>
+
 #include <limits>
 
 #include "drake/examples/planar_gripper/gripper_brick.h"
+#include "drake/multibody/inverse_kinematics/distance_constraint.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
+#include "drake/multibody/inverse_kinematics/position_constraint.h"
 #include "drake/solvers/solve.h"
 
 namespace drake {
@@ -32,25 +36,26 @@ void AddFingerTipInContactWithBrickFace(
   Eigen::Vector3d p_BTip_lower = -box_size * 0.45;
   Eigen::Vector3d p_BTip_upper = box_size * 0.45;
   const double finger_tip_radius = 0.015;
+  const double depth = 1E-3;
   switch (brick_face) {
     case BrickFace::kPosZ: {
-      p_BTip_lower(2) = box_size(2) / 2 + finger_tip_radius;
-      p_BTip_upper(2) = box_size(2) / 2 + finger_tip_radius;
+      p_BTip_lower(2) = box_size(2) / 2 + finger_tip_radius - depth;
+      p_BTip_upper(2) = box_size(2) / 2 + finger_tip_radius - depth;
       break;
     }
     case BrickFace::kNegZ: {
-      p_BTip_lower(2) = -box_size(2) / 2 - finger_tip_radius;
-      p_BTip_upper(2) = -box_size(2) / 2 - finger_tip_radius;
+      p_BTip_lower(2) = -box_size(2) / 2 - finger_tip_radius + depth;
+      p_BTip_upper(2) = -box_size(2) / 2 - finger_tip_radius + depth;
       break;
     }
     case BrickFace::kPosY: {
-      p_BTip_lower(1) = box_size(1) / 2 + finger_tip_radius;
-      p_BTip_upper(1) = box_size(1) / 2 + finger_tip_radius;
+      p_BTip_lower(1) = box_size(1) / 2 + finger_tip_radius - depth;
+      p_BTip_upper(1) = box_size(1) / 2 + finger_tip_radius - depth;
       break;
     }
     case BrickFace::kNegY: {
-      p_BTip_lower(1) = -box_size(1) / 2 - finger_tip_radius;
-      p_BTip_upper(1) = -box_size(1) / 2 - finger_tip_radius;
+      p_BTip_lower(1) = -box_size(1) / 2 - finger_tip_radius + depth;
+      p_BTip_upper(1) = -box_size(1) / 2 - finger_tip_radius + depth;
       break;
     }
   }
@@ -61,7 +66,9 @@ void AddFingerTipInContactWithBrickFace(
 void FixFingerPositionInBrickFrame(
     const multibody::MultibodyPlant<double>& plant,
     const systems::Context<double>& fixed_context, int finger_index,
-    multibody::InverseKinematics* ik) {
+    solvers::MathematicalProgram* prog,
+    systems::Context<double>* plant_mutable_context,
+    const VectorX<symbolic::Variable>& q) {
   const Eigen::Vector3d p_F2Tip(0, 0, -0.086);
   const multibody::Frame<double>& finger_link2 =
       plant.GetFrameByName("finger" + std::to_string(finger_index) + "_link2");
@@ -69,7 +76,19 @@ void FixFingerPositionInBrickFrame(
   Eigen::Vector3d p_BTip;
   plant.CalcPointsPositions(fixed_context, finger_link2, p_F2Tip, brick,
                             &p_BTip);
-  ik->AddPositionConstraint(finger_link2, p_F2Tip, brick, p_BTip, p_BTip);
+  prog->AddConstraint(std::make_shared<multibody::PositionConstraint>(
+                          &plant, brick, p_BTip, p_BTip, finger_link2, p_F2Tip,
+                          plant_mutable_context),
+                      q);
+}
+
+void FixFingerPositionInBrickFrame(
+    const multibody::MultibodyPlant<double>& plant,
+    const systems::Context<double>& fixed_context, int finger_index,
+    multibody::InverseKinematics* ik) {
+  FixFingerPositionInBrickFrame(plant, fixed_context, finger_index,
+                                ik->get_mutable_prog(),
+                                ik->get_mutable_context(), ik->q());
 }
 
 Eigen::VectorXd FindInitialPosture(
@@ -172,20 +191,27 @@ Eigen::MatrixXd FindTrajectory(
   return q_sol;
 }
 
-void InterpolateTrajectory(const multibody::MultibodyPlant<double>& plant,
-                           int interpolation_level,
-                           const optional<int>& moving_finger_index,
-                           std::list<Eigen::VectorXd>* q_samples,
-                           systems::Context<double>* plant_mutable_context) {
-  if (interpolation_level == 0) {
-    return;
+Eigen::MatrixXd InterpolateTrajectory(
+    const systems::Diagram<double>& diagram,
+    const multibody::MultibodyPlant<double>& plant, int num_samples,
+    const optional<int>& moving_finger_index,
+    const Eigen::Ref<const Eigen::VectorXd>& q_start,
+    const Eigen::Ref<const Eigen::VectorXd>& q_end,
+    const systems::Context<double>& plant_fixed_context) {
+  unused(plant_fixed_context);
+  solvers::MathematicalProgram prog;
+  auto q = prog.NewContinuousVariables(plant.num_positions(), num_samples);
+  std::vector<std::unique_ptr<systems::Context<double>>> diagram_contexts;
+  std::vector<systems::Context<double>*> plant_contexts;
+  for (int i = 0; i < num_samples; ++i) {
+    auto diagram_context = diagram.CreateDefaultContext();
+    diagram_contexts.push_back(std::move(diagram_context));
+    plant_contexts.push_back(&(diagram.GetMutableSubsystemContext(
+        plant, diagram_contexts.back().get())));
   }
-  auto it1 = q_samples->begin();
-  auto it2 = (++it1);
-  --it1;
-  while (it2 != q_samples->end()) {
-    plant.SetPositions(plant_mutable_context, q_samples->front());
-    multibody::InverseKinematics ik(plant, plant_mutable_context);
+  prog.AddBoundingBoxConstraint(q_start, q_start, q.col(0));
+  prog.AddBoundingBoxConstraint(q_end, q_end, q.col(num_samples - 1));
+  for (int i = 1; i < num_samples - 1; ++i) {
     for (int j = 1; j <= 3; ++j) {
       if (moving_finger_index.has_value() && moving_finger_index.value() == j) {
         SortedPair<geometry::GeometryId> geometry_pair(
@@ -194,26 +220,32 @@ void InterpolateTrajectory(const multibody::MultibodyPlant<double>& plant,
             plant.GetCollisionGeometriesForBody(plant.GetBodyByName(
                 "finger" + std::to_string(moving_finger_index.value()) +
                 "_link2"))[0]);
-        ik.AddDistanceConstraint(geometry_pair, 0.01, kInf);
+        prog.AddConstraint(
+            std::make_shared<multibody::DistanceConstraint>(
+                &plant, geometry_pair, plant_contexts[i], 0.01, kInf),
+            q.col(i));
       } else {
-        FixFingerPositionInBrickFrame(plant, *plant_mutable_context, j, &ik);
+        FixFingerPositionInBrickFrame(plant, plant_fixed_context, j, &prog,
+                                      plant_contexts[i], q.col(i));
       }
     }
-
-    const Eigen::VectorXd q_guess = (*it1 + *it2) / 2;
-    ik.get_mutable_prog()->AddQuadraticErrorCost(
-        Eigen::MatrixXd::Identity(plant.num_positions(), plant.num_positions()),
-        q_guess, ik.q());
-    ik.get_mutable_prog()->AddBoundingBoxConstraint(
-        q_guess - 0.1 * Eigen::VectorXd::Ones(plant.num_positions()),
-        q_guess + 0.1 * Eigen::VectorXd::Ones(plant.num_positions()), ik.q());
-    const auto result = solvers::Solve(ik.prog(), q_guess);
-    q_samples->insert(it2, result.GetSolution(ik.q()));
-    it1 = it2;
-    it2++;
   }
-  InterpolateTrajectory(plant, interpolation_level - 1, moving_finger_index,
-                        q_samples, plant_mutable_context);
+
+  for (int i = 0; i < num_samples - 1; ++i) {
+    prog.AddQuadraticCost((q.col(i + 1) - q.col(i)).squaredNorm());
+  }
+  Eigen::MatrixXd q_guess(plant.num_positions(), num_samples);
+  for (int i = 0; i < plant.num_positions(); ++i) {
+    q_guess.row(i) =
+        Eigen::RowVectorXd::LinSpaced(num_samples, q_start(i), q_end(i));
+  }
+  Eigen::VectorXd q_guess_stacked(plant.num_positions() * num_samples);
+  for (int i = 0; i < num_samples; ++i) {
+    q_guess_stacked.block(i * plant.num_positions(), 0, plant.num_positions(),
+                          1) = q_guess.col(i);
+  }
+  const auto result = solvers::Solve(prog, q_guess_stacked);
+  return result.GetSolution(q);
 }
 
 void RotateBoxByCertainDegree(const multibody::MultibodyPlant<double>& plant,
@@ -235,9 +267,6 @@ void RotateBoxByCertainDegree(const multibody::MultibodyPlant<double>& plant,
 int DoMain() {
   GripperBrickSystem<double> gripper_brick_system(true /* add gravity */);
 
-  // const int brick_joint_index = gripper_brick_system.plant()
-  //                                  .GetJointByName("box_pin_joint")
-  //                                  .position_start();
 
   auto diagram_context = gripper_brick_system.diagram().CreateDefaultContext();
   systems::Context<double>* plant_mutable_context =
@@ -263,7 +292,16 @@ int DoMain() {
 
   gripper_brick_system.plant().SetPositions(plant_mutable_context, q1);
 
-  gripper_brick_system.diagram().Publish(*diagram_context);
+  // Now find the samples from q0 to q1
+  gripper_brick_system.plant().SetPositions(plant_mutable_context, q0);
+  const Eigen::MatrixXd q_move1 = InterpolateTrajectory(
+      gripper_brick_system.diagram(), gripper_brick_system.plant(), 7, {}, q0,
+      q1, *plant_mutable_context);
+  for (int i = 0; i < q_move1.cols(); ++i) {
+    VisualizePosture(gripper_brick_system, q_move1.col(i),
+                     plant_mutable_context, diagram_context.get());
+    sleep(1);
+  }
 
   // Move finger 3 to negZ face.
   do {
@@ -272,14 +310,26 @@ int DoMain() {
   const Eigen::VectorXd q2 = FindPosture2(
       gripper_brick_system, plant_mutable_context, diagram_context.get());
 
-  std::list<Eigen::VectorXd> q_move2 = {q1, q2};
-  InterpolateTrajectory(gripper_brick_system.plant(), 4, 3, &q_move2,
-                        plant_mutable_context);
-  for (const auto& q_move2_sample : q_move2) {
-    VisualizePosture(gripper_brick_system, q_move2_sample,
+  gripper_brick_system.plant().SetPositions(plant_mutable_context, q2);
+  const Eigen::MatrixXd q_move2 = InterpolateTrajectory(
+      gripper_brick_system.diagram(), gripper_brick_system.plant(), 9, 3, q1,
+      q2, *plant_mutable_context);
+  for (int i = 0; i < q_move2.cols(); ++i) {
+    VisualizePosture(gripper_brick_system, q_move2.col(i),
                      plant_mutable_context, diagram_context.get());
     sleep(1);
   }
+
+  std::stringstream ss;
+  ss << std::setprecision(20);
+  const int brick_joint_index = gripper_brick_system.plant()
+                                    .GetJointByName("brick_translate_y_joint")
+                                    .position_start();
+
+  ss << q0.segment<3>(brick_joint_index) << "\n";
+  ss << q_move1.topRows<6>().transpose() << "\n";
+  ss << q_move2.topRows<6>().transpose() << "\n";
+  std::cout << ss.str() << "\n";
 
   return 0;
 }
