@@ -11,6 +11,15 @@ namespace examples {
 
 const double kInf = std::numeric_limits<double>::infinity();
 
+void VisualizePosture(const GripperBrickSystem<double>& gripper_brick_system,
+                      const Eigen::Ref<const Eigen::VectorXd>& q,
+                      systems::Context<double>* plant_mutable_context,
+                      systems::Context<double>* diagram_context) {
+  gripper_brick_system.plant().SetPositions(plant_mutable_context, q);
+
+  gripper_brick_system.diagram().Publish(*diagram_context);
+}
+
 void AddFingerTipInContactWithBrickFace(
     const multibody::MultibodyPlant<double>& plant, int finger_index,
     BrickFace brick_face, multibody::InverseKinematics* ik) {
@@ -121,32 +130,33 @@ Eigen::MatrixXd FindTrajectory(
     systems::Context<double>* plant_mutable_context) {
   DRAKE_ASSERT(num_samples >= 3);
   Eigen::MatrixXd q_guess(plant.num_positions(), num_samples);
+  Eigen::MatrixXd q_sol(plant.num_positions(), num_samples);
+  q_sol.col(0) = q_start;
+  q_sol.col(num_samples - 1) = q_end;
   for (int i = 0; i < plant.num_positions(); ++i) {
     q_guess.row(i) =
         Eigen::RowVectorXd::LinSpaced(num_samples, q_start(i), q_end(i));
   }
-  const auto& query_port = plant.get_geometry_query_input_port();
-  const auto& query_object =
-      query_port.Eval<geometry::QueryObject<double>>(*plant_mutable_context);
-  const geometry::SceneGraphInspector<double>& inspector =
-      query_object.inspector();
 
+  DRAKE_DEMAND(
+      plant.GetCollisionGeometriesForBody(plant.GetBodyByName("brick_link"))
+          .size() == 1);
+  DRAKE_DEMAND(plant
+                   .GetCollisionGeometriesForBody(plant.GetBodyByName(
+                       "finger" + std::to_string(moving_finger_index.value()) +
+                       "_link2"))
+                   .size() == 1);
   for (int i = 1; i < num_samples - 1; ++i) {
     multibody::InverseKinematics ik(plant, plant_mutable_context);
     plant.SetPositions(plant_mutable_context, q_start);
     for (int j = 1; j <= 3; ++j) {
       if (moving_finger_index.has_value() && moving_finger_index.value() == j) {
         SortedPair<geometry::GeometryId> geometry_pair(
-            inspector.GetGeometryIdByName(
-                plant.GetFrameByName("brick_link").id(),
-                geometry::Role::kUnassigned, "box_collision"),
-            inspector.GetGeometryIdByName(
-                plant
-                    .GetFrameByName(
-                        "finger" + std::to_string(moving_finger_index.value()) +
-                        "_link2")
-                    .index(),
-                geometry::Role::kUnassigned, "link2_pad_collision"));
+            plant.GetCollisionGeometriesForBody(
+                plant.GetBodyByName("brick_link"))[0],
+            plant.GetCollisionGeometriesForBody(plant.GetBodyByName(
+                "finger" + std::to_string(moving_finger_index.value()) +
+                "_link2"))[0]);
         ik.AddDistanceConstraint(geometry_pair, 0.01, kInf);
       } else {
         FixFingerPositionInBrickFrame(plant, *plant_mutable_context, j, &ik);
@@ -156,7 +166,54 @@ Eigen::MatrixXd FindTrajectory(
     ik.get_mutable_prog()->AddQuadraticErrorCost(
         Eigen::MatrixXd::Identity(plant.num_positions(), plant.num_positions()),
         q_guess.col(i), ik.q());
+    const auto result = solvers::Solve(ik.prog(), q_guess.col(i));
+    q_sol.col(i) = result.GetSolution(ik.q());
   }
+  return q_sol;
+}
+
+void InterpolateTrajectory(const multibody::MultibodyPlant<double>& plant,
+                           int interpolation_level,
+                           const optional<int>& moving_finger_index,
+                           std::list<Eigen::VectorXd>* q_samples,
+                           systems::Context<double>* plant_mutable_context) {
+  if (interpolation_level == 0) {
+    return;
+  }
+  auto it1 = q_samples->begin();
+  auto it2 = (++it1);
+  --it1;
+  while (it2 != q_samples->end()) {
+    plant.SetPositions(plant_mutable_context, q_samples->front());
+    multibody::InverseKinematics ik(plant, plant_mutable_context);
+    for (int j = 1; j <= 3; ++j) {
+      if (moving_finger_index.has_value() && moving_finger_index.value() == j) {
+        SortedPair<geometry::GeometryId> geometry_pair(
+            plant.GetCollisionGeometriesForBody(
+                plant.GetBodyByName("brick_link"))[0],
+            plant.GetCollisionGeometriesForBody(plant.GetBodyByName(
+                "finger" + std::to_string(moving_finger_index.value()) +
+                "_link2"))[0]);
+        ik.AddDistanceConstraint(geometry_pair, 0.01, kInf);
+      } else {
+        FixFingerPositionInBrickFrame(plant, *plant_mutable_context, j, &ik);
+      }
+    }
+
+    const Eigen::VectorXd q_guess = (*it1 + *it2) / 2;
+    ik.get_mutable_prog()->AddQuadraticErrorCost(
+        Eigen::MatrixXd::Identity(plant.num_positions(), plant.num_positions()),
+        q_guess, ik.q());
+    ik.get_mutable_prog()->AddBoundingBoxConstraint(
+        q_guess - 0.1 * Eigen::VectorXd::Ones(plant.num_positions()),
+        q_guess + 0.1 * Eigen::VectorXd::Ones(plant.num_positions()), ik.q());
+    const auto result = solvers::Solve(ik.prog(), q_guess);
+    q_samples->insert(it2, result.GetSolution(ik.q()));
+    it1 = it2;
+    it2++;
+  }
+  InterpolateTrajectory(plant, interpolation_level - 1, moving_finger_index,
+                        q_samples, plant_mutable_context);
 }
 
 void RotateBoxByCertainDegree(const multibody::MultibodyPlant<double>& plant,
@@ -214,6 +271,15 @@ int DoMain() {
   } while (std::cin.get() != 'y');
   const Eigen::VectorXd q2 = FindPosture2(
       gripper_brick_system, plant_mutable_context, diagram_context.get());
+
+  std::list<Eigen::VectorXd> q_move2 = {q1, q2};
+  InterpolateTrajectory(gripper_brick_system.plant(), 4, 3, &q_move2,
+                        plant_mutable_context);
+  for (const auto& q_move2_sample : q_move2) {
+    VisualizePosture(gripper_brick_system, q_move2_sample,
+                     plant_mutable_context, diagram_context.get());
+    sleep(1);
+  }
 
   return 0;
 }
