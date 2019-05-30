@@ -104,13 +104,17 @@ drake_cc_library(
     hdrs = ["gripper_brick.h"],
     data = [
         "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:brick.sdf",
+        "//examples/planar_gripper:planar_brick.sdf",
         "//examples/planar_gripper:planar_gripper.sdf",
     ],
     deps = [
         "//common:find_resource",
+        "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/framework:diagram",
+        "//systems/analysis:simulator",
     ],
 )
 
@@ -121,5 +125,6 @@ drake_cc_binary(
     deps = [
         ":gripper_brick",
         "//multibody/inverse_kinematics",
+        "//solvers:solve",
     ],
 )
