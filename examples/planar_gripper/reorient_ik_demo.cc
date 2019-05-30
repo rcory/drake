@@ -1,11 +1,15 @@
 #include <memory>
 
+#include <limits>
+
 #include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/solvers/solve.h"
 
 namespace drake {
 namespace examples {
+
+const double kInf = std::numeric_limits<double>::infinity();
 
 void AddFingerTipInContactWithBrickFace(
     const multibody::MultibodyPlant<double>& plant, int finger_index,
@@ -107,6 +111,52 @@ Eigen::VectorXd FindPosture2(
 
   gripper_brick_system.diagram().Publish(*diagram_context);
   return q;
+}
+
+Eigen::MatrixXd FindTrajectory(
+    const multibody::MultibodyPlant<double>& plant,
+    const Eigen::Ref<const Eigen::VectorXd>& q_start,
+    const Eigen::Ref<const Eigen::VectorXd>& q_end, int num_samples,
+    const optional<int>& moving_finger_index,
+    systems::Context<double>* plant_mutable_context) {
+  DRAKE_ASSERT(num_samples >= 3);
+  Eigen::MatrixXd q_guess(plant.num_positions(), num_samples);
+  for (int i = 0; i < plant.num_positions(); ++i) {
+    q_guess.row(i) =
+        Eigen::RowVectorXd::LinSpaced(num_samples, q_start(i), q_end(i));
+  }
+  const auto& query_port = plant.get_geometry_query_input_port();
+  const auto& query_object =
+      query_port.Eval<geometry::QueryObject<double>>(*plant_mutable_context);
+  const geometry::SceneGraphInspector<double>& inspector =
+      query_object.inspector();
+
+  for (int i = 1; i < num_samples - 1; ++i) {
+    multibody::InverseKinematics ik(plant, plant_mutable_context);
+    plant.SetPositions(plant_mutable_context, q_start);
+    for (int j = 1; j <= 3; ++j) {
+      if (moving_finger_index.has_value() && moving_finger_index.value() == j) {
+        SortedPair<geometry::GeometryId> geometry_pair(
+            inspector.GetGeometryIdByName(
+                plant.GetFrameByName("brick_link").id(),
+                geometry::Role::kUnassigned, "box_collision"),
+            inspector.GetGeometryIdByName(
+                plant
+                    .GetFrameByName(
+                        "finger" + std::to_string(moving_finger_index.value()) +
+                        "_link2")
+                    .index(),
+                geometry::Role::kUnassigned, "link2_pad_collision"));
+        ik.AddDistanceConstraint(geometry_pair, 0.01, kInf);
+      } else {
+        FixFingerPositionInBrickFrame(plant, *plant_mutable_context, j, &ik);
+      }
+    }
+
+    ik.get_mutable_prog()->AddQuadraticErrorCost(
+        Eigen::MatrixXd::Identity(plant.num_positions(), plant.num_positions()),
+        q_guess.col(i), ik.q());
+  }
 }
 
 void RotateBoxByCertainDegree(const multibody::MultibodyPlant<double>& plant,

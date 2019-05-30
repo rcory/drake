@@ -2,7 +2,6 @@
 
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/solvers/constraint.h"
 #include "drake/systems/framework/diagram.h"
 
 namespace drake {
