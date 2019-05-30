@@ -5,14 +5,18 @@
 #include "drake/bindings/pydrake/documentation_pybind.h"
 #include "drake/bindings/pydrake/pydrake_pybind.h"
 #include "drake/manipulation/planner/differential_inverse_kinematics.h"
+#include "drake/manipulation/planner/robot_plan_interpolator.h"
 
 namespace drake {
 namespace pydrake {
 
 PYBIND11_MODULE(planner, m) {
   using drake::manipulation::planner::DifferentialInverseKinematicsStatus;
+  using drake::manipulation::planner::InterpolatorType;
   m.doc() = "Tools for manipulation planning.";
   constexpr auto& doc = pydrake_doc.drake.manipulation.planner;
+
+  py::module::import("pydrake.systems.framework");
 
   py::enum_<DifferentialInverseKinematicsStatus>(m,
       "DifferentialInverseKinematicsStatus",
@@ -25,6 +29,14 @@ PYBIND11_MODULE(planner, m) {
           doc.DifferentialInverseKinematicsStatus.kNoSolutionFound.doc)
       .value("kStuck", DifferentialInverseKinematicsStatus::kStuck,
           doc.DifferentialInverseKinematicsStatus.kStuck.doc);
+
+  py::enum_<InterpolatorType>(m, "InterpolatorType", doc.InterpolatorType.doc)
+      .value("ZeroOrderHold", InterpolatorType::ZeroOrderHold,
+          doc.InterpolatorType.ZeroOrderHold.doc)
+      .value("FirstOrderHold", InterpolatorType::FirstOrderHold,
+          doc.InterpolatorType.FirstOrderHold.doc)
+      .value("Pchip", InterpolatorType::Pchip, doc.InterpolatorType.Pchip.doc)
+      .value("Cubic", InterpolatorType::Cubic, doc.InterpolatorType.Cubic.doc);
 
   {
     using Class = manipulation::planner::DifferentialInverseKinematicsResult;
@@ -135,6 +147,27 @@ PYBIND11_MODULE(planner, m) {
       py::arg("frame_E"), py::arg("parameters"),
       doc.DoDifferentialInverseKinematics
           .doc_5args_robot_context_X_WE_desired_frame_E_parameters);
+
+  {
+    using Class = manipulation::planner::RobotPlanInterpolator;
+    constexpr auto& cls_doc = doc.RobotPlanInterpolator;
+    py::class_<Class, drake::systems::LeafSystem<double>> cls(
+        m, "RobotPlanInterpolator", doc.RobotPlanInterpolator.doc);
+
+    cls.def(py::init<const std::string&, const InterpolatorType, double>(),
+           py::arg("model_path"), py::arg("interpolator_type"),
+           py::arg("update_interval"))
+        .def("get_plan_input_port", &Class::get_plan_input_port,
+            cls_doc.get_plan_input_port.doc)
+        .def("get_state_output_port", &Class::get_state_output_port,
+            cls_doc.get_state_output_port.doc)
+        .def("get_acceleration_output_port",
+            &Class::get_acceleration_output_port,
+            cls_doc.get_plan_input_port.doc)
+        .def("Inititliaze", &Class::get_plan_input_port,
+            cls_doc.get_plan_input_port.doc)
+        .def("plant", &Class::plant, cls_doc.plant.doc);
+  }
 }
 
 }  // namespace pydrake
