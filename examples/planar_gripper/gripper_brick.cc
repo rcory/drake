@@ -68,7 +68,7 @@ void WeldGripperFrames(multibody::MultibodyPlant<T>* plant) {
 
 template <typename T>
 std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
-    bool add_gravity, multibody::MultibodyPlant<T>** plant,
+    multibody::MultibodyPlant<T>** plant,
     geometry::SceneGraph<T>** scene_graph) {
   systems::DiagramBuilder<T> builder;
   std::tie(*plant, *scene_graph) =
