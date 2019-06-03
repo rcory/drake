@@ -373,9 +373,9 @@ int DoMain() {
       gripper_brick_system, plant_mutable_context, diagram_context.get());
   gripper_brick_system.plant().SetPositions(plant_mutable_context, q1);
   Eigen::VectorXd delta_q_max =
-      0.1 * Eigen::VectorXd::Ones(gripper_brick_system.plant().num_positions());
+      0.3 * Eigen::VectorXd::Ones(gripper_brick_system.plant().num_positions());
   const Eigen::MatrixXd q_move1 = InterpolateTrajectory(
-      gripper_brick_system.diagram(), gripper_brick_system.plant(), 7, 1, q0,
+      gripper_brick_system.diagram(), gripper_brick_system.plant(), 9, 1, q0,
       q1, *plant_mutable_context, delta_q_max);
   for (int i = 0; i < q_move1.cols(); ++i) {
     VisualizePosture(gripper_brick_system, q_move1.col(i),
@@ -413,8 +413,10 @@ int DoMain() {
       FindPosture(gripper_brick_system, {1, 3}, {{2, BrickFace::kNegY}},
                   plant_mutable_context);
   gripper_brick_system.plant().SetPositions(plant_mutable_context, q4);
+  delta_q_max =
+      0.2 * Eigen::VectorXd::Ones(gripper_brick_system.plant().num_positions());
   const Eigen::MatrixXd q_move4 = InterpolateTrajectory(
-      gripper_brick_system.diagram(), gripper_brick_system.plant(), 8, 2, q3,
+      gripper_brick_system.diagram(), gripper_brick_system.plant(), 9, 2, q3,
       q4, *plant_mutable_context, delta_q_max);
   for (int i = 0; i < q_move4.cols(); ++i) {
     VisualizePosture(gripper_brick_system, q_move4.col(i),
@@ -428,8 +430,10 @@ int DoMain() {
       FindPosture(gripper_brick_system, {2, 3}, {{1, BrickFace::kPosZ}},
                   plant_mutable_context);
   gripper_brick_system.plant().SetPositions(plant_mutable_context, q5);
+  delta_q_max = 0.25 * Eigen::VectorXd::Ones(
+                           gripper_brick_system.plant().num_positions());
   const Eigen::MatrixXd q_move5 = InterpolateTrajectory(
-      gripper_brick_system.diagram(), gripper_brick_system.plant(), 9, 1, q4,
+      gripper_brick_system.diagram(), gripper_brick_system.plant(), 8, 1, q4,
       q5, *plant_mutable_context, delta_q_max);
   for (int i = 0; i < q_move5.cols(); ++i) {
     VisualizePosture(gripper_brick_system, q_move5.col(i),
