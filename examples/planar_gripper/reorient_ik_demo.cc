@@ -4,6 +4,7 @@
 
 #include <limits>
 
+#include "drake/examples/planar_gripper/brick_static_equilibrium_constraint.h"
 #include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/multibody/inverse_kinematics/distance_constraint.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
@@ -204,58 +205,6 @@ void RotateBoxByCertainDegree(
       ik->q()(gripper_brick_system.brick_revolute_x_position_index()));
 }
 
-/** Given the set of contacts between the fingers and the brick, impose the
- * static equilibrium as a nonlinear constraint, that the total force/torque
- * applied on the brick is 0.
- */
-// class StaticEquilibriumNonlinearConstraint : public solvers::Constraint {
-// public:
-//  StaticEquilibriumNonlinearConstraint(
-//      const GripperBrickSystem<double>& gripper_brick_system,
-//      std::vector<std::pair<Finger, BrickFace>> finger_face_contacts,
-//      systems::Context<double>* plant_mutable_context)
-//      : solvers::Constraint(3,
-//                            gripper_brick_system.plant().num_positions() +
-//                                finger_face_contacts.size() * 2,
-//                            Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()),
-//        gripper_brick_system_{gripper_brick_system},
-//        finger_face_contacts_(std::move(finger_face_contacts)),
-//        plant_mutable_context_(plant_mutable_context) {
-//    brick_mass_ = gripper_brick_system_.plant()
-//                      .GetBodyByName("brick_link")
-//                      .get_default_mass();
-//  }
-//
-// private:
-//  void DoEval(const Eigen::Ref<const Eigen::VectorXd>& x,
-//              Eigen::VectorXd* y) const {
-//    y->resize(3);
-//    const auto& plant = gripper_brick_system_.plant();
-//    multibody::internal::UpdateContextConfiguration(
-//        plant_mutable_context_, plant, x.head(plant.num_positions()));
-//    const math::RigidTransform<double> X_BW = plant.CalcRelativeTransform(
-//        *plant_mutable_context_, gripper_brick_system.brick_frame(),
-//        plant.world_frame());
-//    const Eigen::Vector3d f_B =
-//        X_BW.rotation() * Eigen::Vector3d(0, 0, -brick_mass_ * 9.81);
-//    y->head<2>() = f_B.tail<2>();
-//    (*y)(2) = 0;
-//    for (int i = 0; i < static_cast<int>(finger_face_contacts_.size()); ++i) {
-//      y->head<2>() += x.segment<2>(plant.num_positions() + i * 2);
-//      Eigen::Vector3d p_BTip;
-//      plant.CalcPointsPositions(*plant_mutable_context_,
-//                                gripper_brick_system_.finger_link2_frame(
-//                                    finger_face_contacts_[i].first),
-//                                gripper_brick_system_.p_F2Tip(),
-//                                gripper_brick_system_.brick_frame(), &p_BTip);
-//    }
-//  }
-//
-//  const GripperBrickSystem<double>& gripper_brick_system_;
-//  double brick_mass_;
-//  std::vector<std::pair<Finger, BrickFace>> finger_face_contacts_;
-//  systems::Context<double>* plant_mutable_context_;
-//};
 //
 // void AddStaticEquilibriumConstraint(
 //    const GripperBrickSystem<double>& gripper_brick_system,
