@@ -47,6 +47,20 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "brick_static_equilibrium_constraint",
+    srcs = ["brick_static_equilibrium_constraint.cc"],
+    hdrs = ["brick_static_equilibrium_constraint.h"],
+    deps = [
+        ":gripper_brick",
+        "//solvers:constraint",
+        "//solvers:mathematical_program",
+        "//multibody/plant",
+        "//multibody/inverse_kinematics:kinematic_constraint",
+        "//math:autodiff",
+    ],
+)
+
 drake_py_binary(
     name = "planar_finger_simulation",
     srcs = ["planar_finger_simulation.py"],
@@ -99,7 +113,6 @@ drake_cc_binary(
 
 drake_cc_library(
     name = "gripper_brick",
-    testonly = 1,
     srcs = ["gripper_brick.cc"],
     hdrs = ["gripper_brick.h"],
     data = [
@@ -126,5 +139,14 @@ drake_cc_binary(
         ":gripper_brick",
         "//multibody/inverse_kinematics",
         "//solvers:solve",
+    ],
+)
+
+drake_cc_googletest(
+    name = "brick_static_equilibrium_constraint_test",
+    deps = [
+        ":brick_static_equilibrium_constraint",
+        "//math:compute_numerical_gradient",
+        "//common/test_utilities:eigen_matrix_compare",
     ],
 )
