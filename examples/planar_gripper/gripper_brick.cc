@@ -36,7 +36,7 @@ void WeldGripperFrames(multibody::MultibodyPlant<T>* plant) {
   // This function is copied and adapted from planar_gripper_simulation.py
   const double outer_radius = 0.19;
   const double f1_angle = M_PI / 3;
-  const math::RigidTransformd XT(math::RollPitchYaw<double>(f1_angle, 0, 0),
+  const math::RigidTransformd XT(math::RollPitchYaw<double>(0, 0, 0),
                                  Eigen::Vector3d(0, 0, outer_radius));
 
   // Weld the first finger.
@@ -95,6 +95,74 @@ template <typename T>
 GripperBrickSystem<T>::GripperBrickSystem() {
   diagram_ = ConstructDiagram<T>(&plant_, &scene_graph_);
   InitializeDiagramSimulator(*diagram_);
+
+  for (int i = 0; i < 3; ++i) {
+    finger_shoulder_position_indices_[i] =
+        plant_
+            ->GetJointByName("finger" + std::to_string(i + 1) +
+                             "_ShoulderJoint")
+            .position_start();
+    finger_elbow_position_indices_[i] =
+        plant_->GetJointByName("finger" + std::to_string(i + 1) + "_ElbowJoint")
+            .position_start();
+    finger_link2_frames_[i] =
+        &(plant_->GetFrameByName("finger" + std::to_string(i + 1) + "_link2"));
+  }
+  brick_translate_y_position_index_ =
+      plant_->GetJointByName("brick_translate_y_joint").position_start();
+  brick_translate_z_position_index_ =
+      plant_->GetJointByName("brick_translate_z_joint").position_start();
+  brick_revolute_x_position_index_ =
+      plant_->GetJointByName("brick_revolute_x_joint").position_start();
+  brick_frame_ = &(plant_->GetFrameByName("brick_link"));
+}
+
+template <typename T>
+const multibody::Frame<double>& GripperBrickSystem<T>::finger_link2_frame(
+    Finger finger) const {
+  switch (finger) {
+    case Finger::kFinger1: {
+      return *(finger_link2_frames_[0]);
+    }
+    case Finger::kFinger2: {
+      return *(finger_link2_frames_[1]);
+    }
+    case Finger::kFinger3: {
+      return *(finger_link2_frames_[2]);
+    }
+    default:
+      throw std::invalid_argument("finger_link2_frame(), unknown finger.");
+  }
+}
+
+template <typename T>
+int GripperBrickSystem<T>::finger_shoulder_position_index(Finger finger) const {
+  switch (finger) {
+    case Finger::kFinger1:
+      return finger_shoulder_position_indices_[0];
+    case Finger::kFinger2:
+      return finger_shoulder_position_indices_[1];
+    case Finger::kFinger3:
+      return finger_shoulder_position_indices_[2];
+    default:
+      throw std::invalid_argument(
+          "finger_shoulder_position_index(): unknown finger");
+  }
+}
+
+template <typename T>
+int GripperBrickSystem<T>::finger_elbow_position_index(Finger finger) const {
+  switch (finger) {
+    case Finger::kFinger1:
+      return finger_elbow_position_indices_[0];
+    case Finger::kFinger2:
+      return finger_elbow_position_indices_[1];
+    case Finger::kFinger3:
+      return finger_elbow_position_indices_[2];
+    default:
+      throw std::invalid_argument(
+          "finger_elbow_position_index(): unknown finger");
+  }
 }
 
 // Explicit instantiation
