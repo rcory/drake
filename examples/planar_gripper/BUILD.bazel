@@ -43,6 +43,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         "//examples/planar_gripper:brick.sdf",
+        "//examples/planar_gripper:keyframes_tab.txt",
         "//examples/planar_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [
@@ -53,13 +54,18 @@ drake_cc_binary(
         "//common:find_resource",
         "//common:text_logging_gflags",
         "//geometry:geometry_visualization",
+        "//manipulation/planner:robot_plan_interpolator",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/controllers:inverse_dynamics_controller",
         "//systems/framework:diagram",
+        "//systems/lcm:lcm_interface_system",
+        "//systems/primitives:constant_value_source",
         "//systems/primitives:constant_vector_source",
         "@gflags",
+        "@lcmtypes_bot2_core",
+        "@lcmtypes_robotlocomotion",
     ],
 )
 
