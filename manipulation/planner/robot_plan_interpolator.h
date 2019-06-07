@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "robotlocomotion/robot_plan_t.hpp"
+
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -42,7 +44,10 @@ class RobotPlanInterpolator : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(RobotPlanInterpolator)
 
-  RobotPlanInterpolator(const std::string& model_path,
+//  RobotPlanInterpolator(const std::string& model_path,
+//                        const InterpolatorType = InterpolatorType::Cubic,
+//                        double update_interval = kDefaultPlanUpdateInterval);
+  RobotPlanInterpolator(const multibody::MultibodyPlant<double>& plant,
                         const InterpolatorType = InterpolatorType::Cubic,
                         double update_interval = kDefaultPlanUpdateInterval);
   ~RobotPlanInterpolator() override;
@@ -101,9 +106,26 @@ class RobotPlanInterpolator : public systems::LeafSystem<double> {
   const int plan_input_port_{};
   int state_output_port_{-1};
   int acceleration_output_port_{-1};
-  multibody::MultibodyPlant<double> plant_;
+  const multibody::MultibodyPlant<double>& plant_;
   const InterpolatorType interp_type_;
 };
+
+/// Makes a robotlocomotion::robot_plan_t message.  The number of
+/// columns in @p keyframes must match the size of @p time.  Times
+/// must be in strictly increasing order.
+robotlocomotion::robot_plan_t EncodeKeyFrames(
+    const multibody::MultibodyPlant<double>& robot,
+    const std::vector<double>& time, const std::vector<int>& info,
+    const MatrixX<double>& keyframes);
+
+/// Makes a robotlocomotion::robot_plan_t message.  The number of rows in @p
+/// keyframes must match the size of @p joint_names.  The number of columns in
+/// @p keyframes must match the size of @p time.  Times must be in strictly
+/// increasing order.
+robotlocomotion::robot_plan_t EncodeKeyFrames(
+    const std::vector<std::string>& joint_names,
+    const std::vector<double>& time, const std::vector<int>& info,
+    const MatrixX<double>& keyframes);
 
 }  // namespace planner
 }  // namespace manipulation

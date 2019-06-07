@@ -52,42 +52,43 @@ struct RobotPlanInterpolator::PlanData {
 };
 
 RobotPlanInterpolator::RobotPlanInterpolator(
-    const std::string& model_path, const InterpolatorType interp_type,
+    const multibody::MultibodyPlant<double>& plant, const InterpolatorType interp_type,
     double update_interval)
     : plan_input_port_(this->DeclareAbstractInputPort(
-          "plan", Value<robot_plan_t>()).get_index()),
+    systems::kUseDefaultName,
+    Value<robot_plan_t>()).get_index()), plant_(plant),
       interp_type_(interp_type) {
-  multibody::Parser(&plant_).AddModelFromFile(model_path);
+//  multibody::Parser(&plant_).AddModelFromFile(model_path);
 
-  // Search for any bodies with no parent.  We'll weld those to the world.
-  std::set<BodyIndex> parent_bodies;
-  std::set<BodyIndex> child_bodies;
-  for (JointIndex i(0); i < plant_.num_joints(); ++i) {
-    const multibody::Joint<double>& joint = plant_.get_joint(i);
-    if (joint.parent_body().index() == plant_.world_body().index()) {
-      // Nothing to weld, we're connected to the world.
-      parent_bodies.clear();
-      break;
-    }
-    parent_bodies.insert(joint.parent_body().index());
-    child_bodies.insert(joint.child_body().index());
-  }
-
-  if (!parent_bodies.empty()) {
-    for (const BodyIndex child : child_bodies) {
-      if (parent_bodies.count(child)) {
-        parent_bodies.erase(child);
-      }
-    }
-
-    // Weld all remaining parents to the world.  This probably isn't going to
-    // work for all model types.
-    for (const BodyIndex index : parent_bodies) {
-      plant_.WeldFrames(plant_.world_frame(),
-                        plant_.get_body(index).body_frame());
-    }
-  }
-  plant_.Finalize();
+//  // Search for any bodies with no parent.  We'll weld those to the world.
+//  std::set<BodyIndex> parent_bodies;
+//  std::set<BodyIndex> child_bodies;
+//  for (JointIndex i(0); i < plant_.num_joints(); ++i) {
+//    const multibody::Joint<double>& joint = plant_.get_joint(i);
+//    if (joint.parent_body().index() == plant_.world_body().index()) {
+//      // Nothing to weld, we're connected to the world.
+//      parent_bodies.clear();
+//      break;
+//    }
+//    parent_bodies.insert(joint.parent_body().index());
+//    child_bodies.insert(joint.child_body().index());
+//  }
+//
+//  if (!parent_bodies.empty()) {
+//    for (const BodyIndex child : child_bodies) {
+//      if (parent_bodies.count(child)) {
+//        parent_bodies.erase(child);
+//      }
+//    }
+//
+//    // Weld all remaining parents to the world.  This probably isn't going to
+//    // work for all model types.
+//    for (const BodyIndex index : parent_bodies) {
+//      plant_.WeldFrames(plant_.world_frame(),
+//                        plant_.get_body(index).body_frame());
+//    }
+//  }
+//  plant_.Finalize();
 
   // TODO(sammy-tri) This implementation doesn't know how to
   // calculate velocities/accelerations for differing numbers of
@@ -264,6 +265,64 @@ void RobotPlanInterpolator::DoCalcUnrestrictedUpdate(
       plan.pp_double_deriv = plan.pp_deriv.derivative();
     }
   }
+}
+
+robotlocomotion::robot_plan_t EncodeKeyFrames(
+    const multibody::MultibodyPlant<double>& robot,
+    const std::vector<double>& time,
+    const std::vector<int>& info,
+    const MatrixX<double>& keyframes) {
+  const int num_positions = robot.num_positions();
+  DRAKE_DEMAND(keyframes.rows() == num_positions);
+  std::vector<std::string> joint_names(num_positions);
+  for (int i = 0; i < num_positions; ++i) {
+    joint_names[i] = robot.get_joint(JointIndex(i)).name();
+  }
+
+  return EncodeKeyFrames(joint_names, time, info, keyframes);
+}
+
+robotlocomotion::robot_plan_t EncodeKeyFrames(
+    const std::vector<std::string>& joint_names,
+    const std::vector<double>& time,
+    const std::vector<int>& info,
+    const MatrixX<double>& keyframes) {
+
+  DRAKE_DEMAND(info.size() == time.size());
+  DRAKE_DEMAND(keyframes.cols() == static_cast<int>(time.size()));
+  DRAKE_DEMAND(keyframes.rows() == static_cast<int>(joint_names.size()));
+
+  const int num_time_steps = keyframes.cols();
+
+  robotlocomotion::robot_plan_t plan{};
+  plan.utime = 0;  // I (sam.creasey) don't think this is used?
+  plan.robot_name = "planar_gripper";  // Arbitrary, probably ignored
+  plan.num_states = num_time_steps;
+  const bot_core::robot_state_t default_robot_state{};
+  plan.plan.resize(num_time_steps, default_robot_state);
+  plan.plan_info.resize(num_time_steps, 0);
+  /// Encode the q_sol returned for each timestep into the vector of
+  /// robot states.
+  for (int i = 0; i < num_time_steps; i++) {
+    bot_core::robot_state_t& step = plan.plan[i];
+    step.utime = time[i] * 1e6;
+    step.num_joints = keyframes.rows();
+    for (int j = 0; j < step.num_joints; j++) {
+      step.joint_name.push_back(joint_names[j]);
+      step.joint_position.push_back(keyframes(j, i));
+      step.joint_velocity.push_back(0);
+      step.joint_effort.push_back(0);
+    }
+    plan.plan_info[i] = info[i];
+  }
+  plan.num_grasp_transitions = 0;
+  plan.left_arm_control_type = plan.POSITION;
+  plan.right_arm_control_type = plan.NONE;
+  plan.left_leg_control_type = plan.NONE;
+  plan.right_leg_control_type = plan.NONE;
+  plan.num_bytes = 0;
+
+  return plan;
 }
 
 }  // namespace planner
