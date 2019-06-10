@@ -258,6 +258,19 @@
           <diffuse>1 0 0 1</diffuse>
         </material>
       </visual>
+      <collision name="link2_collision">
+        <pose>0 0 -0.035 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.07</length>
+            <radius>0.011</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </collision>
+
       <visual name="link2_sensor">
         <pose>0 0 -0.071 0 0 0</pose>
         <geometry>
