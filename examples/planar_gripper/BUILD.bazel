@@ -136,6 +136,7 @@ drake_cc_binary(
     testonly = 1,
     srcs = ["reorient_ik_demo.cc"],
     deps = [
+        ":brick_static_equilibrium_constraint",
         ":gripper_brick",
         "//multibody/inverse_kinematics",
         "//solvers:solve",

@@ -124,5 +124,75 @@ void BrickStaticEquilibriumNonlinearConstraint::DoEval(
       "BrickStaticEquilibriumNonlinearConstraint::DoEval does not support "
       "symbolic computation.");
 }
+
+Eigen::Matrix<symbolic::Variable, 2, Eigen::Dynamic>
+AddBrickStaticEquilibriumConstraint(
+    const GripperBrickSystem<double>& gripper_brick_system,
+    const std::vector<std::pair<Finger, BrickFace>>& finger_face_contacts,
+    const Eigen::Ref<const VectorX<symbolic::Variable>>& q_vars,
+    systems::Context<double>* plant_mutable_context,
+    solvers::MathematicalProgram* prog) {
+  const int num_contacts = static_cast<int>(finger_face_contacts.size());
+  const auto f_Cb_B =
+      prog->NewContinuousVariables<2, Eigen::Dynamic>(2, num_contacts);
+  const auto& plant = gripper_brick_system.plant();
+  // Now add the nonlinear constraint that the total wrench is 0.
+  VectorX<symbolic::Variable> nonlinear_constraint_bound_vars(
+      plant.num_positions() + 2 * num_contacts);
+  nonlinear_constraint_bound_vars.head(plant.num_positions()) = q_vars;
+  for (int i = 0; i < num_contacts; ++i) {
+    nonlinear_constraint_bound_vars.segment<2>(plant.num_positions() + 2 * i) =
+        f_Cb_B.col(i);
+  }
+  prog->AddConstraint(
+      std::make_shared<BrickStaticEquilibriumNonlinearConstraint>(
+          gripper_brick_system, finger_face_contacts, plant_mutable_context),
+      nonlinear_constraint_bound_vars);
+
+  // Add the linear constraint that the contact force is within the friction
+  // cone.
+  const multibody::CoulombFriction<double>& brick_friction =
+      plant.default_coulomb_friction(plant.GetCollisionGeometriesForBody(
+          gripper_brick_system.brick_frame().body())[0]);
+  for (int i = 0; i < num_contacts; ++i) {
+    const multibody::CoulombFriction<double>& finger_tip_friction =
+        plant.default_coulomb_friction(plant.GetCollisionGeometriesForBody(
+            gripper_brick_system
+                .finger_link2_frame(finger_face_contacts[i].first)
+                .body())[0]);
+    const multibody::CoulombFriction<double> combined_friction =
+        multibody::CalcContactFrictionFromSurfaceProperties(
+            brick_friction, finger_tip_friction);
+    const double mu = combined_friction.static_friction();
+    switch (finger_face_contacts[i].second) {
+      case BrickFace::kNegY: {
+        prog->AddLinearConstraint(f_Cb_B(0, i) >= 0);
+        prog->AddLinearConstraint(f_Cb_B(1, i) <= mu * f_Cb_B(0, i));
+        prog->AddLinearConstraint(f_Cb_B(1, i) >= -mu * f_Cb_B(0, i));
+        break;
+      }
+      case BrickFace::kNegZ: {
+        prog->AddLinearConstraint(f_Cb_B(1, i) >= 0);
+        prog->AddLinearConstraint(f_Cb_B(0, i) <= mu * f_Cb_B(1, i));
+        prog->AddLinearConstraint(f_Cb_B(0, i) >= -mu * f_Cb_B(1, i));
+        break;
+      }
+      case BrickFace::kPosY: {
+        prog->AddLinearConstraint(f_Cb_B(0, i) <= 0);
+        prog->AddLinearConstraint(f_Cb_B(1, i) <= -mu * f_Cb_B(0, i));
+        prog->AddLinearConstraint(f_Cb_B(1, i) >= mu * f_Cb_B(0, i));
+        break;
+      }
+      case BrickFace::kPosZ: {
+        prog->AddLinearConstraint(f_Cb_B(1, i) <= 0);
+        prog->AddLinearConstraint(f_Cb_B(0, i) <= -mu * f_Cb_B(1, i));
+        prog->AddLinearConstraint(f_Cb_B(0, i) >= mu * f_Cb_B(1, i));
+        break;
+      }
+    }
+  }
+
+  return f_Cb_B;
+}
 }  // namespace examples
 }  // namespace drake
