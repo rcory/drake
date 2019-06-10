@@ -71,7 +71,7 @@ void PublishRobotPlan(const robotlocomotion::robot_plan_t& plan) {
   lcm.Publish("ROBOT_PLAN", bytes.data(), num_bytes, {});
 }
 
-const int kNumKeyFrames = 50;
+const int kNumKeyFrames = 41;
 MatrixX<double> get_poses(const std::string& name) {
   std::fstream fs;
   fs.open(name, std::fstream::in);
@@ -91,7 +91,7 @@ void WeldGripperFrames(MultibodyPlant<double>& plant) {
   const double kF1Angle = 60 * (M_PI / 180.);
   const double kF23Angle = 120 * (M_PI / 180.);
 
-  RigidTransform<double> XT(RollPitchYaw<double>(kF1Angle, 0, 0),
+  RigidTransform<double> XT(RollPitchYaw<double>(0, 0, 0),
                             Vector3<double>(0, 0, kOuterRadius));
 
   RigidTransform<double> X_PC1 =
@@ -140,7 +140,7 @@ class ActuatorTranslator : public systems::LeafSystem<double> {
   VectorX<double> ordering_;
 };
 
-// This class seems to do an identity ordering so isn't very useful.
+// This system seems to do an identity ordering so isn't very useful.
 // class ActuatorTranslator : public systems::LeafSystem<double> {
 // public:
 //  ActuatorTranslator(const MultibodyPlant<double>& sim_plant,
@@ -187,7 +187,7 @@ class ActuatorTranslator : public systems::LeafSystem<double> {
 //  VectorX<double> ordering_;
 //};
 
-//// this class used model instance utility to set the apprpriate vectors
+/// This class uses the model instance utility to set the appropriate vectors
 // class ActuatorTranslator : public systems::LeafSystem<double> {
 // public:
 //  ActuatorTranslator(MultibodyPlant<double> plant,
@@ -295,7 +295,7 @@ int do_main() {
   // == Keyframe Interpolator ================
   // Read the keyframes from a file.
   const std::string keyframe_path =
-      FindResourceOrThrow("drake/examples/planar_gripper/keyframes_tab.txt");
+      FindResourceOrThrow("drake/examples/planar_gripper/keyframes_2.txt");
   auto keyframes = get_poses(keyframe_path);
   keyframes.transposeInPlace();
 
@@ -315,7 +315,7 @@ int do_main() {
   PublishRobotPlan(plan);
 
   auto interp = builder.AddSystem<RobotPlanInterpolator>(
-      control_plant, manipulation::planner::InterpolatorType::FirstOrderHold,
+      control_plant, manipulation::planner::InterpolatorType::Pchip,
       kDt);
   // Constant reference **AbstractValue** source
   std::unique_ptr<AbstractValue> avalue =
@@ -384,7 +384,7 @@ int do_main() {
   // Set initial conditions.
   VectorX<double> gripper_ics = VectorX<double>::Zero(12);
 //  gripper_ics.head(6) << -0.65, 1.0, -0.5, 0.95, 0.65, -1.0;
-  gripper_ics.head(6) << -0.55009, -0.30335, -0.65594, -0.36064, -0.66146, -0.36461;
+  gripper_ics.head(6) << -0.27761, -0.061329, 0.94797, -1.2137, 0.2815, 0.20103;
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
@@ -412,9 +412,10 @@ int do_main() {
 
   // Set the box initial conditions.
 //  Vector3<double> brick_pos(0, 0, FLAGS_brick_z);
-  Vector3<double> brick_pos(0, -0.0030306616435550161673, 0.0077336414340698931766);
+  Vector3<double> brick_pos(0, 0.007318015168695103656,
+                            -0.019733949746832193939 + FLAGS_brick_z);
   RigidTransform<double> X_WObj(
-      RollPitchYaw<double>(-0.28016377206896087015, 0, 0), brick_pos);
+      RollPitchYaw<double>(-0.45485911705547266148, 0, 0), brick_pos);
   auto body_index_vec = plant.GetBodyIndices(object_id);
   auto& box_body = plant.get_body(body_index_vec[0]);
   plant.SetFreeBodyPose(&plant_context, box_body, X_WObj);

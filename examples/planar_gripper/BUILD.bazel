@@ -43,7 +43,8 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         "//examples/planar_gripper:brick.sdf",
-        "//examples/planar_gripper:keyframes_tab.txt",
+        "//examples/planar_gripper:keyframes_1.txt",
+        "//examples/planar_gripper:keyframes_2.txt",
         "//examples/planar_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [
