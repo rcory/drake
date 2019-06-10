@@ -47,7 +47,17 @@ class BrickStaticEquilibriumNonlinearConstraint : public solvers::Constraint {
   systems::Context<double>* plant_mutable_context_;
 };
 
-void AddBrickStaticEquilibriumConstraint(
+/**
+ * Given the assignment of contacts between fingers and faces, add following
+ * constraints/variables to the program.
+ * 1. Decision variables representing the finger contact force on the brick,
+ * expressed in the brick frame.
+ * 2. The static equilibrium constraint, that the total wrench on the brick is
+ * 0.
+ * 3. The constraint that the contact force is within a friction cone.
+ */
+Eigen::Matrix<symbolic::Variable, 2, Eigen::Dynamic>
+AddBrickStaticEquilibriumConstraint(
     const GripperBrickSystem<double>& gripper_brick_system,
     const std::vector<std::pair<Finger, BrickFace>>& finger_face_contacts,
     const Eigen::Ref<const VectorX<symbolic::Variable>>& q_vars,
