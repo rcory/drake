@@ -6,6 +6,7 @@
 
 namespace drake {
 namespace examples {
+namespace planar_gripper {
 
 enum class Finger {
   kFinger1,
@@ -20,22 +21,22 @@ enum class BrickFace {
   kNegY,
 };
 
-template <typename T>
+template<typename T>
 class GripperBrickSystem {
  public:
   GripperBrickSystem();
 
-  const systems::Diagram<T>& diagram() const { return *diagram_; }
+  const systems::Diagram<T> &diagram() const { return *diagram_; }
 
-  systems::Diagram<T>* get_mutable_diagram() { return diagram_.get(); }
+  systems::Diagram<T> *get_mutable_diagram() { return diagram_.get(); }
 
-  const multibody::MultibodyPlant<T>& plant() const { return *plant_; }
+  const multibody::MultibodyPlant<T> &plant() const { return *plant_; }
 
-  multibody::MultibodyPlant<T>* get_mutable_plant() { return plant_; }
+  multibody::MultibodyPlant<T> *get_mutable_plant() { return plant_; }
 
-  int finger_shoulder_position_index(Finger finger) const; 
+  int finger_shoulder_position_index(Finger finger) const;
 
-  int finger_elbow_position_index(Finger finger) const; 
+  int finger_elbow_position_index(Finger finger) const;
 
   int brick_translate_y_position_index() const {
     return brick_translate_y_position_index_;
@@ -52,23 +53,24 @@ class GripperBrickSystem {
   // Position of the finger tip sphere center "Tip" in the finger frame.
   Eigen::Vector3d p_F2Tip() const { return Eigen::Vector3d(0, 0, -0.086); }
 
-  const multibody::Frame<double>& brick_frame() const { return *brick_frame_; }
+  const multibody::Frame<double> &brick_frame() const { return *brick_frame_; }
 
-  const multibody::Frame<double>& finger_link2_frame(Finger finger) const;
+  const multibody::Frame<double> &finger_link2_frame(Finger finger) const;
 
   double finger_tip_radius() const { return 0.015; }
 
  private:
   std::unique_ptr<systems::Diagram<T>> diagram_;
-  multibody::MultibodyPlant<T>* plant_;
-  geometry::SceneGraph<T>* scene_graph_;
+  multibody::MultibodyPlant<T> *plant_;
+  geometry::SceneGraph<T> *scene_graph_;
   std::array<int, 3> finger_shoulder_position_indices_;
   std::array<int, 3> finger_elbow_position_indices_;
   int brick_translate_y_position_index_;
   int brick_translate_z_position_index_;
   int brick_revolute_x_position_index_;
-  const multibody::Frame<double>* brick_frame_;
-  std::array<const multibody::Frame<double>*, 3> finger_link2_frames_;
+  const multibody::Frame<double> *brick_frame_;
+  std::array<const multibody::Frame<double> *, 3> finger_link2_frames_;
 };
+}  // planar_gripper
 }  // namespace examples
 }  // namespace drake

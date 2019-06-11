@@ -14,6 +14,7 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/revolute_joint.h"
+#include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
@@ -31,15 +32,17 @@ using geometry::SceneGraph;
 using drake::multibody::MultibodyPlant;
 using drake::multibody::Parser;
 using drake::multibody::RevoluteJoint;
+using drake::multibody::PrismaticJoint;
 using drake::math::RigidTransform;
 using drake::math::RollPitchYaw;
 using drake::manipulation::planner::RobotPlanInterpolator;
 using drake::multibody::JointActuatorIndex;
+using drake::multibody::ModelInstanceIndex;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 10.0,
+DEFINE_double(simulation_time, 8.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
             "If greater than zero, the plant is modeled as a system with "
@@ -50,33 +53,34 @@ DEFINE_double(fix_input, false, "Fix the actuation inputs to zero?");
 DEFINE_double(keyframe_dt, 0.1, "keyframe dt");
 
 
-class ActuatorTranslator : public systems::LeafSystem<double> {
+/// Converts the generalized force output of the ID controller (internally using
+/// a control plant with only the gripper) to the generalized force input for
+/// the full simulation plant (containing gripper and object).
+class MakePlantGeneralizedForceArray : public systems::LeafSystem<double> {
  public:
-  ActuatorTranslator(VectorX<double> ordering) : ordering_(ordering) {
-    size_t size = ordering.size();
-
-    this->DeclareVectorInputPort("input1", systems::BasicVector<double>(size));
-    this->DeclareVectorOutputPort("output1", systems::BasicVector<double>(size),
-                                  &ActuatorTranslator::reorder_output);
+  MakePlantGeneralizedForceArray(MultibodyPlant<double>& plant,
+                                 ModelInstanceIndex gripper_instance)
+      : plant_(plant), gripper_instance_(gripper_instance) {
+    this->DeclareVectorInputPort(
+        "input1", systems::BasicVector<double>(plant.num_actuators()));
+    this->DeclareVectorOutputPort(
+        "output1", systems::BasicVector<double>(plant.num_velocities()),
+        &MakePlantGeneralizedForceArray::remap_output);
   }
 
-  void reorder_output(const systems::Context<double>& context,
-      systems::BasicVector<double>* output_vector) const {
+  void remap_output(const systems::Context<double>& context,
+                    systems::BasicVector<double>* output_vector) const {
     auto output_value = output_vector->get_mutable_value();
-    DRAKE_DEMAND(output_value.size() == ordering_.size());
-
     auto input_value = this->EvalVectorInput(context, 0)->get_value();
 
-    size_t size = ordering_.size();
-    for (size_t i=0; i < size; i++) {
-      output_value(i) = input_value(ordering_(i));
-    }
+    output_value.setZero();
+    plant_.SetVelocitiesInArray(gripper_instance_, input_value, &output_value);
   }
 
  private:
-  VectorX<double> ordering_;
+  MultibodyPlant<double>& plant_;
+  ModelInstanceIndex gripper_instance_;
 };
-
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -90,17 +94,20 @@ int do_main() {
   MultibodyPlant<double>& plant =
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
   auto plant_id = Parser(&plant, &scene_graph).AddModelFromFile(full_name);
-  examples::planar_gripper::WeldGripperFrames(plant);
+  examples::planar_gripper::WeldGripperFrames<double>(&plant);
 
   // Adds the object to be manipulated.
   auto object_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/brick.sdf");
+      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
   auto object_id = Parser(&plant).AddModelFromFile(object_file_name, "object");
+  const multibody::Frame<double> &brick_base_frame =
+      plant.GetFrameByName("brick_base", object_id);
+  plant.WeldFrames(plant.world_frame(), brick_base_frame);
 
   // Create the controlled plant. Contains only the fingers (no objects).
   MultibodyPlant<double> control_plant(FLAGS_time_step);
   Parser(&control_plant).AddModelFromFile(full_name);
-  drake::examples::planar_gripper::WeldGripperFrames(control_plant);
+  drake::examples::planar_gripper::WeldGripperFrames<double>(&control_plant);
 
   // Add gravity
   Vector3<double> gravity(0, 0, -9.81);
@@ -128,13 +135,13 @@ int do_main() {
   builder.Connect(plant.get_state_output_port(plant_id),
                   id_controller->get_input_port_estimated_state());
 
-  // == Keyframe Interpolator ================
   // Read the keyframes from a file.
   const std::string keyframe_path =
       "drake/examples/planar_gripper/postures.txt";
 
   Vector3<double> brick_ics;
-  auto keyframes = examples::planar_gripper::ParseKeyframes(keyframe_path, &brick_ics);
+  auto keyframes =
+      examples::planar_gripper::ParseKeyframes(keyframe_path, &brick_ics);
 
   keyframes.transposeInPlace();
 
@@ -165,36 +172,19 @@ int do_main() {
                   interp->get_plan_input_port());
   builder.Connect(interp->get_state_output_port(),
                   id_controller->get_input_port_desired_state());
-  // =============================================
 
-//    // Constant reference **vector** source.
-//    VectorX<double> x_ref = VectorX<double>::Zero(12);
-//    x_ref << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-//
-//    // Connect the reference
-//    auto const_src = builder.AddSystem<systems::ConstantVectorSource>(x_ref);
-//    builder.Connect(const_src->get_output_port(),
-//                    id_controller->get_input_port_desired_state());
-
-  // TODO(rcory) This connect code doesn't work...seems indices don't match.
-  // builder.Connect(id_controller.get_output_port_control(),
-  //                 plant.get_actuation_input_port())
-  //
-  // Hack needed to map the ID controller outputs to MBP inputs.
-  // TODO(rcory) Update ID controller to be "smarter" and know about the
-  //  required index actuator ordering going into MBP.
-  VectorX<double> ordering(6);
-  ordering << 0, 3, 1, 4, 2, 5;
-  auto translator = builder.AddSystem<ActuatorTranslator>(ordering);
-
+  // Connect the ID controller directly (no translation)
+  auto u2f = builder.AddSystem<MakePlantGeneralizedForceArray>(plant, plant_id);
   builder.Connect(id_controller->get_output_port_control(),
-                  translator->get_input_port(0));
-  builder.Connect(translator->get_output_port(0),
-                  plant.get_actuation_input_port(plant_id));
+                  u2f->get_input_port(0));
+  builder.Connect(u2f->get_output_port(0),
+                  plant.get_applied_generalized_force_input_port());
 
-//  // Connect the ID controller directly (no translation)
-//  builder.Connect(id_controller->get_output_port_control(),
-//                  plant.get_actuation_input_port(plant_id));
+  // Connect zero to actuation input port of MBP
+  auto const_src = builder.AddSystem<systems::ConstantVectorSource>(
+      VectorX<double>::Zero(6));
+  builder.Connect(const_src->get_output_port(),
+                  plant.get_actuation_input_port());
 
   // Connect MBP snd SG.
   builder.Connect(
@@ -249,12 +239,15 @@ int do_main() {
   el_pin3.set_angle(&plant_context, gripper_ics(5));
 
   // Set the box initial conditions.
-  Vector3<double> brick_pos(0, brick_ics(0), brick_ics(1) + FLAGS_brick_z);
-  RigidTransform<double> X_WObj(
-      RollPitchYaw<double>(brick_ics(2), 0, 0), brick_pos);
-  auto body_index_vec = plant.GetBodyIndices(object_id);
-  auto& box_body = plant.get_body(body_index_vec[0]);
-  plant.SetFreeBodyPose(&plant_context, box_body, X_WObj);
+  const PrismaticJoint<double>& y_translate =
+      plant.GetJointByName<PrismaticJoint>("brick_translate_y_joint");
+  const PrismaticJoint<double>& z_translate =
+      plant.GetJointByName<PrismaticJoint>("brick_translate_z_joint");
+  const RevoluteJoint<double>& x_revolute =
+      plant.GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
+  y_translate.set_translation(&plant_context, brick_ics(0));
+  z_translate.set_translation(&plant_context, brick_ics(1));
+  x_revolute.set_angle(&plant_context, brick_ics(2));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 

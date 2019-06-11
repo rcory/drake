@@ -2,7 +2,7 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
-#include "external/lcmtypes_robotlocomotion/lcmtypes/robotlocomotion/robot_plan_t.hpp"
+#include "robotlocomotion/robot_plan_t.hpp"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -15,31 +15,39 @@ using drake::multibody::MultibodyPlant;
 using drake::math::RigidTransform;
 using drake::math::RollPitchYaw;
 
-void WeldGripperFrames(MultibodyPlant<double>& plant) {
-  const double kOuterRadius = 0.19;  // 19 - 22
-  const double kF1Angle = 60 * (M_PI / 180.);
-  const double kF23Angle = 120 * (M_PI / 180.);
+template<typename T>
+void WeldGripperFrames(multibody::MultibodyPlant<T> *plant) {
+  // This function is copied and adapted from planar_gripper_simulation.py
+  const double outer_radius = 0.19;
+  const double f1_angle = M_PI / 3;
+  const math::RigidTransformd XT(math::RollPitchYaw<double>(0, 0, 0),
+                                 Eigen::Vector3d(0, 0, outer_radius));
 
-  RigidTransform<double> XT(RollPitchYaw<double>(0, 0, 0),
-                            Vector3<double>(0, 0, kOuterRadius));
+  // Weld the first finger.
+  math::RigidTransformd X_PC1(math::RollPitchYaw<double>(f1_angle, 0, 0),
+                              Eigen::Vector3d::Zero());
+  X_PC1 = X_PC1 * XT;
+  const multibody::Frame<T> &finger1_base_frame =
+      plant->GetFrameByName("finger1_base");
+  plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_PC1);
 
-  RigidTransform<double> X_PC1 =
-      RigidTransform<double>(RollPitchYaw<double>(kF1Angle, 0, 0),
-                             VectorX<double>::Zero(3)) * XT;
-  plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("finger1_base"),
-                   X_PC1);
+  // Weld the second finger.
+  const math::RigidTransformd X_PC2 =
+      math::RigidTransformd(math::RollPitchYawd(M_PI / 3 * 2, 0, 0),
+                            Eigen::Vector3d::Zero()) *
+          X_PC1;
+  const multibody::Frame<T> &finger2_base_frame =
+      plant->GetFrameByName("finger2_base");
+  plant->WeldFrames(plant->world_frame(), finger2_base_frame, X_PC2);
 
-  RigidTransform<double> X_PC2 =
-      RigidTransform<double>(RollPitchYaw<double>(kF23Angle, 0, 0),
-                             VectorX<double>::Zero(3)) * X_PC1;
-  plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("finger2_base"),
-                   X_PC2);
-
-  RigidTransform<double> X_PC3 =
-      RigidTransform<double>(RollPitchYaw<double>(kF23Angle, 0, 0),
-                             VectorX<double>::Zero(3)) * X_PC2;
-  plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("finger3_base"),
-                   X_PC3);
+  // Weld the 3rd finger.
+  const math::RigidTransformd X_PC3 =
+      math::RigidTransformd(math::RollPitchYawd(M_PI / 3 * 2, 0, 0),
+                            Eigen::Vector3d::Zero()) *
+          X_PC2;
+  const multibody::Frame<T> &finger3_base_frame =
+      plant->GetFrameByName("finger3_base");
+  plant->WeldFrames(plant->world_frame(), finger3_base_frame, X_PC3);
 }
 
 void PublishRobotPlan(const robotlocomotion::robot_plan_t &plan) {

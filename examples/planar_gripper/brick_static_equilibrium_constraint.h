@@ -7,6 +7,7 @@
 
 namespace drake {
 namespace examples {
+namespace planar_gripper {
 /** Given the set of contacts between the fingers and the brick, impose the
  * static equilibrium as a nonlinear constraint, that the total force/torque
  * applied on the brick is 0.
@@ -14,37 +15,37 @@ namespace examples {
 class BrickStaticEquilibriumNonlinearConstraint : public solvers::Constraint {
  public:
   BrickStaticEquilibriumNonlinearConstraint(
-      const GripperBrickSystem<double>& gripper_brick_system,
+      const GripperBrickSystem<double> &gripper_brick_system,
       std::vector<std::pair<Finger, BrickFace>> finger_face_contacts,
-      systems::Context<double>* plant_mutable_context);
+      systems::Context<double> *plant_mutable_context);
 
  private:
   Eigen::Vector3d ComputeFingerTipInBrickFrame(
-      const multibody::MultibodyPlant<double>& plant, const Finger finger,
-      const systems::Context<double>& plant_context,
-      const Eigen::Ref<const Eigen::VectorXd>&) const;
+      const multibody::MultibodyPlant<double> &plant, const Finger finger,
+      const systems::Context<double> &plant_context,
+      const Eigen::Ref<const Eigen::VectorXd> &) const;
 
   Vector3<AutoDiffXd> ComputeFingerTipInBrickFrame(
-      const multibody::MultibodyPlant<double>& plant, const Finger finger,
-      const systems::Context<double>& plant_context,
-      const Eigen::Ref<const AutoDiffVecXd>& q) const;
+      const multibody::MultibodyPlant<double> &plant, const Finger finger,
+      const systems::Context<double> &plant_context,
+      const Eigen::Ref<const AutoDiffVecXd> &q) const;
 
-  template <typename T>
-  void DoEvalGeneric(const Eigen::Ref<const VectorX<T>>& x,
-                     VectorX<T>* y) const;
+  template<typename T>
+  void DoEvalGeneric(const Eigen::Ref<const VectorX<T>> &x,
+                     VectorX<T> *y) const;
 
-  void DoEval(const Eigen::Ref<const Eigen::VectorXd>& x,
-              Eigen::VectorXd* y) const;
+  void DoEval(const Eigen::Ref<const Eigen::VectorXd> &x,
+              Eigen::VectorXd *y) const;
 
-  void DoEval(const Eigen::Ref<const AutoDiffVecXd>& x, AutoDiffVecXd* y) const;
+  void DoEval(const Eigen::Ref<const AutoDiffVecXd> &x, AutoDiffVecXd *y) const;
 
-  void DoEval(const Eigen::Ref<const VectorX<symbolic::Variable>>&,
-              VectorX<symbolic::Expression>*) const;
+  void DoEval(const Eigen::Ref<const VectorX<symbolic::Variable>> &,
+              VectorX<symbolic::Expression> *) const;
 
-  const GripperBrickSystem<double>& gripper_brick_system_;
+  const GripperBrickSystem<double> &gripper_brick_system_;
   double brick_mass_;
   std::vector<std::pair<Finger, BrickFace>> finger_face_contacts_;
-  systems::Context<double>* plant_mutable_context_;
+  systems::Context<double> *plant_mutable_context_;
 };
 
 /**
@@ -58,10 +59,11 @@ class BrickStaticEquilibriumNonlinearConstraint : public solvers::Constraint {
  */
 Eigen::Matrix<symbolic::Variable, 2, Eigen::Dynamic>
 AddBrickStaticEquilibriumConstraint(
-    const GripperBrickSystem<double>& gripper_brick_system,
-    const std::vector<std::pair<Finger, BrickFace>>& finger_face_contacts,
-    const Eigen::Ref<const VectorX<symbolic::Variable>>& q_vars,
-    systems::Context<double>* plant_mutable_context,
-    solvers::MathematicalProgram* prog);
+    const GripperBrickSystem<double> &gripper_brick_system,
+    const std::vector<std::pair<Finger, BrickFace>> &finger_face_contacts,
+    const Eigen::Ref<const VectorX<symbolic::Variable>> &q_vars,
+    systems::Context<double> *plant_mutable_context,
+    solvers::MathematicalProgram *prog);
+}  // planar_gripper
 }  // namespace examples
 }  // namespace drake
