@@ -90,7 +90,7 @@ int do_main() {
   MultibodyPlant<double>& plant =
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
   auto plant_id = Parser(&plant, &scene_graph).AddModelFromFile(full_name);
-  examples::planar_gripper::WeldGripperFrames(plant);
+  examples::planar_gripper::WeldGripperFrames<double>(&plant);
 
   // Adds the object to be manipulated.
   auto object_file_name =
@@ -100,7 +100,7 @@ int do_main() {
   // Create the controlled plant. Contains only the fingers (no objects).
   MultibodyPlant<double> control_plant(FLAGS_time_step);
   Parser(&control_plant).AddModelFromFile(full_name);
-  drake::examples::planar_gripper::WeldGripperFrames(control_plant);
+  drake::examples::planar_gripper::WeldGripperFrames<double>(&control_plant);
 
   // Add gravity
   Vector3<double> gravity(0, 0, -9.81);
