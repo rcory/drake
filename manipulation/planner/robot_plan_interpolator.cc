@@ -58,37 +58,6 @@ RobotPlanInterpolator::RobotPlanInterpolator(
     systems::kUseDefaultName,
     Value<robot_plan_t>()).get_index()), plant_(plant),
       interp_type_(interp_type) {
-//  multibody::Parser(&plant_).AddModelFromFile(model_path);
-
-//  // Search for any bodies with no parent.  We'll weld those to the world.
-//  std::set<BodyIndex> parent_bodies;
-//  std::set<BodyIndex> child_bodies;
-//  for (JointIndex i(0); i < plant_.num_joints(); ++i) {
-//    const multibody::Joint<double>& joint = plant_.get_joint(i);
-//    if (joint.parent_body().index() == plant_.world_body().index()) {
-//      // Nothing to weld, we're connected to the world.
-//      parent_bodies.clear();
-//      break;
-//    }
-//    parent_bodies.insert(joint.parent_body().index());
-//    child_bodies.insert(joint.child_body().index());
-//  }
-//
-//  if (!parent_bodies.empty()) {
-//    for (const BodyIndex child : child_bodies) {
-//      if (parent_bodies.count(child)) {
-//        parent_bodies.erase(child);
-//      }
-//    }
-//
-//    // Weld all remaining parents to the world.  This probably isn't going to
-//    // work for all model types.
-//    for (const BodyIndex index : parent_bodies) {
-//      plant_.WeldFrames(plant_.world_frame(),
-//                        plant_.get_body(index).body_frame());
-//    }
-//  }
-//  plant_.Finalize();
 
   // TODO(sammy-tri) This implementation doesn't know how to
   // calculate velocities/accelerations for differing numbers of

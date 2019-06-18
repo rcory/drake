@@ -47,6 +47,7 @@ class RobotPlanInterpolator : public systems::LeafSystem<double> {
 //  RobotPlanInterpolator(const std::string& model_path,
 //                        const InterpolatorType = InterpolatorType::Cubic,
 //                        double update_interval = kDefaultPlanUpdateInterval);
+
   RobotPlanInterpolator(const multibody::MultibodyPlant<double>& plant,
                         const InterpolatorType = InterpolatorType::Cubic,
                         double update_interval = kDefaultPlanUpdateInterval);

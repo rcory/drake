@@ -42,6 +42,21 @@ class ActuatorTranslator(LeafSystem):
         for i in range(size):
             output_value[i] = input_value[self.ordering[i]]
 
+class MakePlantGeneralizedForceArray(LeafSystem):
+    def __init__(self, plant, gripper_instance):
+        LeafSystem.__init__(self)
+        self.plant = plant
+        self.gripper_instance = gripper_instance
+        self.DeclareVectorInputPort("input1", BasicVector(plant.num_actuators()))
+        self.DeclareVectorOutputPort("output1", BasicVector(plant.num_velocities()), self._remap_output)
+
+    def _remap_output(self, context, output_vector):
+        output_value = output_vector.get_mutable_value()
+        input_value = self.EvalVectorInput(context, 0).get_value()
+
+        output_value[:] = 0
+        self.plant.SetVelocitiesInArray(self.gripper_instance, input_value, output_value)
+
 
 # def print_names(plant):
 # # Print actuator names
@@ -141,7 +156,7 @@ def main():
     # TODO(rcory) adding this object changes the estimated state dimension
     #   (affects the controller).
     object_file_name = FindResourceOrThrow(
-        "drake/examples/planar_gripper/brick.sdf")
+        "drake/examples/planar_gripper/planar_brick.sdf")
     object_id = Parser(plant=plant).AddModelFromFile(object_file_name, "object")
 
     # Create the controlled plant. Contains only the fingers (no objects).
@@ -176,25 +191,18 @@ def main():
                     id_controller.get_input_port_estimated_state())
 
     # Constant reference
-    x_ref = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
+    x_ref = [-0.65, -0.5, 0.65, 1.0, 0.95, -1.0, 0, 0, 0, 0, 0, 0]  # [q_ref, v_ref]
 
     # Connect the desired state
     const_src = builder.AddSystem(ConstantVectorSource(x_ref))
     builder.Connect(const_src.get_output_port(0),
                     id_controller.get_input_port_desired_state())
 
-    # TODO(rcory) This connect code doesn't work...seems indices don't match.
-    # builder.Connect(id_controller.get_output_port_control(),
-    #                 plant.get_actuation_input_port())
-
-    # Hack needed to map the ID controller outputs to MBP inputs.
-    # TODO(rcory) Update ID controller to be "smarter" and know about the
-    #  required index actuator ordering going into MBP.
-    translator = builder.AddSystem(ActuatorTranslator([0, 3, 1, 4, 2, 5]))
+    translator = builder.AddSystem(MakePlantGeneralizedForceArray(plant, plant_id))
     builder.Connect(id_controller.get_output_port_control(),
                     translator.get_input_port(0))
     builder.Connect(translator.get_output_port(0),
-                    plant.get_actuation_input_port(plant_id))
+                    plant.get_applied_generalized_force_input_port())
 
     # Connect the SceneGraph with MBP.
     builder.Connect(
@@ -216,8 +224,8 @@ def main():
     plant_context = diagram.GetMutableSubsystemContext(
         plant, diagram_context)
 
-    # plant_context.FixInputPort(plant.get_actuation_input_port().get_index(),
-    #                              [0, 0, 0, 0, 0, 0])
+    plant_context.FixInputPort(plant.get_actuation_input_port().get_index(),
+                                 [0, 0, 0, 0, 0, 0])
 
     # Set the plant initial conditions.
     sh_pin = plant.GetJointByName("finger1_ShoulderJoint")
@@ -238,7 +246,7 @@ def main():
     el_pin.set_angle(context=plant_context, angle=-1.0)
 
     # Set the box initial conditions
-    X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, -1])
+    X_WObj = RigidTransform(RollPitchYaw([0, 0, 0]), [0, 0, 0])
     body_index_vec = plant.GetBodyIndices(object_id)
     box_body = plant.get_body(body_index_vec[0])
     plant.SetFreeBodyPose(plant_context, box_body, X_WObj)

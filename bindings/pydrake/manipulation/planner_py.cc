@@ -154,8 +154,9 @@ PYBIND11_MODULE(planner, m) {
     py::class_<Class, drake::systems::LeafSystem<double>> cls(
         m, "RobotPlanInterpolator", doc.RobotPlanInterpolator.doc);
 
-    cls.def(py::init<const std::string&, const InterpolatorType, double>(),
-           py::arg("model_path"), py::arg("interpolator_type"),
+    cls.def(py::init<const multibody::MultibodyPlant<double>&,
+                const InterpolatorType, double>(),
+           py::arg("plant"), py::arg("interpolator_type"),
            py::arg("update_interval"))
         .def("get_plan_input_port", &Class::get_plan_input_port,
             cls_doc.get_plan_input_port.doc)

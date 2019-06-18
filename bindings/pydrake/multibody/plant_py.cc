@@ -27,6 +27,9 @@ PYBIND11_MAKE_OPAQUE(
 namespace drake {
 namespace pydrake {
 
+// TODO(eric.cousineau): Expose available scalar types.
+using T = double;
+
 using std::string;
 
 using geometry::SceneGraph;

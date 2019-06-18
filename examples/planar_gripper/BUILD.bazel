@@ -24,7 +24,7 @@ drake_py_binary(
     srcs = ["planar_gripper_simulation.py"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:brick.sdf",
+        "//examples/planar_gripper:planar_brick.sdf",
         "//examples/planar_gripper:planar_gripper.sdf",
     ],
     test_rule_args = [
