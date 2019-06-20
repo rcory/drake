@@ -61,6 +61,22 @@ drake_cc_library(
     ],
 )
 
+# drake_cc_library(
+#     name = "contact_implicit_constraint",
+#     srcs = ["contact_implicit_constraint.cc"],
+#     hdrs = [
+#         "contact_implicit_constraint.h",
+#     ],
+#     deps = [
+#         "//geometry:scene_graph",
+#         "//multibody/inverse_kinematics:kinematic_constraint",
+#         "//multibody/optimization:contact_wrench_evaluator",
+#         "//multibody/plant",
+#         "//solvers:binding",
+#         "//solvers:constraint",
+#     ],
+# )
+
 drake_cc_library(
     name = "direct_transcription",
     srcs = [

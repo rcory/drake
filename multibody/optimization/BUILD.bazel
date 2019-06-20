@@ -58,6 +58,21 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "contact_implicit_constraint",
+    srcs = ["contact_implicit_constraint.cc"],
+    hdrs = ["contact_implicit_constraint.h"],
+    deps = [
+        ":contact_wrench_evaluator",
+        "//geometry:scene_graph",
+        "//multibody/inverse_kinematics:kinematic_constraint",
+        "//multibody/optimization:static_equilibrium_constraint",
+        "//multibody/plant",
+        "//solvers:binding",
+        "//solvers:constraint",
+    ],
+)
+
+drake_cc_library(
     name = "static_friction_cone_constraint",
     srcs = ["static_friction_cone_constraint.cc"],
     hdrs = ["static_friction_cone_constraint.h"],
