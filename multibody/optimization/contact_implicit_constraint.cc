@@ -23,7 +23,7 @@ ContactImplicitConstraint::ContactImplicitConstraint(
     systems::Context<AutoDiffXd>* context,
     const std::map<SortedPair<geometry::GeometryId>,
                    internal::GeometryPairContactWrenchEvaluatorBinding>&
-        contact_pair_to_wrench_evaluator)
+        contact_pair_to_wrench_evaluator, double time_step)
     : solvers::Constraint(plant->num_velocities(),
                           plant->num_positions() + plant->num_actuated_dofs() +
                               GetLambdaSize(contact_pair_to_wrench_evaluator),
@@ -32,7 +32,8 @@ ContactImplicitConstraint::ContactImplicitConstraint(
       plant_{plant},
       context_{context},
       contact_pair_to_wrench_evaluator_(contact_pair_to_wrench_evaluator),
-      B_actuation_{plant_->MakeActuationMatrix()} {}
+      B_actuation_{plant_->MakeActuationMatrix(),},
+      time_step_(time_step) {}
 
 void ContactImplicitConstraint::DoEval(
     const Eigen::Ref<const Eigen::VectorXd>& x, Eigen::VectorXd* y) const {
@@ -42,28 +43,21 @@ void ContactImplicitConstraint::DoEval(
 }
 
 // The format of the input to the eval() function is a vector 
-// containing {state, next state, next_u, next_lambda}, 
-// where state = [q[n]; v[n]], next_state = [q[n+1]; v[n+1]],
-// next_u = u[n+1], next_lambda = lambda[n+1]
+// containing {v[n], q[n+1], v[n+1], u[n+1], lambda[n+1]}.
 void ContactImplicitConstraint::DoEval(
     const Eigen::Ref<const AutoDiffVecXd>& x, AutoDiffVecXd* y) const {
-  const int num_states = context_->num_total_states();
-  const auto& state = x.head(num_states);
-  const auto& state_next = x.segment(num_states, num_states);
+  const auto num_positions = plant_->num_positions();
+  const auto num_velocities = plant_->num_velocities();
+  const auto& v = x.head(num_velocities);
+  const auto& q_next = x.segment(num_velocities, num_positions);
+  const auto& v_next = x.segment(num_velocities + num_positions, num_velocities);
   const auto& u_next =
-      x.segment(num_states * 2, plant_->num_actuated_dofs());
+      x.segment((2 * num_velocities) + num_positions, plant_->num_actuated_dofs());
   *y = B_actuation_ * u_next;  // B * u[n+1]
 
-  // then, lambda_next is extracted below ...
-
-  const auto& q = state.head(plant_->num_positions());
-  const auto& v = state.tail(plant_->num_velocities());
-  const auto& q_next = state_next.head(plant_->num_positions());
-  const auto& v_next = state_next.tail(plant_->num_velocities());
-  unused(q);
-  
   // TODO(hongkai.dai): Use UpdateContextConfiguration when it supports
-  // MultibodyPlant<AutoDiffXd> and Context<AutoDiffXd>
+  //  MultibodyPlant<AutoDiffXd> and Context<AutoDiffXd>
+  // TODO(rcory) Do we need to set the evaluation time in the context?
   if (!internal::AreAutoDiffVecXdEqual(q_next,
                                        plant_->GetPositions(*context_))) {
     plant_->SetPositions(context_, q_next);
@@ -91,7 +85,7 @@ void ContactImplicitConstraint::DoEval(
   const geometry::SceneGraphInspector<AutoDiffXd>& inspector =
       query_object.inspector();
   const int lambda_start_index_in_x =
-      (num_states * 2) + plant_->num_actuated_dofs();
+      (2 * num_velocities) + num_positions + plant_->num_actuated_dofs();
   for (const auto& signed_distance_pair : signed_distance_pairs) {
     const geometry::FrameId frame_A_id =
         inspector.GetFrameId(signed_distance_pair.id_A);
@@ -159,13 +153,12 @@ void ContactImplicitConstraint::DoEval(
     *y += Jv_V_WCa.transpose() * -F_AB_W + Jv_V_WCb.transpose() * F_AB_W;
   }
 
-  double time_step = 0.1;
   Eigen::Matrix<AutoDiffXd, Eigen::Dynamic, Eigen::Dynamic> M_mass(
       plant_->num_velocities(), plant_->num_velocities());
   plant_->CalcMassMatrixViaInverseDynamics(*context_, &M_mass);
 
 
-  *y = *y * time_step - M_mass * (v_next - v);
+  *y = *y * time_step_ - M_mass * (v_next - v);
 }
 void ContactImplicitConstraint::DoEval(
     const Eigen::Ref<const VectorX<symbolic::Variable>>&,
@@ -175,9 +168,11 @@ void ContactImplicitConstraint::DoEval(
       "variable and expressions.");
 }
 
-// This function binds a portion of the decision in the MultipleShooting
-// MathematicalProgram variables to a 
-// ContactImplicitConstraint, namely {state[n], state[n+1], u[n+1], lambda[n+1]}
+// This function binds a portion of the decision variables in the
+// MathematicalProgram to a ContactImplicitConstraint, namely {v[n], q[n+1],
+// v[n+1], u[n+1], lambda[n+1]}, where lambda here represents the concatination
+// of all lambda. For contact implicit trajectory optimization,
+// this binding should be made for each time sample in the trajectory.
 solvers::Binding<ContactImplicitConstraint>
 ContactImplicitConstraint::MakeBinding(
     const MultibodyPlant<AutoDiffXd>* plant,
@@ -185,9 +180,14 @@ ContactImplicitConstraint::MakeBinding(
     const std::vector<std::pair<std::shared_ptr<ContactWrenchEvaluator>,
                                 VectorX<symbolic::Variable>>>&
         contact_wrench_evaluators_and_lambda,
-    const Eigen::Ref<const VectorX<symbolic::Variable>>& state_vars,
-    const Eigen::Ref<const VectorX<symbolic::Variable>>& state_next_vars,
+    const Eigen::Ref<const VectorX<symbolic::Variable>>& v_vars,
+    const Eigen::Ref<const VectorX<symbolic::Variable>>& q_next_vars,
+    const Eigen::Ref<const VectorX<symbolic::Variable>>& v_next_vars,
     const Eigen::Ref<const VectorX<symbolic::Variable>>& u_next_vars) {
+  if (internal::RefFromPtrOrThrow(plant).time_step() == 0) {
+    throw std::logic_error("ContactImplicitConstraint: MultibodyPlant must"
+                           "be a discrete time model with non-zero time step");
+  }
   // contact_pair_to_wrench_evaluator will be used in the constructor of
   // ContactImplicitConstraint.
   std::map<SortedPair<geometry::GeometryId>,
@@ -227,30 +227,31 @@ ContactImplicitConstraint::MakeBinding(
   }
   // Now compose the vector all_next_lambda.
   const int num_lambda = lambda_count;
-  VectorX<symbolic::Variable> all_next_lambda(num_lambda);
+  VectorX<symbolic::Variable> all_lambda_next(num_lambda);
   for (const auto& contact_wrench_evaluator_and_lambda :
        contact_wrench_evaluators_and_lambda) {
     const auto& lambda_i = contact_wrench_evaluator_and_lambda.second;
     for (int j = 0; j < lambda_i.rows(); ++j) {
-      all_next_lambda(map_lambda_id_to_index.at(lambda_i[j].get_id())) =
+      all_lambda_next(map_lambda_id_to_index.at(lambda_i[j].get_id())) =
           lambda_i(j);
     }
   }
-  DRAKE_DEMAND(state_vars.rows() == plant->num_multibody_states());
-  DRAKE_DEMAND(state_next_vars.rows() == plant->num_multibody_states());
+  DRAKE_DEMAND(v_vars.rows() == plant->num_velocities());
+  DRAKE_DEMAND(q_next_vars.rows() == plant->num_positions());
+  DRAKE_DEMAND(v_next_vars.rows() == plant->num_velocities());
   DRAKE_DEMAND(u_next_vars.rows() == plant->num_actuated_dofs());
 
   // The bound variable for this ContactImplicitConstraint is
-  // bound_x == {state, next_state, next_u, next_lambda}.
+  // bound_x == {v, q_next, v_next, u_next, all_lambda_next}.
   VectorX<symbolic::Variable> bound_x(
-      plant->num_multibody_states() * 2 + plant->num_actuated_dofs() + num_lambda);
-  bound_x << state_vars, state_next_vars, u_next_vars, all_next_lambda;
+      2 * plant->num_velocities() + plant->num_positions() + plant->num_actuated_dofs() + num_lambda);
+  bound_x << v_vars, q_next_vars, v_next_vars, u_next_vars, all_lambda_next;
   auto contact_implicit_constraint =
       // Do not call make_shared because the constructor
       // ContactImplicitConstraint is private.
-      std::shared_ptr<ContactImplicitConstraint>(
-          new ContactImplicitConstraint(plant, context,
-                                          contact_pair_to_wrench_evaluator));
+      std::shared_ptr<ContactImplicitConstraint>(new ContactImplicitConstraint(
+          plant, context, contact_pair_to_wrench_evaluator,
+          plant->time_step()));
   return solvers::Binding<ContactImplicitConstraint>(
       contact_implicit_constraint, bound_x);
 }

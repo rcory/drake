@@ -73,6 +73,17 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "semi_implicit_euler_constraint",
+    srcs = ["semi_implicit_euler_constraint.cc"],
+    hdrs = ["semi_implicit_euler_constraint.h"],
+    deps = [
+        "//multibody/plant",
+        "//solvers:binding",
+        "//solvers:constraint",
+    ],
+)
+
+drake_cc_library(
     name = "static_friction_cone_constraint",
     srcs = ["static_friction_cone_constraint.cc"],
     hdrs = ["static_friction_cone_constraint.h"],
