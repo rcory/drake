@@ -53,6 +53,12 @@ void StaticEquilibriumConstraint::DoEval(
     plant_->SetPositions(context_, q);
   }
   *y += plant_->CalcGravityGeneralizedForces(*context_);
+
+  if (blog_) {
+    drake::log()->info("rhs_in_Eval (g): \n{}", math::autoDiffToValueMatrix(*y));
+  }
+  auto y_g = *y;
+
   const auto& query_port = plant_->get_geometry_query_input_port();
   if (!query_port.HasValue(*context_)) {
     throw std::invalid_argument(
@@ -134,6 +140,10 @@ void StaticEquilibriumConstraint::DoEval(
     // at the contact point. By Newton's third law, the contact wrench applied
     // to id_A from id_B at the contact point is -F_AB_W.
     *y += Jv_V_WCa.transpose() * -F_AB_W + Jv_V_WCb.transpose() * F_AB_W;
+  }
+    if (blog_) {
+    drake::log()->info("rhs_in_Eval (ext_F): \n{}", math::autoDiffToValueMatrix(*y-y_g));
+    drake::log()->info("rhs_in_Eval (g + ext_F): \n{}", math::autoDiffToValueMatrix(*y));
   }
 }
 void StaticEquilibriumConstraint::DoEval(

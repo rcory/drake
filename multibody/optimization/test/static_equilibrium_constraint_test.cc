@@ -259,6 +259,20 @@ TEST_F(TwoFreeSpheresTest, Eval) {
   auto result = solvers::Solve(prog_, x_init);
   EXPECT_TRUE(result.is_success());
 
+  // For debugging.
+  q_val = result.GetSolution(q_vars_);
+  auto lambda_vals_0 = result.GetSolution(contact_wrench_evaluators_and_lambda_[0].second);
+  auto lambda_vals_1 = result.GetSolution(contact_wrench_evaluators_and_lambda_[1].second);
+  auto lambda_vals_2 = result.GetSolution(contact_wrench_evaluators_and_lambda_[2].second);
+  x_val << q_val, lambda_vals_0, lambda_vals_1, lambda_vals_2;
+  x_autodiff = math::initializeAutoDiff(x_val);
+  AutoDiffVecXd y_autodiff;
+  static_equilibrium_binding.evaluator()->blog_ = true;
+  static_equilibrium_binding.evaluator()->Eval(x_autodiff, &y_autodiff);
+  drake::log()->info("y value \n{}", math::autoDiffToValueMatrix(y_autodiff));
+  static_equilibrium_binding.evaluator()->blog_ = false;
+
+
   // Given the solution, now manually check if the system is in static
   // equilibrium.
   spheres_double_->plant().SetPositions(
@@ -277,6 +291,14 @@ TEST_F(TwoFreeSpheresTest, Eval) {
       -spheres_double_->spheres()[1].inertia.get_mass() * gravity;
   sphere1_total_wrench.head<3>() =
       X_WS1.translation().cross(sphere1_total_wrench.tail<3>());
+
+  // For debugging only
+  Vector6<double> sphere0_gravity_wrench, sphere1_gravity_wrench;
+  sphere0_gravity_wrench = sphere0_total_wrench;
+  sphere1_gravity_wrench = sphere1_total_wrench;
+  drake::log()->info("s0_gravity_wrench: \n{}", sphere0_gravity_wrench);
+  drake::log()->info("s1_gravity_wrench: \n{}", sphere1_gravity_wrench);
+
   for (const auto& contact_wrench_evaluator_and_lambda :
        contact_wrench_evaluators_and_lambda_) {
     const Eigen::Vector3d lambda_sol =
@@ -324,6 +346,9 @@ TEST_F(TwoFreeSpheresTest, Eval) {
       throw std::runtime_error("Unknown contact geometry pairs.");
     }
   }
+  drake::log()->info("s0_lambda_wrench: \n{}", sphere0_total_wrench - sphere0_gravity_wrench);
+  drake::log()->info("s1_lambda_wrench: \n{}", sphere1_total_wrench - sphere1_gravity_wrench);
+
   // The solver's default tolerance is 1E-6 (with normalization). The
   // unnormalized tolerance is about 1E-5.
   const double tol = 1E-5;

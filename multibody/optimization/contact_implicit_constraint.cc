@@ -72,6 +72,11 @@ void ContactImplicitConstraint::DoEval(const Eigen::Ref<const AutoDiffVecXd>& x,
   }
   *y += plant_->CalcGravityGeneralizedForces(*context_);  // g(q[n+1])
 
+  if (blog_) {
+    drake::log()->info("rhs_in_Eval (g): \n{}", math::autoDiffToValueMatrix(*y));
+  }
+  auto y_g = *y;
+
   // Calc the bias term C(q, v)*v
   Eigen::Matrix<AutoDiffXd, Eigen::Dynamic, 1>
       C_bias(plant_->num_velocities(), 1);
@@ -162,11 +167,20 @@ void ContactImplicitConstraint::DoEval(const Eigen::Ref<const AutoDiffVecXd>& x,
     *y += Jv_V_WCa.transpose() * -F_AB_W + Jv_V_WCb.transpose() * F_AB_W;
   }
 
+  if (blog_) {
+    drake::log()->info("rhs_in_Eval (ext_F): \n{}", math::autoDiffToValueMatrix(*y-y_g));
+    drake::log()->info("rhs_in_Eval (g + ext_F): \n{}", math::autoDiffToValueMatrix(*y));
+  }
+
   Eigen::Matrix<AutoDiffXd, Eigen::Dynamic, Eigen::Dynamic> M_mass(
       plant_->num_velocities(), plant_->num_velocities());
   plant_->CalcMassMatrixViaInverseDynamics(*context_, &M_mass);
 
   *y = *y * time_step_ - M_mass * (v_next - v);
+  if (blog_) {
+    auto lhs = M_mass * (v_next - v) / time_step_;
+    drake::log()->info("lhs_in_Eval: \n{}", math::autoDiffToValueMatrix(lhs));
+  }
 }
 void ContactImplicitConstraint::DoEval(
     const Eigen::Ref<const VectorX<symbolic::Variable>>&,

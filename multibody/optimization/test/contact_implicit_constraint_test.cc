@@ -246,6 +246,7 @@ TEST_F(TwoFreeSpheresTest, Eval) {
   q_next_val.segment<4>(7) = X_WS1.rotation().ToQuaternionAsVector4();
   q_next_val.tail<3>() = X_WS1.translation();
 
+  // 9 lambda vals: 3 for sphere1-sphere2, 3 for sphere1-ground, 3 for sphere2-ground
   Eigen::VectorXd lambda_val(9);
   // Test lambda = 0.
   lambda_val.setZero();
@@ -299,14 +300,52 @@ TEST_F(TwoFreeSpheresTest, Eval) {
   auto result = solvers::Solve(prog_, x_init);
   EXPECT_TRUE(result.is_success());
 
+  // Do a check on the Eval function once again with the actual solution.
+  v_val = result.GetSolution(v_vars_);
+  q_next_val = result.GetSolution(q_next_vars_);
+  v_next_val = result.GetSolution(v_next_vars_);
+  auto lambda_vals_0 = result.GetSolution(contact_wrench_evaluators_and_lambda_[0].second);
+  auto lambda_vals_1 = result.GetSolution(contact_wrench_evaluators_and_lambda_[1].second);
+  auto lambda_vals_2 = result.GetSolution(contact_wrench_evaluators_and_lambda_[2].second);
+  x_val << v_val, q_next_val, v_next_val, lambda_vals_0, lambda_vals_1, lambda_vals_2;
+  x_autodiff = math::initializeAutoDiff(x_val);
+
+  drake::log()->info("lambda_vals_1: \n{}", lambda_vals_1);
+
+  //  CheckContactImplicitConstraintEval(
+//      contact_implicit_binding, x_autodiff.head<12>(),
+//      x_autodiff.segment<14>(12), x_autodiff.segment<12>(12 + 14),
+//      x_autodiff.tail<9>());
+//  drake::log()->info("Post check is successful!");
+
+  // Now check the value of the Eval
+//  drake::log()->info("x_built: \n{}", math::autoDiffToValueMatrix(x_autodiff));
+//  drake::log()->info("x_result: \n{}", result.get_x_val());
+  AutoDiffVecXd y_autodiff;
+  contact_implicit_binding.evaluator()->blog_ = true;
+  contact_implicit_binding.evaluator()->Eval(x_autodiff, &y_autodiff);
+  drake::log()->info("y value \n{}", math::autoDiffToValueMatrix(y_autodiff));
+  contact_implicit_binding.evaluator()->blog_ = false;
+  // ==========================
+
   // Given the solution, now manually check that the system satisfies the
   // contact implicit constraint.
+
+  // First, reset the plant to match the solution.
   spheres_double_->plant().SetPositions(
       spheres_double_->get_mutable_plant_context(),
       result.GetSolution(q_next_vars_));
   spheres_double_->plant().SetVelocities(
       spheres_double_->get_mutable_plant_context(),
       result.GetSolution(v_next_vars_));
+  X_WS0 = spheres_double_->plant().GetFreeBodyPose(
+      spheres_double_->plant_context(),
+      spheres_double_->plant().GetBodyByName("sphere0"));
+  X_WS1 = spheres_double_->plant().GetFreeBodyPose(
+      spheres_double_->plant_context(),
+      spheres_double_->plant().GetBodyByName("sphere1"));
+  drake::log()->info("X_WS0.translation(): \n{}", X_WS0.translation());
+  drake::log()->info("X_WS1.translation(): \n{}", X_WS1.translation());
 
   // Compute the total wrench applied on each sphere, expressed in the world
   // frame.
@@ -320,6 +359,14 @@ TEST_F(TwoFreeSpheresTest, Eval) {
       -spheres_double_->spheres()[1].inertia.get_mass() * gravity;
   sphere1_total_wrench.head<3>() =
       X_WS1.translation().cross(sphere1_total_wrench.tail<3>());
+
+  // For debugging only
+  Vector6<double> sphere0_gravity_wrench, sphere1_gravity_wrench;
+  sphere0_gravity_wrench = sphere0_total_wrench;
+  sphere1_gravity_wrench = sphere1_total_wrench;
+  auto G_mbp = spheres_double_->plant().CalcGravityGeneralizedForces(
+      *spheres_double_->get_mutable_plant_context());
+
   for (const auto& contact_wrench_evaluator_and_lambda :
        contact_wrench_evaluators_and_lambda_) {
     const Eigen::Vector3d lambda_sol =
@@ -356,8 +403,8 @@ TEST_F(TwoFreeSpheresTest, Eval) {
                SortedPair<geometry::GeometryId>(
                    spheres_->sphere_geometry_ids()[1],
                    spheres_->ground_geometry_id())) {
-      // contact between the ground and the sphere 1.
-      // Compute the witness point on sphere 1
+      // contact between the ground and sphere 1.
+      // Compute the witness point on sphere 1.
       const Eigen::Vector3d p_WC1 =
           X_WS1.translation() -
           Eigen::Vector3d(0, 0, spheres_double_->spheres()[1].radius);
@@ -376,25 +423,39 @@ TEST_F(TwoFreeSpheresTest, Eval) {
   auto v_sol = result.GetSolution(v_vars_);
   auto v_next_sol = result.GetSolution(v_next_vars_);
 
-  Eigen::Matrix<double, Eigen::Dynamic, 1>
-      C_bias(spheres_double_->plant().num_velocities(), 1);
-  spheres_double_->plant().CalcBiasTerm(
-      *spheres_double_->get_mutable_plant_context(), &C_bias);
-  drake::log()->info("C: \n{}", C_bias);
+//  Eigen::Matrix<double, Eigen::Dynamic, 1>
+//      C_bias(spheres_double_->plant().num_velocities(), 1);
+//  spheres_double_->plant().CalcBiasTerm(
+//      *spheres_double_->get_mutable_plant_context(), &C_bias);
+//  drake::log()->info("C: \n{}", C_bias);
 
   Eigen::VectorXd lhs = M_mass * (v_next_sol - v_sol) / time_step_;
 
-  drake::log()->info("lhs: \n{}", lhs);
-  drake::log()->info("s0: \n{}", sphere0_total_wrench);
-  drake::log()->info("s1: \n{}", sphere1_total_wrench);
+  lhs.head<3>() = lhs.head<3>() +
+      X_WS0.translation().cross(lhs.segment<3>(3));
+  lhs.segment<3>(6) = lhs.segment<3>(6) +
+      X_WS1.translation().cross(lhs.tail<3>());
 
-  //  // The solver's default tolerance is 1E-6 (with normalization). The
-//  // unnormalized tolerance is about 1E-5.
-//  const double tol = 1E-5;
-//  EXPECT_TRUE(
-//      CompareMatrices(sphere0_total_wrench, lhs.head<6>(), tol));
-//  EXPECT_TRUE(
-//      CompareMatrices(sphere1_total_wrench, lhs.tail<6>(), tol));
+  drake::log()->info("lhs: \n{}", lhs);
+  drake::log()->info("G_mbp: \n{}", G_mbp);
+  drake::log()->info("s0_gravity_wrench: \n{}", sphere0_gravity_wrench);
+  drake::log()->info("s1_gravity_wrench: \n{}", sphere1_gravity_wrench);
+  drake::log()->info("s0_lambda_wrench: \n{}", sphere0_total_wrench - sphere0_gravity_wrench);
+  drake::log()->info("s1_lambda_wrench: \n{}", sphere1_total_wrench - sphere1_gravity_wrench);
+  drake::log()->info("s0_total_wrench: \n{}", sphere0_total_wrench);
+  drake::log()->info("s1_total_wrench: \n{}", sphere1_total_wrench);
+  Eigen::VectorXd rhs(12);
+  rhs << sphere0_total_wrench, sphere1_total_wrench;
+  auto res = lhs - rhs;
+  drake::log()->info("lhs-rhs: \n{}", res);
+
+   // The solver's default tolerance is 1E-6 (with normalization). The
+ // unnormalized tolerance is about 1E-5.
+ const double tol = 1E-5;
+ EXPECT_TRUE(
+     CompareMatrices(sphere0_total_wrench, lhs.head<6>(), tol));
+ EXPECT_TRUE(
+     CompareMatrices(sphere1_total_wrench, lhs.tail<6>(), tol));
 }
 }  // namespace
 }  // namespace multibody

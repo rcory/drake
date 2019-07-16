@@ -88,6 +88,8 @@ class StaticEquilibriumConstraint final : public solvers::Constraint {
     return contact_pair_to_wrench_evaluator_;
   }
 
+  bool blog_{false};
+
  private:
   /**
    * The user cannot call this constructor, as it is inconvenient to do so.
