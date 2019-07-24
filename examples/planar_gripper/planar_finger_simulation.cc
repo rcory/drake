@@ -41,7 +41,7 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(simulation_time, 8.0,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 5e-4,
+DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
@@ -208,6 +208,7 @@ int do_main() {
 
   // Set initial conditions.
   VectorX<double> gripper_ics = VectorX<double>::Zero(4);
+  gripper_ics << -0.65, 1.21, 0, 0;
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
