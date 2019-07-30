@@ -66,11 +66,11 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>100</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2</lower>
+          <upper>2</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
@@ -149,37 +149,14 @@
           <effort>100</effort>
           <!-- No limit provided. sdformat defaults to -1, which we parse as
                  an actuated joint. -->
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2</lower>
+          <upper>2</upper>
         </limit>
         <dynamics>
-          <damping>0.1</damping>
+          <damping>0</damping>
         </dynamics>
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
-    <!--<xacro:finger fnum="2" />-->
-    <!--<xacro:finger fnum="3" />-->
-    <!--<link name="finger1_ground">-->
-    <!--<pose>0 0 -${config_radius} 0 0 0</pose>-->
-    <!--</link>-->
-    <!--<joint name="finger1_weld" type="fixed">-->
-    <!--<child>finger1_base</child>-->
-    <!--<parent>finger1_ground</parent>-->
-    <!--</joint>-->
-    <!--<link name="finger2_ground">-->
-    <!--<pose>0 0 -${config_radius} ${config_angle} 0 0</pose>-->
-    <!--</link>-->
-    <!--<joint name="finger2_weld" type="fixed">-->
-    <!--<child>finger2_base</child>-->
-    <!--<parent>finger2_ground</parent>-->
-    <!--</joint>-->
-    <!--<link name="finger3_ground">-->
-    <!--<pose>0 0 -${config_radius} ${2*config_angle} 0 0</pose>-->
-    <!--</link>-->
-    <!--<joint name="finger3_weld" type="fixed">-->
-    <!--<child>finger3_base</child>-->
-    <!--<parent>finger3_ground</parent>-->
-    <!--</joint>-->
   </model>
 </sdf>
