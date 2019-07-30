@@ -114,6 +114,32 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "finger_force_regulation",
+    srcs = ["finger_force_regulation.cc"],
+    add_test_rule = 1,
+    data = [
+        "//examples/planar_gripper:fixed_surface.sdf",
+        "//examples/planar_gripper:planar_finger.sdf",
+    ],
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        "//common:find_resource",
+        "//common:text_logging_gflags",
+        "//geometry:geometry_visualization",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/primitives:constant_vector_source",
+        "@gflags",
+    ],
+)
+
 drake_cc_googletest(
     name = "gripper_brick_test",
     deps = [
