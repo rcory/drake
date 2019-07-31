@@ -108,6 +108,31 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "brick_dynamic_constraint",
+    srcs = ["brick_dynamic_constraint.cc"],
+    hdrs = ["brick_dynamic_constraint.h"],
+    deps = [
+        ":gripper_brick",
+        ":gripper_brick_planning_utils",
+        "//multibody/inverse_kinematics:kinematic_constraint",
+        "//solvers:constraint",
+    ],
+)
+
+drake_cc_library(
+    name = "gripper_brick_trajectory_optimization",
+    srcs = ["gripper_brick_trajectory_optimization.cc"],
+    hdrs = ["gripper_brick_trajectory_optimization.h"],
+    deps = [
+        ":brick_dynamic_constraint",
+        ":brick_static_equilibrium_constraint",
+        ":gripper_brick",
+        "//solvers:mathematical_program_lite",
+        "//systems/trajectory_optimization:integration_constraint",
+    ],
+)
+
 drake_cc_googletest(
     name = "gripper_brick_test",
     deps = [
@@ -129,6 +154,24 @@ drake_cc_googletest(
     name = "gripper_brick_planning_constraint_helper_test",
     deps = [
         ":gripper_brick_planning_constraint_helper",
+        "//solvers:solve",
+    ],
+)
+
+drake_cc_googletest(
+    name = "brick_dynamic_constraint_test",
+    deps = [
+        ":brick_dynamic_constraint",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//math:compute_numerical_gradient",
+    ],
+)
+
+drake_cc_googletest(
+    name = "gripper_brick_trajectory_optimization_test",
+    deps = [
+        ":gripper_brick_trajectory_optimization",
+        "//common/test_utilities:eigen_matrix_compare",
         "//solvers:solve",
     ],
 )
