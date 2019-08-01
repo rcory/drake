@@ -112,7 +112,6 @@ class GripperBrickHelper {
   multibody::CoulombFriction<T> GetFingerTipBrickCoulombFriction(
       Finger finger) const;
 
-
  private:
   std::unique_ptr<systems::Diagram<T>> diagram_;
   multibody::MultibodyPlant<T>* plant_;

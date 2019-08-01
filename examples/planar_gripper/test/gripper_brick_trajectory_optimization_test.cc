@@ -30,7 +30,7 @@ GTEST_TEST(GripperBrickTrajectoryOptimizationTest, TestConstructor) {
       &gripper_brick, nT, initial_contact, finger_transitions,
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
-          0.8, 0.01,
+          0.8,
           GripperBrickTrajectoryOptimization::IntegrationMethod::kBackwardEuler,
           0.05 * M_PI, 0.02));
 
@@ -51,7 +51,7 @@ GTEST_TEST(GripperBrickTrajectoryOptimizationTest, TestConstructor) {
   EXPECT_EQ(dut.finger_face_contacts()[7], finger_face_contacts_expected);
   EXPECT_EQ(dut.finger_face_contacts()[8], finger_face_contacts_expected);
 
-  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.1, kInf, dut.dt());
+  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.1, 0.4, dut.dt());
 
   // Finger don't move too fast.
   dut.AddPositionDifferenceBound(

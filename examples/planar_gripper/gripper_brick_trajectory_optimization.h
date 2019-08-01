@@ -38,16 +38,13 @@ class GripperBrickTrajectoryOptimization {
   };
 
   struct Options {
-    Options(double m_face_shrink_factor, double m_minimum_clearing_distance,
-            IntegrationMethod m_integration_method,
+    Options(double m_face_shrink_factor, IntegrationMethod m_integration_method,
             double m_rolling_angle_bound, double m_collision_avoidance_margin)
         : face_shrink_factor(m_face_shrink_factor),
-          minimum_clearing_distance(m_minimum_clearing_distance),
           integration_method{m_integration_method},
           rolling_angle_bound{m_rolling_angle_bound},
           collision_avoidance_margin{m_collision_avoidance_margin} {}
     double face_shrink_factor = 0.8;
-    double minimum_clearing_distance = 0.01;
     IntegrationMethod integration_method = IntegrationMethod::kBackwardEuler;
     double rolling_angle_bound = {0.05 * M_PI};
     double collision_avoidance_margin = 0.01;
@@ -111,6 +108,26 @@ class GripperBrickTrajectoryOptimization {
   void AddPositionDifferenceBound(int left_knot, int position_index,
                                   double bound);
 
+  /**
+   * Constrain that the linearly interpolated posture (1-λ)*q[i] + λ*q[i+1] is
+   * collision free for a given pair of geometries.
+   * @param left_knot The posture is a linear interpolation of q[left_knot] and
+   * q[left_knot + 1].
+   * @param fraction λ in the documentation above. @throw invalid argument if
+   * λ>=1 or λ<=0.
+   * @param geometry_pair The pair of geometries that we want to be separated.
+   * @param minimal_distance The lower bound on the separation distance.
+   */
+  void AddCollisionAvoidanceForInterpolatedPosture(
+      int left_knot, double fraction,
+      const SortedPair<geometry::GeometryId>& geometry_pair,
+      double minimal_distance);
+
+  /**
+   * Constrain that at a given knot, the brick is in static equilibrium.
+   */
+  void AddBrickStaticEquilibriumConstraint(int knot);
+
  private:
   void AssignVariableForContactForces(
       const std::map<Finger, BrickFace>& initial_contact,
@@ -163,11 +180,11 @@ class GripperBrickTrajectoryOptimization {
   std::vector<FingerTransition> finger_transitions_;
   std::vector<std::map<Finger, BrickFace>> finger_face_contacts_;
 
-  // We will impose kinematic constraint on some midpoint posture (q[n] +
-  // q[n+1]) / 2, hence we need to create the context for these postures, and
-  // keep the contexts alive during optimization.
+  // We will impose kinematic constraint on some interpolated postures, hence we
+  // need to create the context for these postures, and keep the contexts alive
+  // during optimization.
   std::vector<std::unique_ptr<systems::Context<double>>>
-      diagram_contexts_midpoint_;
+      diagram_contexts_interpolated_;
 };
 }  // namespace planar_gripper
 }  // namespace examples

@@ -176,4 +176,13 @@ drake_cc_googletest(
     ],
 )
 
+drake_cc_binary(
+    name = "reorient_box_demo",
+    srcs = ["test/reorient_box_demo.cc"],
+    deps = [
+        ":gripper_brick_trajectory_optimization",
+        "//solvers:snopt_solver",
+    ],
+)
+
 add_lint_tests()
