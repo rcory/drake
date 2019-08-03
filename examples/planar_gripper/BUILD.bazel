@@ -181,7 +181,13 @@ drake_cc_binary(
     srcs = ["test/reorient_box_demo.cc"],
     deps = [
         ":gripper_brick_trajectory_optimization",
+        "//common/trajectories:piecewise_polynomial",
         "//solvers:snopt_solver",
+        "//solvers:solve",
+        "//common:text_logging_gflags",
+        "//systems/controllers:inverse_dynamics_controller",
+        "//systems/primitives:constant_vector_source",
+        "//systems/primitives:trajectory_source",
     ],
 )
 
