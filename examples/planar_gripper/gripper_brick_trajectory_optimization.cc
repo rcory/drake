@@ -289,7 +289,7 @@ void GripperBrickTrajectoryOptimization::AddKinematicInContactConstraint(
     double face_shrink_factor, double rolling_angle_bound) {
   // Add the initial contact constraint
   for (const auto& finger_face_contact : finger_face_contacts_[0]) {
-    AddFingerTipInContactWithBrickFace(
+    AddFingerTipInContactWithBrickFaceConstraint(
         *gripper_brick_, finger_face_contact.first, finger_face_contact.second,
         prog_.get(), q_vars_.col(0), plant_mutable_contexts_[0],
         face_shrink_factor);
@@ -301,7 +301,7 @@ void GripperBrickTrajectoryOptimization::AddKinematicInContactConstraint(
       auto it = finger_face_contacts_[i - 1].find(finger_face_contact.first);
       if (it == finger_face_contacts_[i - 1].end()) {
         // This finger just landed on the face at knot i.
-        AddFingerTipInContactWithBrickFace(
+        AddFingerTipInContactWithBrickFaceConstraint(
             *gripper_brick_, finger_face_contact.first,
             finger_face_contact.second, prog_.get(), q_vars_.col(i),
             plant_mutable_contexts_[i], face_shrink_factor);
@@ -398,7 +398,7 @@ void GripperBrickTrajectoryOptimization::AddCollisionAvoidanceConstraint(
             &(gripper_brick_->plant()), gripper_brick_->brick_frame(),
             p_BTip_lower, p_BTip_upper,
             gripper_brick_->finger_link2_frame(finger_transition->finger),
-            gripper_brick_->p_L2Tip(),
+            gripper_brick_->p_L2Fingertip(),
             plant_mutable_contexts_[finger_transition->end_knot_index - 1]),
         q_vars_.col(finger_transition->end_knot_index - 1));
   }

@@ -87,10 +87,10 @@ TEST_F(BrickDynamicConstraintTest, TestBrickTotalWrenchEvaluator) {
   gripper_brick_.plant().SetPositions(plant_context, q);
   gripper_brick_.plant().CalcPointsPositions(
       *plant_context, gripper_brick_.finger_link2_frame(Finger::kFinger1),
-      gripper_brick_.p_L2Tip(), gripper_brick_.brick_frame(), &p_BF1);
+      gripper_brick_.p_L2Fingertip(), gripper_brick_.brick_frame(), &p_BF1);
   gripper_brick_.plant().CalcPointsPositions(
       *plant_context, gripper_brick_.finger_link2_frame(Finger::kFinger2),
-      gripper_brick_.p_L2Tip(), gripper_brick_.brick_frame(), &p_BF2);
+      gripper_brick_.p_L2Fingertip(), gripper_brick_.brick_frame(), &p_BF2);
   // The witness point on finger 1 is Cf1, and the witness point on finger 2 is
   // Cf2.
   const Eigen::Vector3d p_BCf1 =
