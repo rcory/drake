@@ -6,7 +6,7 @@
 
 #include "drake/examples/planar_gripper/brick_dynamic_constraint.h"
 #include "drake/examples/planar_gripper/brick_static_equilibrium_constraint.h"
-#include "drake/examples/planar_gripper/gripper_brick_planning_utils.h"
+#include "drake/examples/planar_gripper/gripper_brick_planning_constraint_helper.h"
 #include "drake/multibody/inverse_kinematics/distance_constraint.h"
 #include "drake/multibody/inverse_kinematics/kinematic_constraint_utilities.h"
 #include "drake/multibody/inverse_kinematics/position_constraint.h"
@@ -68,14 +68,14 @@ GripperBrickTrajectoryOptimization::GripperBrickTrajectoryOptimization(
 
   // Add the kinematic in-contact constraint.
   AddKinematicInContactConstraint(options.face_shrink_factor,
-                                  options.rolling_angle_bound);
+                                  options.rolling_angle_bound, options.depth);
 
   // During finger transition, the transition finger should avoid the brick.
   AddCollisionAvoidanceConstraint(sorted_finger_transitions,
                                   options.collision_avoidance_margin);
 
   // Add friction cone constraint.
-  AddFrictionConeConstraints();
+  AddFrictionConeConstraints(options.friction_cone_shrink_factor);
 }
 
 void GripperBrickTrajectoryOptimization::AssignVariableForContactForces(
@@ -286,13 +286,13 @@ void UpdatePositionBoundsOutsideFace(const BrickFace face,
 }  // namespace
 
 void GripperBrickTrajectoryOptimization::AddKinematicInContactConstraint(
-    double face_shrink_factor, double rolling_angle_bound) {
+    double face_shrink_factor, double rolling_angle_bound, double depth) {
   // Add the initial contact constraint
   for (const auto& finger_face_contact : finger_face_contacts_[0]) {
     AddFingerTipInContactWithBrickFaceConstraint(
         *gripper_brick_, finger_face_contact.first, finger_face_contact.second,
         prog_.get(), q_vars_.col(0), plant_mutable_contexts_[0],
-        face_shrink_factor);
+        face_shrink_factor, depth);
   }
   for (int i = 1; i < nT_; ++i) {
     for (const auto& finger_face_contact : finger_face_contacts_[i]) {
@@ -412,12 +412,14 @@ void GripperBrickTrajectoryOptimization::AddPositionDifferenceBound(
                              -bound, bound);
 }
 
-void GripperBrickTrajectoryOptimization::AddFrictionConeConstraints() {
+void GripperBrickTrajectoryOptimization::AddFrictionConeConstraints(
+    double friction_cone_shrink_factor) {
   for (int i = 0; i < nT_; ++i) {
     for (const auto& finger_face : finger_face_contacts_[i]) {
       AddFrictionConeConstraint(*gripper_brick_, finger_face.first,
                                 finger_face.second,
-                                f_FB_B_[i][finger_face.first], prog_.get());
+                                f_FB_B_[i][finger_face.first],
+                                friction_cone_shrink_factor, prog_.get());
     }
   }
 }

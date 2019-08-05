@@ -39,15 +39,20 @@ class GripperBrickTrajectoryOptimization {
 
   struct Options {
     Options(double m_face_shrink_factor, IntegrationMethod m_integration_method,
-            double m_rolling_angle_bound, double m_collision_avoidance_margin)
+            double m_rolling_angle_bound, double m_collision_avoidance_margin,
+            double m_depth, double m_friction_cone_shrink_factor)
         : face_shrink_factor(m_face_shrink_factor),
           integration_method{m_integration_method},
           rolling_angle_bound{m_rolling_angle_bound},
-          collision_avoidance_margin{m_collision_avoidance_margin} {}
+          collision_avoidance_margin{m_collision_avoidance_margin},
+          depth{m_depth},
+          friction_cone_shrink_factor{m_friction_cone_shrink_factor} {}
     double face_shrink_factor = 0.8;
     IntegrationMethod integration_method = IntegrationMethod::kBackwardEuler;
     double rolling_angle_bound = {0.05 * M_PI};
     double collision_avoidance_margin = 0.01;
+    double depth = 0.001;
+    double friction_cone_shrink_factor = 0.9;
   };
 
   /**
@@ -146,13 +151,14 @@ class GripperBrickTrajectoryOptimization {
   // kinematic constraint that the finger touches the face, and does not slide
   // on the face.
   void AddKinematicInContactConstraint(double face_shrink_factor,
-                                       double rolling_angle_bound);
+                                       double rolling_angle_bound,
+                                       double depth);
 
   void AddCollisionAvoidanceConstraint(
       const std::vector<const FingerTransition*>& sorted_finger_transitions,
       double collision_avoidance_margin);
 
-  void AddFrictionConeConstraints();
+  void AddFrictionConeConstraints(double friction_cone_shrink_factor);
 
   const GripperBrickHelper<double>* const gripper_brick_;
   // number of knots.

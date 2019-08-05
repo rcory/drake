@@ -8,7 +8,9 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
@@ -41,15 +43,17 @@ GenerateReorientationTrajectory() {
   const double brick_lid_friction_force_magnitude = 0;
   const double brick_lid_friction_torque_magnitude = 0;
 
+  const double depth = 2e-4;
+  const double friction_cone_shrink_factor = 0.9;
   GripperBrickTrajectoryOptimization dut(
       &gripper_brick, nT, initial_contact, finger_transitions,
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
-          0.8,
+          0.75,
           GripperBrickTrajectoryOptimization::IntegrationMethod::kBackwardEuler,
-          0.05 * M_PI, 0.03));
+          0.05 * M_PI, 0.03, depth, friction_cone_shrink_factor));
 
-  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.1, 0.2, dut.dt());
+  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.05, 0.15, dut.dt());
 
   // Initial pose constraint on the brick.
   dut.get_mutable_prog()->AddBoundingBoxConstraint(
@@ -121,7 +125,7 @@ GenerateReorientationTrajectory() {
   for (int i = 0; i < nT; ++i) {
     gripper_brick.plant().SetPositions(plant_mutable_context, q_sol.col(i));
     gripper_brick.diagram().Publish(*diagram_context);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
   }
   Eigen::Vector3d brick_initial_pose(
       q_sol(gripper_brick.brick_translate_y_position_index(), 0),
@@ -180,12 +184,12 @@ using multibody::Parser;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
 
-DEFINE_double(target_realtime_rate, 1.0,
+DEFINE_double(target_realtime_rate, 0.01,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 4.5,
+DEFINE_double(simulation_time, 3,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-3,
+DEFINE_double(time_step, 1e-4,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
@@ -254,6 +258,7 @@ int Simulate(
   WeldGripperFrames<double>(&control_plant);
 
   plant.Finalize();
+  // plant.set_penetration_allowance(1e-4);
   control_plant.Finalize();
 
   // Sanity check on the availability of the optional source id before using it.
@@ -306,6 +311,8 @@ int Simulate(
                   plant.get_geometry_query_input_port());
 
   geometry::ConnectDrakeVisualizer(&builder, scene_graph);
+  lcm::DrakeLcm lcm;
+  multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
   auto diagram = builder.Build();
 
   // Create a context for this system:
@@ -318,7 +325,7 @@ int Simulate(
   VectorX<double> gripper_initial_conditions =
       VectorX<double>::Zero(kNumJoints * 2);
   gripper_initial_conditions.head(kNumJoints) =
-      keyframes.block(0, 0, kNumJoints, 1);
+      finger_trajectory.value(0).block(0, 0, kNumJoints, 1);
 
   // All fingers consist of two joints: a base joint and a mid joint.
   // Set the initial finger joint positions.
@@ -329,8 +336,9 @@ int Simulate(
         plant.GetJointByName<RevoluteJoint>(finger + "_BaseJoint");
     const RevoluteJoint<double>& mid_pin =
         plant.GetJointByName<RevoluteJoint>(finger + "_MidJoint");
-    int base_index = finger_joint_name_to_row_index_map[finger + "_BaseJoint"];
-    int mid_index = finger_joint_name_to_row_index_map[finger + "_MidJoint"];
+    int base_index =
+        finger_joint_name_to_row_index_map.at(finger + "_BaseJoint");
+    int mid_index = finger_joint_name_to_row_index_map.at(finger + "_MidJoint");
     base_pin.set_angle(&plant_context, gripper_initial_conditions(base_index));
     mid_pin.set_angle(&plant_context, gripper_initial_conditions(mid_index));
   }
