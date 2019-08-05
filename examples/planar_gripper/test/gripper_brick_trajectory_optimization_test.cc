@@ -26,13 +26,16 @@ GTEST_TEST(GripperBrickTrajectoryOptimizationTest, TestConstructor) {
   const double brick_lid_friction_force_magnitude = 1.5;
   const double brick_lid_friction_torque_magnitude = 2;
 
+  const double depth = 1E-3;
+  const double friction_cone_shrink_factor = 1;
+
   GripperBrickTrajectoryOptimization dut(
       &gripper_brick, nT, initial_contact, finger_transitions,
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
           0.8,
           GripperBrickTrajectoryOptimization::IntegrationMethod::kBackwardEuler,
-          0.05 * M_PI, 0.02));
+          0.05 * M_PI, 0.02, depth, friction_cone_shrink_factor));
 
   EXPECT_EQ(dut.finger_face_contacts()[0], initial_contact);
   EXPECT_EQ(dut.finger_face_contacts()[1], initial_contact);

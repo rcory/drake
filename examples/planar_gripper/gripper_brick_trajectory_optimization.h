@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -170,6 +171,8 @@ class GripperBrickTrajectoryOptimization {
 
   void AddFrictionConeConstraints(double friction_cone_shrink_factor);
 
+  void AddMiddlePointIntegrationConstraint();
+
   const GripperBrickHelper<double>* const gripper_brick_;
   // number of knots.
   int nT_;
@@ -202,6 +205,7 @@ class GripperBrickTrajectoryOptimization {
   // We will also impose constraints on the mid point between two knots.
   MatrixX<symbolic::Variable> q_mid_vars_;
   std::vector<std::unique_ptr<systems::Context<double>>> diagram_contexts_mid_;
+  std::vector<systems::Context<double>*> plant_mutable_contexts_mid_;
 
   // We will impose kinematic constraint on some interpolated postures, hence we
   // need to create the context for these postures, and keep the contexts alive

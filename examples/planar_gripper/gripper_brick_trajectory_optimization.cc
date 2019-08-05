@@ -35,7 +35,10 @@ GripperBrickTrajectoryOptimization::GripperBrickTrajectoryOptimization(
       plant_mutable_contexts_(nT_),
       dt_(prog_->NewContinuousVariables(nT_ - 1)),
       finger_transitions_(finger_transitions),
-      finger_face_contacts_(nT_) {
+      finger_face_contacts_(nT_),
+      q_mid_vars_{prog_->NewContinuousVariables(
+          gripper_brick_->plant().num_positions(), nT_ - 1)},
+      plant_mutable_contexts_mid_(nT_ - 1) {
   // Create the contexts used at each knot.
   diagram_contexts_.reserve(nT_);
   for (int i = 0; i < nT_; ++i) {
@@ -44,6 +47,14 @@ GripperBrickTrajectoryOptimization::GripperBrickTrajectoryOptimization(
     plant_mutable_contexts_[i] =
         &(gripper_brick_->diagram().GetMutableSubsystemContext(
             gripper_brick_->plant(), diagram_contexts_[i].get()));
+  }
+  diagram_contexts_mid_.reserve(nT_ - 1);
+  for (int i = 0; i < nT_ - 1; ++i) {
+    diagram_contexts_mid_.push_back(
+        gripper_brick->diagram().CreateDefaultContext());
+    plant_mutable_contexts_mid_[i] =
+        &(gripper_brick_->diagram().GetMutableSubsystemContext(
+            gripper_brick_->plant(), diagram_contexts_mid_[i].get()));
   }
 
   // Add joint limits.
@@ -334,9 +345,15 @@ void GripperBrickTrajectoryOptimization::AddKinematicInContactConstraint(
             finger_face_contact.second, rolling_angle_bound, prog_.get(),
             plant_mutable_contexts_[i - 1], plant_mutable_contexts_[i],
             q_vars_.col(i - 1), q_vars_.col(i), face_shrink_factor);
+        // The middle-point also sticks to the face.
+        AddFingerNoSlidingConstraint(
+            *gripper_brick_, finger_face_contact.first,
+            finger_face_contact.second, rolling_angle_bound, prog_.get(),
+            plant_mutable_contexts_[i - 1], plant_mutable_contexts_mid_[i - 1],
+            q_vars_.col(i - 1), q_mid_vars_.col(i - 1), face_shrink_factor);
       }
       // If the finger tip is in contact, we want to avoid that the finger link
-      // 2 body is not in contact with the brick. We do this by requiring that
+      // 2 body is also in contact with the brick. We do this by requiring that
       // the origin of link2 is outside of the contact face.
       Eigen::Vector3d p_BLink2_lower(-kInf, -kInf, -kInf);
       Eigen::Vector3d p_BLink2_upper(kInf, kInf, kInf);
@@ -527,6 +544,104 @@ GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
       t_sol, finger_keyframes);
 }
 
+class QuadraitcPolynomialMidpointInterpolationConstraint
+    : public solvers::Constraint {
+ public:
+  QuadraitcPolynomialMidpointInterpolationConstraint(int dim)
+      : solvers::Constraint(dim, 5 * dim + 1, Eigen::VectorXd::Zero(dim),
+                            Eigen::VectorXd::Zero(dim)),
+        dim_{dim} {}
+
+  ~QuadraitcPolynomialMidpointInterpolationConstraint() override {}
+
+  template <typename T>
+  void ComposeX(const Eigen::Ref<const VectorX<T>>& q_l,
+                const Eigen::Ref<const VectorX<T>>& q_r,
+                const Eigen::Ref<const VectorX<T>>& v_l,
+                const Eigen::Ref<const VectorX<T>>& v_r,
+                const Eigen::Ref<const VectorX<T>>& q_m, const T& dt,
+                VectorX<T>* x) const {
+    x->resize(num_vars());
+    (*x) << q_l, q_r, v_l, v_r, q_m, dt;
+  }
+
+ private:
+  template <typename T>
+  void DoEvalGeneric(const Eigen::Ref<const VectorX<T>>& x,
+                     VectorX<T>* y) const {
+    const auto& q_l = x.head(dim_);
+    const auto& q_r = x.segment(dim_, dim_);
+    const auto& v_l = x.segment(2 * dim_, dim_);
+    const auto& v_r = x.segment(3 * dim_, dim_);
+    const auto& q_m = x.segment(4 * dim_, dim_);
+    const auto& dt = x(5 * dim_);
+    *y = q_m - (q_l + q_r) / 2 - (v_l - v_r) / 4 * dt;
+  }
+
+  void DoEval(const Eigen::Ref<const Eigen::VectorXd>& x,
+              Eigen::VectorXd* y) const override {
+    DoEvalGeneric<double>(x, y);
+  }
+
+  void DoEval(const Eigen::Ref<const AutoDiffVecXd>& x,
+              AutoDiffVecXd* y) const override {
+    DoEvalGeneric<AutoDiffXd>(x, y);
+  }
+
+  void DoEval(const Eigen::Ref<const VectorX<symbolic::Variable>>& x,
+              VectorX<symbolic::Expression>* y) const override {
+    DoEvalGeneric<symbolic::Expression>(x.cast<symbolic::Expression>(), y);
+  }
+  int dim_;
+};
+
+void GripperBrickTrajectoryOptimization::AddMiddlePointIntegrationConstraint() {
+  // The finger position is interpolated as piecewise linear polynomial.
+  for (int i = 0; i < nT_ - 1; ++i) {
+    for (Finger finger :
+         {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
+      const int base_index = gripper_brick_->finger_base_position_index(finger);
+      prog_->AddLinearEqualityConstraint(
+          Eigen::RowVector3d(1, 1, -2), 0,
+          Vector3<symbolic::Variable>(q_vars_(base_index, i),
+                                      q_vars_(base_index, i + 1),
+                                      q_mid_vars_(base_index, i)));
+      const int mid_index = gripper_brick_->finger_mid_position_index(finger);
+      prog_->AddLinearEqualityConstraint(
+          Eigen::RowVector3d(1, 1, -2), 0,
+          Vector3<symbolic::Variable>(q_vars_(mid_index, i),
+                                      q_vars_(mid_index, i + 1),
+                                      q_mid_vars_(mid_index, i)));
+    }
+  }
+
+  // The brick trajectory is interpolated as piecewise quadratic polynomial.
+  for (int i = 0; i < nT_ - 1; ++i) {
+    Vector3<symbolic::Variable> q_brick_l, q_brick_r, v_brick_l, v_brick_r,
+        q_brick_m;
+    q_brick_l << q_vars_(gripper_brick_->brick_translate_y_position_index(), i),
+        q_vars_(gripper_brick_->brick_translate_z_position_index(), i),
+        q_vars_(gripper_brick_->brick_revolute_x_position_index(), i);
+    q_brick_r << q_vars_(gripper_brick_->brick_translate_y_position_index(),
+                         i + 1),
+        q_vars_(gripper_brick_->brick_translate_z_position_index(), i + 1),
+        q_vars_(gripper_brick_->brick_revolute_x_position_index(), i + 1);
+    v_brick_l << brick_v_y_vars()(i), brick_v_z_vars()(i),
+        brick_omega_x_vars()(i);
+    v_brick_r << brick_v_y_vars()(i + 1), brick_v_z_vars()(i + 1),
+        brick_omega_x_vars()(i + 1);
+    q_brick_m << q_mid_vars_(gripper_brick_->brick_translate_y_position_index(),
+                             i),
+        q_mid_vars_(gripper_brick_->brick_translate_z_position_index(), i),
+        q_mid_vars_(gripper_brick_->brick_revolute_x_position_index(), i);
+    VectorX<symbolic::Variable> x_vars;
+    auto constraint =
+        std::make_shared<QuadraitcPolynomialMidpointInterpolationConstraint>(3);
+    constraint->ComposeX<symbolic::Variable>(
+        q_brick_l, q_brick_r, v_brick_l, v_brick_r, q_brick_m, dt_(i), &x_vars);
+    prog_->AddConstraint(constraint, x_vars);
+  }
+}
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

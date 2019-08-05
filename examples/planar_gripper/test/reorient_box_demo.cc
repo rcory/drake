@@ -25,6 +25,17 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
+
+DEFINE_double(target_realtime_rate, 0.1,
+              "Desired rate relative to real time.  See documentation for "
+              "Simulator::set_target_realtime_rate() for details.");
+DEFINE_double(simulation_time, 3,
+              "Desired duration of the simulation in seconds.");
+DEFINE_double(time_step, 1e-4,
+              "If greater than zero, the plant is modeled as a system with "
+              "discrete updates and period equal to this time_step. "
+              "If 0, the plant is modeled as a continuous system.");
+
 std::tuple<trajectories::PiecewisePolynomial<double>, Eigen::Vector3d,
            std::map<std::string, int>>
 GenerateReorientationTrajectory() {
@@ -117,6 +128,7 @@ GenerateReorientationTrajectory() {
   const Eigen::MatrixXd q_sol = result.GetSolution(dut.q_vars());
   const Eigen::VectorXd dt_sol = result.GetSolution(dut.dt());
   std::cout << "dt: " << dt_sol.transpose() << "\n";
+  std::cout << "total time: " << dt_sol.sum() << "\n";
 
   auto diagram_context = gripper_brick.diagram().CreateDefaultContext();
   systems::Context<double>* plant_mutable_context =
@@ -159,16 +171,6 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
-
-DEFINE_double(target_realtime_rate, 0.1,
-              "Desired rate relative to real time.  See documentation for "
-              "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 3,
-              "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-4,
-              "If greater than zero, the plant is modeled as a system with "
-              "discrete updates and period equal to this time_step. "
-              "If 0, the plant is modeled as a continuous system.");
 
 /// Converts the generalized force output of the ID controller (internally using
 /// a control plant with only the gripper) to the generalized force input for
