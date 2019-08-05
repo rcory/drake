@@ -156,6 +156,82 @@ void BrickDynamicBackwardEulerConstraint::DoEval(
     const Eigen::Ref<const AutoDiffVecXd>& x, AutoDiffVecXd* y) const {
   DoEvalGeneric<AutoDiffXd>(x, y);
 }
+
+BrickDynamicMidpointIntegrationConstraint::
+    BrickDynamicMidpointIntegrationConstraint(
+        const GripperBrickHelper<double>* const gripper_brick,
+        systems::Context<double>* plant_context_r,
+        systems::Context<double>* plant_context_l,
+        std::map<Finger, BrickFace> finger_faces_r,
+        std::map<Finger, BrickFace> finger_faces_l,
+        double brick_lid_friction_force_magnitude,
+        double brick_lid_friction_torque_magnitude)
+    : solvers::Constraint(3,
+                          gripper_brick->plant().num_positions() * 2 + 6 +
+                              2 * static_cast<int>(finger_faces_l.size()) +
+                              2 * static_cast<int>(finger_faces_r.size()) + 1,
+                          Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()),
+      gripper_brick_(gripper_brick),
+      plant_context_r_{plant_context_r},
+      plant_context_l_{plant_context_l},
+      wrench_evaluator_r_(gripper_brick, plant_context_r_, finger_faces_r,
+                          brick_lid_friction_force_magnitude,
+                          brick_lid_friction_torque_magnitude),
+      wrench_evaluator_l_(gripper_brick, plant_context_l_, finger_faces_l,
+                          brick_lid_friction_force_magnitude,
+                          brick_lid_friction_torque_magnitude) {}
+
+template <typename T>
+void BrickDynamicMidpointIntegrationConstraint::DoEvalGeneric(
+    const Eigen::Ref<const VectorX<T>>& x, VectorX<T>* y) const {
+  VectorX<T> q_r, q_l;
+  T v_brick_r_translation_y, v_brick_r_translation_z, v_brick_r_rotation_x,
+      v_brick_l_translation_y, v_brick_l_translation_z, v_brick_l_rotation_x;
+  Matrix2X<T> f_FB_B_r, f_FB_B_l;
+  T dt;
+  DecomposeX(x, &q_r, &q_l, &v_brick_r_translation_y, &v_brick_r_translation_z,
+             &v_brick_r_rotation_x, &v_brick_l_translation_y,
+             &v_brick_l_translation_z, &v_brick_l_rotation_x, &f_FB_B_r,
+             &f_FB_B_l, &dt);
+  VectorX<T> total_wrench_r, total_wrench_l;
+  VectorX<T> wrench_evaluator_r_x, wrench_evaluator_l_x;
+  wrench_evaluator_r_.ComposeX<T>(q_r, v_brick_r_translation_y,
+                                  v_brick_r_translation_z, v_brick_r_rotation_x,
+                                  f_FB_B_r, &wrench_evaluator_r_x);
+  wrench_evaluator_l_.ComposeX<T>(q_l, v_brick_l_translation_y,
+                                  v_brick_l_translation_z, v_brick_l_rotation_x,
+                                  f_FB_B_l, &wrench_evaluator_l_x);
+  wrench_evaluator_r_.Eval(wrench_evaluator_r_x, &total_wrench_r);
+  wrench_evaluator_l_.Eval(wrench_evaluator_l_x, &total_wrench_l);
+  y->resize(3);
+  y->template head<2>() =
+      gripper_brick_->brick_frame().body().get_default_mass() *
+          Vector2<T>(v_brick_r_translation_y - v_brick_l_translation_y,
+                     v_brick_r_translation_z - v_brick_l_translation_z) -
+      (total_wrench_r.template head<2>() + total_wrench_l.template head<2>()) /
+          2 * dt;
+  multibody::internal::UpdateContextConfiguration(plant_context_r_,
+                                                  gripper_brick_->plant(), q_r);
+  multibody::internal::UpdateContextConfiguration(plant_context_l_,
+                                                  gripper_brick_->plant(), q_l);
+  const double I = gripper_brick_->brick_frame()
+                       .body()
+                       .CalcSpatialInertiaInBodyFrame(*plant_context_r_)
+                       .CalcRotationalInertia()
+                       .get_moments()(0);
+  (*y)(2) = I * (v_brick_r_rotation_x - v_brick_l_rotation_x) -
+            (total_wrench_r(2) + total_wrench_l(2)) / 2 * dt;
+}
+
+void BrickDynamicMidpointIntegrationConstraint::DoEval(
+    const Eigen::Ref<const Eigen::VectorXd>& x, Eigen::VectorXd* y) const {
+  DoEvalGeneric<double>(x, y);
+}
+
+void BrickDynamicMidpointIntegrationConstraint::DoEval(
+    const Eigen::Ref<const AutoDiffVecXd>& x, AutoDiffVecXd* y) const {
+  DoEvalGeneric<AutoDiffXd>(x, y);
+}
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

@@ -50,7 +50,7 @@ GenerateReorientationTrajectory() {
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
           0.75,
-          GripperBrickTrajectoryOptimization::IntegrationMethod::kBackwardEuler,
+          GripperBrickTrajectoryOptimization::IntegrationMethod::kMidpoint,
           0.05 * M_PI, 0.03, depth, friction_cone_shrink_factor));
 
   dut.get_mutable_prog()->AddBoundingBoxConstraint(0.05, 0.15, dut.dt());
@@ -139,34 +139,10 @@ GenerateReorientationTrajectory() {
        {"finger1_MidJoint", 3},
        {"finger2_MidJoint", 4},
        {"finger3_MidJoint", 5}});
-  Eigen::MatrixXd finger_keyframes(6, nT);
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger1_BaseJoint")) =
-      q_sol.row(gripper_brick.finger_base_position_index(Finger::kFinger1));
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger2_BaseJoint")) =
-      q_sol.row(gripper_brick.finger_base_position_index(Finger::kFinger2));
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger3_BaseJoint")) =
-      q_sol.row(gripper_brick.finger_base_position_index(Finger::kFinger3));
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger1_MidJoint")) =
-      q_sol.row(gripper_brick.finger_mid_position_index(Finger::kFinger1));
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger2_MidJoint")) =
-      q_sol.row(gripper_brick.finger_mid_position_index(Finger::kFinger2));
-  finger_keyframes.row(
-      finger_joint_name_to_row_index_map.at("finger3_MidJoint")) =
-      q_sol.row(gripper_brick.finger_mid_position_index(Finger::kFinger3));
 
-  Eigen::VectorXd t_sol(nT);
-  t_sol(0) = 0;
-  for (int i = 0; i < nT - 1; ++i) {
-    t_sol(i + 1) = t_sol(i) + dt_sol(i);
-  }
   const trajectories::PiecewisePolynomial<double> pp =
-      trajectories::PiecewisePolynomial<double>::Pchip(t_sol, finger_keyframes,
-                                                       true);
+      dut.ReconstructFingerTrajectory(result,
+                                      finger_joint_name_to_row_index_map);
 
   return std::make_tuple(pp, brick_initial_pose,
                          finger_joint_name_to_row_index_map);
@@ -184,7 +160,7 @@ using multibody::Parser;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
 
-DEFINE_double(target_realtime_rate, 0.01,
+DEFINE_double(target_realtime_rate, 0.1,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(simulation_time, 3,

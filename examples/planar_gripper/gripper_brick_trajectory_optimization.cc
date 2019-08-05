@@ -180,6 +180,9 @@ void GripperBrickTrajectoryOptimization::AddDynamicConstraint(
         const int right_knot_index = left_knot_index + 1;
         compose_contact_force_variables(right_knot_index, finger_face_contacts,
                                         &f_FB_B_r);
+        Matrix2X<symbolic::Variable> f_FB_B_l(2, finger_face_contacts.size());
+        compose_contact_force_variables(left_knot_index, finger_face_contacts,
+                                        &f_FB_B_l);
         switch (integration_method) {
           case IntegrationMethod::kBackwardEuler: {
             auto constraint =
@@ -190,19 +193,36 @@ void GripperBrickTrajectoryOptimization::AddDynamicConstraint(
             VectorX<symbolic::Variable> bound_vars;
             constraint->ComposeX<symbolic::Variable>(
                 this->q_vars_.col(right_knot_index),
-                this->brick_v_y_vars_(right_knot_index),
-                this->brick_v_z_vars_(right_knot_index),
-                this->brick_omega_x_vars_(right_knot_index),
-                this->brick_v_y_vars_(left_knot_index),
-                this->brick_v_z_vars_(left_knot_index),
-                this->brick_omega_x_vars_(left_knot_index), f_FB_B_r,
+                this->brick_v_y_vars()(right_knot_index),
+                this->brick_v_z_vars()(right_knot_index),
+                this->brick_omega_x_vars()(right_knot_index),
+                this->brick_v_y_vars()(left_knot_index),
+                this->brick_v_z_vars()(left_knot_index),
+                this->brick_omega_x_vars()(left_knot_index), f_FB_B_r,
                 this->dt_(left_knot_index), &bound_vars);
             this->prog_->AddConstraint(constraint, bound_vars);
             break;
           }
           case IntegrationMethod::kMidpoint: {
-            throw std::runtime_error(
-                "midpoint integration is not supported yet");
+            auto constraint =
+                std::make_shared<BrickDynamicMidpointIntegrationConstraint>(
+                    gripper_brick_, plant_mutable_contexts_[right_knot_index],
+                    plant_mutable_contexts_[left_knot_index],
+                    finger_face_contacts, finger_face_contacts,
+                    brick_lid_friction_force_magnitude,
+                    brick_lid_friction_torque_magnitude);
+            VectorX<symbolic::Variable> bound_vars;
+            constraint->ComposeX<symbolic::Variable>(
+                this->q_vars_.col(right_knot_index),
+                this->q_vars_.col(left_knot_index),
+                this->brick_v_y_vars()(right_knot_index),
+                this->brick_v_z_vars()(right_knot_index),
+                this->brick_omega_x_vars()(right_knot_index),
+                this->brick_v_y_vars()(left_knot_index),
+                this->brick_v_z_vars()(left_knot_index),
+                this->brick_omega_x_vars()(left_knot_index), f_FB_B_r, f_FB_B_l,
+                this->dt_(left_knot_index), &bound_vars);
+            this->prog_->AddConstraint(constraint, bound_vars);
             break;
           }
         }
@@ -242,14 +262,16 @@ void GripperBrickTrajectoryOptimization::
   q_brick_l << q_vars_(gripper_brick_->brick_translate_y_position_index(), 0),
       q_vars_(gripper_brick_->brick_translate_z_position_index(), 0),
       q_vars_(gripper_brick_->brick_revolute_x_position_index(), 0);
-  v_brick_l << brick_v_y_vars_(0), brick_v_z_vars_(0), brick_omega_x_vars_(0);
+  v_brick_l << brick_v_y_vars()(0), brick_v_z_vars()(0),
+      brick_omega_x_vars()(0);
   auto position_midpoint_constraint = std::make_shared<
       systems::trajectory_optimization::MidPointIntegrationConstraint>(3);
   for (int i = 1; i < nT_; ++i) {
     q_brick_r << q_vars_(gripper_brick_->brick_translate_y_position_index(), i),
         q_vars_(gripper_brick_->brick_translate_z_position_index(), i),
         q_vars_(gripper_brick_->brick_revolute_x_position_index(), i);
-    v_brick_r << brick_v_y_vars_(i), brick_v_z_vars_(i), brick_omega_x_vars_(i);
+    v_brick_r << brick_v_y_vars()(i), brick_v_z_vars()(i),
+        brick_omega_x_vars()(i);
     VectorX<symbolic::Variable> constraint_x;
     position_midpoint_constraint->ComposeX<symbolic::Variable>(
         q_brick_r, q_brick_l, v_brick_r, v_brick_l, dt_(i - 1), &constraint_x);
@@ -467,6 +489,42 @@ void GripperBrickTrajectoryOptimization::AddBrickStaticEquilibriumConstraint(
         f_FB_B_[knot].at(finger_face_contacts_knot[i].first);
   }
   prog_->AddConstraint(constraint, bound_vars);
+}
+
+trajectories::PiecewisePolynomial<double>
+GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
+    const solvers::MathematicalProgramResult& result,
+    const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+    const {
+  const Eigen::MatrixXd q_sol = result.GetSolution(q_vars_);
+  Matrix6X<double> finger_keyframes(6, nT_);
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger1_BaseJoint")) =
+      q_sol.row(gripper_brick_->finger_base_position_index(Finger::kFinger1));
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger2_BaseJoint")) =
+      q_sol.row(gripper_brick_->finger_base_position_index(Finger::kFinger2));
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger3_BaseJoint")) =
+      q_sol.row(gripper_brick_->finger_base_position_index(Finger::kFinger3));
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger1_MidJoint")) =
+      q_sol.row(gripper_brick_->finger_mid_position_index(Finger::kFinger1));
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger2_MidJoint")) =
+      q_sol.row(gripper_brick_->finger_mid_position_index(Finger::kFinger2));
+  finger_keyframes.row(
+      finger_joint_name_to_row_index_map.at("finger3_MidJoint")) =
+      q_sol.row(gripper_brick_->finger_mid_position_index(Finger::kFinger3));
+
+  const Eigen::VectorXd dt_sol = result.GetSolution(dt_);
+  Eigen::VectorXd t_sol(nT_);
+  t_sol(0) = 0;
+  for (int i = 0; i < nT_ - 1; ++i) {
+    t_sol(i + 1) = t_sol(i) + dt_sol(i);
+  }
+  return trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+      t_sol, finger_keyframes);
 }
 
 }  // namespace planar_gripper

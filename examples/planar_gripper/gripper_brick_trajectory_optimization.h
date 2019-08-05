@@ -5,8 +5,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "drake/common/trajectories/piecewise_polynomial.h"
 #include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/solvers/mathematical_program.h"
+#include "drake/solvers/mathematical_program_result.h"
 
 namespace drake {
 namespace examples {
@@ -133,6 +135,14 @@ class GripperBrickTrajectoryOptimization {
    */
   void AddBrickStaticEquilibriumConstraint(int knot);
 
+  trajectories::PiecewisePolynomial<double> ReconstructFingerTrajectory(
+      const solvers::MathematicalProgramResult& result,
+      const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+      const;
+
+  trajectories::PiecewisePolynomial<double> ReconstructFingerForceTrajectory(
+      const solvers::MathematicalProgramResult& result) const;
+
  private:
   void AssignVariableForContactForces(
       const std::map<Finger, BrickFace>& initial_contact,
@@ -166,6 +176,9 @@ class GripperBrickTrajectoryOptimization {
   std::unique_ptr<solvers::MathematicalProgram> prog_;
   // q_vars_.col(i) represents all the q variables at the i'th knot.
   MatrixX<symbolic::Variable> q_vars_;
+
+  MatrixX<symbolic::Variable> v_vars_;
+
   // brick_v_y_vars_(i) represents the brick y translational velocity variable
   // at the i'th knot.
   VectorX<symbolic::Variable> brick_v_y_vars_;
@@ -185,6 +198,10 @@ class GripperBrickTrajectoryOptimization {
   VectorX<symbolic::Variable> dt_;
   std::vector<FingerTransition> finger_transitions_;
   std::vector<std::map<Finger, BrickFace>> finger_face_contacts_;
+
+  // We will also impose constraints on the mid point between two knots.
+  MatrixX<symbolic::Variable> q_mid_vars_;
+  std::vector<std::unique_ptr<systems::Context<double>>> diagram_contexts_mid_;
 
   // We will impose kinematic constraint on some interpolated postures, hence we
   // need to create the context for these postures, and keep the contexts alive
