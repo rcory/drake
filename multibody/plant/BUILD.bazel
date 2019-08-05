@@ -167,6 +167,30 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "force_controller",
+    srcs = [
+        "force_controller.cc",
+    ],
+    hdrs = [
+        "force_controller.h",
+    ],
+    tags = [
+        # Don't add this library into the ":multibody_plant" package library.
+        # Use of MBP doesn't imply use of contact visualization so this
+        # dependency should be invoked explicitly.
+        "exclude_from_package",
+    ],
+    deps = [
+        ":contact_results",
+        ":plant",
+        "//lcmtypes:contact_info_for_viz",
+        "//lcmtypes:contact_results_for_viz",
+        "//systems/framework:diagram_builder",
+        "//systems/lcm:lcm_pubsub_system",
+    ],
+)
+
+drake_cc_library(
     name = "coulomb_friction",
     srcs = [
         "coulomb_friction.cc",

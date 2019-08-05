@@ -193,9 +193,9 @@ int do_main() {
   unused(plant_id);
 
   // Connect the force controler
+  Vector2<double> constv(0, 0);
   auto force_controller = builder.AddSystem<ForceController>(plant);
-  auto const_src = builder.AddSystem<systems::ConstantVectorSource>(
-      VectorX<double>::Zero(2));
+  auto const_src = builder.AddSystem<systems::ConstantVectorSource>(constv);
   builder.Connect(const_src->get_output_port(),
                   force_controller->get_force_desired_input_port());
 

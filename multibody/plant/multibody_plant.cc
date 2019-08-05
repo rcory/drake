@@ -1165,12 +1165,24 @@ template <typename T>
 void MultibodyPlant<T>::CalcContactResults(
     const systems::Context<T>& context,
     ContactResults<T>* contact_results) const {
+//  drake::log()->info("time: {}", context.get_time());
   DRAKE_DEMAND(contact_results != nullptr);
   contact_results->Clear();
   if (num_collision_geometries() == 0) return;
 
   const std::vector<PenetrationAsPointPair<T>>& point_pairs =
       EvalPointPairPenetrations(context);
+//  drake::log()->info("point_pairs size: {}", point_pairs.size());
+//  for (const auto& pair : point_pairs) {
+//
+//    const auto& query_object = this->get_geometry_query_input_port().template
+//        Eval<geometry::QueryObject<double>>(context);
+//    FrameId f_A = query_object.inspector().GetFrameId(pair.id_A);
+//    const Body<T>* body_A = GetBodyFromFrameId(f_A);
+//    FrameId f_B = query_object.inspector().GetFrameId(pair.id_B);
+//    const Body<T>* body_B = GetBodyFromFrameId(f_B);
+//    drake::log()->info("  collision between {} and {}", body_A->name(), body_B->name());
+//  }
   const std::vector<RotationMatrix<T>>& R_WC_set =
       EvalContactJacobians(context).R_WC_list;
   const internal::ImplicitStribeckSolverResults<T>& solver_results =
