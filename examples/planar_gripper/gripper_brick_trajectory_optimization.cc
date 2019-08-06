@@ -410,7 +410,7 @@ void GripperBrickTrajectoryOptimization::AddCollisionAvoidanceConstraint(
         prog_->AddConstraint(
             std::make_shared<multibody::DistanceConstraint>(
                 &(gripper_brick_->plant()), finger_pair,
-                plant_mutable_contexts_[landing_knot], 0.01, kInf),
+                plant_mutable_contexts_[landing_knot], 0.02, kInf),
             q_vars_.col(landing_knot));
       }
     }
@@ -508,6 +508,17 @@ void GripperBrickTrajectoryOptimization::AddBrickStaticEquilibriumConstraint(
   prog_->AddConstraint(constraint, bound_vars);
 }
 
+Eigen::VectorXd GripperBrickTrajectoryOptimization::ReconstructTimeSolution(
+    const solvers::MathematicalProgramResult& result) const {
+  Eigen::VectorXd t_sol(nT_);
+  t_sol(0) = 0;
+  const Eigen::VectorXd dt_sol = result.GetSolution(dt_);
+  for (int i = 0; i < nT_ - 1; ++i) {
+    t_sol(i + 1) = t_sol(i) + dt_sol(i);
+  }
+  return t_sol;
+}
+
 trajectories::PiecewisePolynomial<double>
 GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
     const solvers::MathematicalProgramResult& result,
@@ -534,12 +545,7 @@ GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
       finger_joint_name_to_row_index_map.at("finger3_MidJoint")) =
       q_sol.row(gripper_brick_->finger_mid_position_index(Finger::kFinger3));
 
-  const Eigen::VectorXd dt_sol = result.GetSolution(dt_);
-  Eigen::VectorXd t_sol(nT_);
-  t_sol(0) = 0;
-  for (int i = 0; i < nT_ - 1; ++i) {
-    t_sol(i + 1) = t_sol(i) + dt_sol(i);
-  }
+  const Eigen::VectorXd t_sol = ReconstructTimeSolution(result);
   return trajectories::PiecewisePolynomial<double>::FirstOrderHold(
       t_sol, finger_keyframes);
 }

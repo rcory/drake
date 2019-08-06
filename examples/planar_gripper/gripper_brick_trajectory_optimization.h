@@ -144,6 +144,9 @@ class GripperBrickTrajectoryOptimization {
   trajectories::PiecewisePolynomial<double> ReconstructFingerForceTrajectory(
       const solvers::MathematicalProgramResult& result) const;
 
+  Eigen::VectorXd ReconstructTimeSolution(
+      const solvers::MathematicalProgramResult& result) const;
+
  private:
   void AssignVariableForContactForces(
       const std::map<Finger, BrickFace>& initial_contact,

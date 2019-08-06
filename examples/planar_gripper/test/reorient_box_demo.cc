@@ -21,12 +21,13 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/trajectory_source.h"
+#include "drake/systems/rendering/multibody_position_to_geometry_pose.h"
 
 namespace drake {
 namespace examples {
 namespace planar_gripper {
 
-DEFINE_double(target_realtime_rate, 0.1,
+DEFINE_double(target_realtime_rate, 1,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(simulation_time, 3,
@@ -35,6 +36,46 @@ DEFINE_double(time_step, 1e-4,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
+DEFINE_string(visualization, "plan",
+              "visualization option could be 'plan', 'simulation' or 'both'");
+
+void VisualizeTrajectory(const trajectories::Trajectory<double>& traj) {
+  systems::DiagramBuilder<double> builder;
+  auto plant = std::make_unique<multibody::MultibodyPlant<double>>();
+  auto scene_graph = builder.AddSystem<geometry::SceneGraph<double>>();
+  plant->RegisterAsSourceForSceneGraph(scene_graph);
+  const std::string gripper_path =
+      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
+  multibody::Parser parser(plant.get(), scene_graph);
+  parser.AddModelFromFile(gripper_path, "gripper");
+  examples::planar_gripper::WeldGripperFrames(plant.get());
+  const std::string brick_path =
+      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  parser.AddModelFromFile(brick_path, "brick");
+  (plant)->WeldFrames((plant)->world_frame(),
+                      (plant)->GetFrameByName("brick_base"),
+                      math::RigidTransformd());
+
+  (plant)->Finalize();
+
+  auto traj_source =
+      builder.AddSystem<systems::TrajectorySource<double>>(traj, 0, true);
+  auto to_pose =
+      builder.AddSystem<systems::rendering::MultibodyPositionToGeometryPose>(
+          *plant);
+  builder.Connect(traj_source->get_output_port(), to_pose->get_input_port());
+  builder.Connect(
+      to_pose->get_output_port(),
+      scene_graph->get_source_pose_port(plant->get_source_id().value()));
+
+  ConnectDrakeVisualizer(&builder, *scene_graph);
+
+  auto diagram = builder.Build();
+  systems::Simulator<double> simulator(*diagram);
+  simulator.Initialize();
+  simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
+  simulator.AdvanceTo(traj.end_time());
+}
 
 std::tuple<trajectories::PiecewisePolynomial<double>, Eigen::Vector3d,
            std::map<std::string, int>>
@@ -130,15 +171,15 @@ GenerateReorientationTrajectory() {
   std::cout << "dt: " << dt_sol.transpose() << "\n";
   std::cout << "total time: " << dt_sol.sum() << "\n";
 
-  auto diagram_context = gripper_brick.diagram().CreateDefaultContext();
-  systems::Context<double>* plant_mutable_context =
-      &(gripper_brick.diagram().GetMutableSubsystemContext(
-          gripper_brick.plant(), diagram_context.get()));
-  for (int i = 0; i < nT; ++i) {
-    gripper_brick.plant().SetPositions(plant_mutable_context, q_sol.col(i));
-    gripper_brick.diagram().Publish(*diagram_context);
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  }
+  // auto diagram_context = gripper_brick.diagram().CreateDefaultContext();
+  // systems::Context<double>* plant_mutable_context =
+  //    &(gripper_brick.diagram().GetMutableSubsystemContext(
+  //        gripper_brick.plant(), diagram_context.get()));
+  // for (int i = 0; i < nT; ++i) {
+  //  gripper_brick.plant().SetPositions(plant_mutable_context, q_sol.col(i));
+  //  gripper_brick.diagram().Publish(*diagram_context);
+  //  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  //}
   Eigen::Vector3d brick_initial_pose(
       q_sol(gripper_brick.brick_translate_y_position_index(), 0),
       q_sol(gripper_brick.brick_translate_z_position_index(), 0),
@@ -152,11 +193,18 @@ GenerateReorientationTrajectory() {
        {"finger2_MidJoint", 4},
        {"finger3_MidJoint", 5}});
 
-  const trajectories::PiecewisePolynomial<double> pp =
+  const trajectories::PiecewisePolynomial<double> finger_traj =
       dut.ReconstructFingerTrajectory(result,
                                       finger_joint_name_to_row_index_map);
 
-  return std::make_tuple(pp, brick_initial_pose,
+  const Eigen::VectorXd t_sol = dut.ReconstructTimeSolution(result);
+  const trajectories::PiecewisePolynomial<double> q_traj =
+      trajectories::PiecewisePolynomial<double>::FirstOrderHold(t_sol, q_sol);
+  if (FLAGS_visualization == "plan" || FLAGS_visualization == "both") {
+    VisualizeTrajectory(q_traj);
+  }
+
+  return std::make_tuple(finger_traj, brick_initial_pose,
                          finger_joint_name_to_row_index_map);
 }
 
@@ -348,11 +396,19 @@ int DoMain() {
   std::tie(finger_trajectory, brick_initial_pose,
            finger_joint_name_to_row_index_map) =
       GenerateReorientationTrajectory();
-  return Simulate(finger_trajectory, brick_initial_pose,
-                  finger_joint_name_to_row_index_map);
+  if (FLAGS_visualization == "sim" || FLAGS_visualization == "both") {
+    return Simulate(finger_trajectory, brick_initial_pose,
+                    finger_joint_name_to_row_index_map);
+  } else {
+    return 0;
+  }
 }
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake
 
-int main() { return drake::examples::planar_gripper::DoMain(); }
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  drake::logging::HandleSpdlogGflags();
+  return drake::examples::planar_gripper::DoMain();
+}
