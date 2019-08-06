@@ -44,19 +44,20 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 8.0,
+DEFINE_double(simulation_time, 5.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
-DEFINE_double(brick_z, 0, "Location of the brock on z-axis");
 DEFINE_bool(fix_input, false, "Fix the actuation inputs to zero?");
 DEFINE_bool(use_brick, false,
             "True if sim should use the 1dof brick (revolute), false if it "
             "should use the 1dof surface.");
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
-DEFINE_double(fz, 0, "Desired end effector force");
+DEFINE_double(fz, -10, "Desired end effector force");
+DEFINE_double(Kd, 0.3, "joint damping Kd");
+DEFINE_double(kpy, 1200.0*0, "kpy");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -132,8 +133,15 @@ class ForceController : public systems::LeafSystem<double> {
     // Set the plant's position and velocity within the context.
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);
     torque_calc.setZero();
+
+    // Gravity compensation.
     torque_calc =
         -plant_.CalcGravityGeneralizedForces(*plant_context_);
+
+    // Damping.
+    Eigen::Matrix2d Kd;
+    Kd << FLAGS_Kd, 0, 0, FLAGS_Kd;
+    torque_calc += -Kd * state.tail(2);
 
     // Compute the jacobian.
     Eigen::Matrix<double, 6, 2> Jv_V_WFtip(6, 2);
@@ -146,21 +154,23 @@ class ForceController : public systems::LeafSystem<double> {
         *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2Ftip,
         base_frame, base_frame, &Jv_V_WFtip);
 
-    Eigen::Matrix<double, 3, 2> J(3, 2);  // the planar Jacobian
+    // Extract the planar Jacobian.
+    Eigen::Matrix<double, 3, 2> J(3, 2);
     J.block<1, 2>(0, 0) = Jv_V_WFtip.block<1, 2>(4, 0);
     J.block<1, 2>(1, 0) = Jv_V_WFtip.block<1, 2>(5, 0);
     J.block<1, 2>(2, 0) = Jv_V_WFtip.block<1, 2>(0, 0);
 
+    // Get the fingertip position
+    const multibody::Frame<double>& L2_frame =
+        plant_.GetBodyByName("finger_link2").body_frame();
+    Eigen::Vector3d p_WFtip(0, 0, 0);
+    plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
+                               plant_.world_frame(), &p_WFtip);
+
     // Add the desired end effector force.
-    torque_calc += J.transpose() * force_des;
-
-
-    // drake::log()->info("jtsize: r{} c{}", Jv_V_WFtip.transpose().rows(),
-    //                    Jv_V_WFtip.transpose().cols());
-    // drake::log()->info("torque_calc.size: {}", torque_calc.size());
-    // drake::log()->info("J1: \n{}", Jv_V_WFtip);  unused(force_des);
-    // drake::log()->info("J2: \n{}", J);
-    // drake::log()->info("tau: \n{}", torque_calc);
+    Eigen::Vector2d y_command(0, 0);
+    y_command(0) = FLAGS_kpy * (0.04 - p_WFtip(1));
+    torque_calc += J.transpose() * (force_des + y_command);
   }
 
  private:
@@ -269,7 +279,8 @@ int do_main() {
 
   // Set initial conditions.
   VectorX<double> finger_initial_conditions = VectorX<double>::Zero(4);
-  finger_initial_conditions << -0.65, 1.7, 0, 0;
+//  finger_initial_conditions << -0.65, 1.7, 0, 0;
+  finger_initial_conditions << -0.681, 1.066, 0, 0;
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
