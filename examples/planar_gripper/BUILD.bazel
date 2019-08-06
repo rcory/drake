@@ -136,6 +136,7 @@ drake_cc_binary(
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/primitives:constant_vector_source",
+        "//systems/primitives:zero_order_hold",
         "@gflags",
     ],
 )

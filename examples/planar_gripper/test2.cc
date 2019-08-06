@@ -95,7 +95,7 @@ int do_main() {
 
    // Connect the force controller.
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
-      FLAGS_time_step, Value<ContactResults<double>>());
+      1e-3, Value<ContactResults<double>>());
   auto force_controller = builder.AddSystem<ForceController>();
   builder.Connect(plant.get_contact_results_output_port(),
                   zoh->get_input_port());
@@ -122,7 +122,7 @@ int do_main() {
 
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
-  diagram_context->DisableCaching();
+//   diagram_context->DisableCaching();
   diagram->SetDefaultContext(diagram_context.get());
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
