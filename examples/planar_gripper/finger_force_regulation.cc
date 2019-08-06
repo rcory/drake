@@ -57,7 +57,7 @@ DEFINE_bool(use_brick, false,
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(fz, -10, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
-DEFINE_double(kpy, 1200.0*0, "kpy");
+DEFINE_double(kpy, 800, "kpy");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -126,9 +126,18 @@ class ForceController : public systems::LeafSystem<double> {
     auto state =
         this->EvalVectorInput(context, state_input_port_)->get_value();
 
-   const auto& contact_results =
+    // Get the actual contact force.
+    const auto& contact_results =
         get_contact_results_input_port().Eval<ContactResults<double>>(context);
-    unused(contact_results);
+
+    Eigen::Vector3d force_sim(0, 0, 0);
+    if (contact_results.num_contacts() > 0) {
+      auto contact_info = contact_results.point_pair_contact_info(0);
+      force_sim = contact_info.contact_force();
+    }
+    // Keep only the 2d components of the force. Negative because this force
+    // returns as the force felt by the fingertip.
+    Eigen::Vector2d force_act = -force_sim.tail<2>();
 
     // Set the plant's position and velocity within the context.
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);
@@ -138,7 +147,7 @@ class ForceController : public systems::LeafSystem<double> {
     torque_calc =
         -plant_.CalcGravityGeneralizedForces(*plant_context_);
 
-    // Damping.
+    // Adds Joint damping.
     Eigen::Matrix2d Kd;
     Kd << FLAGS_Kd, 0, 0, FLAGS_Kd;
     torque_calc += -Kd * state.tail(2);
@@ -167,10 +176,23 @@ class ForceController : public systems::LeafSystem<double> {
     plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
                                plant_.world_frame(), &p_WFtip);
 
-    // Add the desired end effector force.
-    Eigen::Vector2d y_command(0, 0);
-    y_command(0) = FLAGS_kpy * (0.04 - p_WFtip(1));
-    torque_calc += J.transpose() * (force_des + y_command);
+    // Add the command to track y position.
+    Eigen::Vector2d fy_command(0, 0);
+    fy_command(0) = FLAGS_kpy * (0.04 - p_WFtip(1));
+
+    Eigen::Matrix<double, 2, 2> Kp(2, 2), Kf(2,2), Ki(2,2);
+    const double kKp_gain = 10;
+    const double kKf_gain = 10;
+    const double kKi_gain = 1;
+    Kp << kKp_gain, 0, 0, kKp_gain;
+    Kf << kKf_gain, 0, 0, kKf_gain;
+    Ki << kKi_gain, 0, 0, kKi_gain;
+
+    auto delta_f = force_des - force_act;
+    auto gamma = Kf * delta_f + force_des;
+    // auto gamma = K_f Δf + Kᵢ ∫ Δf dt + f_d
+
+    torque_calc += J.transpose() * (force_des + gamma + fy_command);
   }
 
  private:
@@ -280,7 +302,8 @@ int do_main() {
   // Set initial conditions.
   VectorX<double> finger_initial_conditions = VectorX<double>::Zero(4);
 //  finger_initial_conditions << -0.65, 1.7, 0, 0;
-  finger_initial_conditions << -0.681, 1.066, 0, 0;
+//  finger_initial_conditions << -0.681, 1.066, 0, 0;
+  finger_initial_conditions << -0.8112, 0.8667, 0, 0;
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
