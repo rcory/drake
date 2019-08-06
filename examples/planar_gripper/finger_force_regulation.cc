@@ -15,6 +15,7 @@
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/lcm/drake_lcm.h"
 
 namespace drake {
@@ -54,6 +55,8 @@ DEFINE_bool(fix_input, false, "Fix the actuation inputs to zero?");
 DEFINE_bool(use_brick, false,
             "True if sim should use the 1dof brick (revolute), false if it "
             "should use the 1dof surface.");
+DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
+DEFINE_double(fz, 0, "Desired end effector force");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -94,7 +97,7 @@ class ForceController : public systems::LeafSystem<double> {
     torque_output_port_ =
         this->DeclareVectorOutputPort(
                 "tau", systems::BasicVector<double>(plant.num_actuators()),
-                &ForceController::calc_force)
+                &ForceController::CalcTauOutput)
             .get_index();
   }
 
@@ -114,7 +117,7 @@ class ForceController : public systems::LeafSystem<double> {
       return this->get_output_port(torque_output_port_);
   }
 
-  void calc_force(const systems::Context<double>& context,
+  void CalcTauOutput(const systems::Context<double>& context,
                   systems::BasicVector<double>* output_vector) const {
     auto torque_calc = output_vector->get_mutable_value();
     auto force_des =
@@ -124,18 +127,40 @@ class ForceController : public systems::LeafSystem<double> {
 
    const auto& contact_results =
         get_contact_results_input_port().Eval<ContactResults<double>>(context);
-    drake::log()->info("ncontacts: {}", contact_results.num_contacts());
+    unused(contact_results);
 
-    // // Set the position and velocity in the context.
-    // plant_.SetPositionsAndVelocities(plant_context_.get(), state);
-
-    // torque_calc =
-    //     -plant_.CalcGravityGeneralizedForces(*plant_context_);
+    // Set the plant's position and velocity within the context.
+    plant_.SetPositionsAndVelocities(plant_context_.get(), state);
     torque_calc.setZero();
+    torque_calc =
+        -plant_.CalcGravityGeneralizedForces(*plant_context_);
 
-    // set the values (random for test)
-    unused(force_des);
-    unused(state);
+    // Compute the jacobian.
+    Eigen::Matrix<double, 6, 2> Jv_V_WFtip(6, 2);
+    const multibody::Frame<double>& l2_frame =
+        plant_.GetBodyByName("finger_link2").body_frame();
+    const multibody::Frame<double>& base_frame =
+        plant_.GetBodyByName("finger_base").body_frame();        
+    const Vector3<double> p_L2Ftip(0, 0, -0.086);
+    plant_.CalcJacobianSpatialVelocity(
+        *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2Ftip,
+        base_frame, base_frame, &Jv_V_WFtip);
+
+    Eigen::Matrix<double, 3, 2> J(3, 2);  // the planar Jacobian
+    J.block<1, 2>(0, 0) = Jv_V_WFtip.block<1, 2>(4, 0);
+    J.block<1, 2>(1, 0) = Jv_V_WFtip.block<1, 2>(5, 0);
+    J.block<1, 2>(2, 0) = Jv_V_WFtip.block<1, 2>(0, 0);
+
+    // Add the desired end effector force.
+    torque_calc += J.transpose() * force_des;
+
+
+    // drake::log()->info("jtsize: r{} c{}", Jv_V_WFtip.transpose().rows(),
+    //                    Jv_V_WFtip.transpose().cols());
+    // drake::log()->info("torque_calc.size: {}", torque_calc.size());
+    // drake::log()->info("J1: \n{}", Jv_V_WFtip);  unused(force_des);
+    // drake::log()->info("J2: \n{}", J);
+    // drake::log()->info("tau: \n{}", torque_calc);
   }
 
  private:
@@ -188,12 +213,17 @@ int do_main() {
   plant.Finalize();
   control_plant.Finalize();
 
+  // Set the penetration allowance for the simulation plant only
+  plant.set_penetration_allowance(FLAGS_penetration_allowance);
+
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
   unused(plant_id);
 
   // Connect the force controler
-  Vector2<double> constv(0, 0);
+  auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
+      1e-3, Value<ContactResults<double>>());  
+  Vector2<double> constv(0, FLAGS_fz);
   auto force_controller = builder.AddSystem<ForceController>(plant);
   auto const_src = builder.AddSystem<systems::ConstantVectorSource>(constv);
   builder.Connect(const_src->get_output_port(),
@@ -202,6 +232,8 @@ int do_main() {
   builder.Connect(plant.get_state_output_port(),
                   force_controller->get_state_input_port());
   builder.Connect(plant.get_contact_results_output_port(),
+                  zoh->get_input_port());
+  builder.Connect(zoh->get_output_port(),
                   force_controller->get_contact_results_input_port());
   builder.Connect(force_controller->get_torque_output_port(),
                   plant.get_actuation_input_port());
