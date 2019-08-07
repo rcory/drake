@@ -44,7 +44,7 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 5.0,
+DEFINE_double(simulation_time, 8.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
@@ -55,6 +55,7 @@ DEFINE_bool(use_brick, false,
             "True if sim should use the 1dof brick (revolute), false if it "
             "should use the 1dof surface.");
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
+DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(fz, -10, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
 DEFINE_double(kpy, 800, "kpy");
@@ -247,6 +248,7 @@ int do_main() {
 
   // Set the penetration allowance for the simulation plant only
   plant.set_penetration_allowance(FLAGS_penetration_allowance);
+  plant.set_stiction_tolerance(FLAGS_stiction_tolerance);
 
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
