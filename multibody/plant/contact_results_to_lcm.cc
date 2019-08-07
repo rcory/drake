@@ -81,6 +81,9 @@ void ContactResultsToLcmSystem<T>::CalcLcmContactOutput(
     write_double3(contact_info.contact_point(), info_msg.contact_point);
     write_double3(contact_info.contact_force(), info_msg.contact_force);
     write_double3(contact_info.point_pair().nhat_BA_W, info_msg.normal);
+    info_msg.separation_speed =
+        ExtractDoubleOrThrow(contact_info.separation_speed());
+    info_msg.slip_speed = ExtractDoubleOrThrow(contact_info.slip_speed());
   }
 
   for (int i = 0; i < contact_results.num_hydroelastic_contacts(); ++i) {
