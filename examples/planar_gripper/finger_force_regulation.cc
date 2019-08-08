@@ -18,6 +18,8 @@
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/primitives/demultiplexer.h"
+#include "drake/systems/primitives/multiplexer.h"
+#include "drake/systems/primitives/sine.h"
 #include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
@@ -58,9 +60,10 @@ DEFINE_bool(use_brick, false,
             "should use the 1dof surface.");
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(fz, -2.0, "Desired end effector force");
+DEFINE_double(fz, -10.0, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
-DEFINE_double(kpy, 70, "kpy");
+DEFINE_double(kpy, 5e3, "kpy");
+DEFINE_double(kdy, 0, "kdy"); // already lots of damping
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -140,6 +143,8 @@ class ForceController : public systems::LeafSystem<double> {
         this->EvalVectorInput(context, force_desired_input_port_)->get_value();
     auto state =
         this->EvalVectorInput(context, state_actual_input_port_)->get_value();
+    auto state_desired =
+        this->EvalVectorInput(context, state_desired_input_port_)->get_value();
 
     // Get the actual contact force.
     const auto& contact_results =
@@ -207,12 +212,13 @@ class ForceController : public systems::LeafSystem<double> {
     // Regulate force in z
     auto delta_f = force_des - force_act;
     auto fz_command = Kf * delta_f + force_des;
-    // auto gamma = K_f Δf + Kᵢ ∫ Δf dt + f_d
+    // auto gamma = K_f Δf + Kᵢ ∫ Δf dt - K_p p_e + f_d
 
     // Regulate position in y
-    const double kYSetpoint = 0.04;
-    double error_y = kYSetpoint - p_WFtip(1);
-    Eigen::Vector2d fy_command(FLAGS_kpy * error_y, 0);
+    double error_y = state_desired(0) - p_WFtip(1);  // yd - y
+    double error_ydot = state_desired(2) - state(2);  // yd_dot - ydot
+    double fy_des = FLAGS_kpy * error_y + FLAGS_kdy * error_ydot;
+    Eigen::Vector2d fy_command(fy_des, 0);
 
     torque_calc += J.transpose() * (force_des + fz_command + fy_command);
 
@@ -287,10 +293,10 @@ int do_main() {
   // Connect the force controler
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());  
-  Vector2<double> constv(0, FLAGS_fz);
+  Vector2<double> constfv(0, FLAGS_fz);
   auto force_controller = builder.AddSystem<ForceController>(plant);
-  auto const_src = builder.AddSystem<systems::ConstantVectorSource>(constv);
-  builder.Connect(const_src->get_output_port(),
+  auto const_force_src = builder.AddSystem<systems::ConstantVectorSource>(constfv);
+  builder.Connect(const_force_src->get_output_port(),
                   force_controller->get_force_desired_input_port());
 
   builder.Connect(plant.get_state_output_port(),
@@ -300,14 +306,24 @@ int do_main() {
   builder.Connect(zoh->get_output_port(),
                   force_controller->get_contact_results_input_port());
 
-  std::vector<int> svec = {2, 2, 1}; // tau_des, f_des, ytip
-  auto demux = builder.AddSystem<systems::Demultiplexer<double>>(svec);
+  std::vector<int> sizes = {2, 2, 1}; // tau_des, f_des, ytip
+  auto demux = builder.AddSystem<systems::Demultiplexer<double>>(sizes);
   builder.Connect(force_controller->get_torque_output_port(),
                   demux->get_input_port(0));
   builder.Connect(demux->get_output_port(0), plant.get_actuation_input_port());
 
-//   builder.Connect(force_controller->get_torque_output_port(),
-//                  plant.get_actuation_input_port());
+  // Connect a sine wave reference trajectory (for y position control)
+  auto sine_src =
+      builder.AddSystem<systems::Sine<double>>(.04, 3.0, 3 * M_PI / 2.0, 1);
+  auto mux = builder.AddSystem<systems::Multiplexer>(4);
+  builder.Connect(sine_src->get_output_port(0), mux->get_input_port(0));
+  builder.Connect(sine_src->get_output_port(1), mux->get_input_port(2));
+  builder.Connect(mux->get_output_port(0),
+                  force_controller->get_state_desired_input_port());
+  auto zero_scalar_src =
+      builder.AddSystem<systems::ConstantVectorSource>(Vector1d::Zero());
+  builder.Connect(zero_scalar_src->get_output_port(), mux->get_input_port(1));
+  builder.Connect(zero_scalar_src->get_output_port(), mux->get_input_port(3));
 
   // Connect MBP snd SG.
   builder.Connect(
@@ -323,9 +339,11 @@ int do_main() {
   ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
 
   // ====== Publish the desired force calculation. =========
-  systems::lcm::ConnectLcmScope(demux->get_output_port(1), "FORCE_DES",
+  systems::lcm::ConnectLcmScope(demux->get_output_port(0), "TORQUE_COMMAND",
                                 &builder, &lcm);
-  systems::lcm::ConnectLcmScope(demux->get_output_port(2), "p_WTipy",
+  systems::lcm::ConnectLcmScope(demux->get_output_port(1), "FORCE_COMMAND",
+                                &builder, &lcm);
+  systems::lcm::ConnectLcmScope(demux->get_output_port(2), "ERROR_Y",
                                 &builder, &lcm);
 
   auto diagram = builder.Build();
