@@ -141,11 +141,47 @@ class GripperBrickTrajectoryOptimization {
       const std::map<std::string, int>& finger_joint_name_to_row_index_map)
       const;
 
+  /**
+   * Returns the contacting face of a given finger at a given time. If the
+   * finger is not in contact, then return empty.
+   */
+  optional<BrickFace> GetFingerContactFace(
+      double t, Finger finger,
+      const Eigen::Ref<const Eigen::VectorXd>& t_sol) const;
+
+  /**
+   * Reconstruct the finger force trajectory (i.e., the contact force applied at
+   * the finger tip contact location, expressed in the brick frame). Notice that
+   * this force is applied at the finger tip contact location, not at the finger
+   * tip sphere center,  not at the finger link2 origin.
+   */
   trajectories::PiecewisePolynomial<double> ReconstructFingerForceTrajectory(
-      const solvers::MathematicalProgramResult& result) const;
+      Finger finger, const solvers::MathematicalProgramResult& result) const;
 
   Eigen::VectorXd ReconstructTimeSolution(
       const solvers::MathematicalProgramResult& result) const;
+
+  /**
+   * For a given finger and a given time, return the tangential position of
+   * the finger/brick contact location in the solution. If the finger is not in
+   * contact, then returns empty.
+   * Note that we only compute the tangential position. Namely if the contact is
+   * on +y or -y face of the brick, then we return the z coordinate of the
+   * contact point in the brick frame; if the contact is on +z or -z face of the
+   * brick, then we return the y coordinate of the contact point in the brick
+   * frame.
+   * @param t The query time.
+   * @param finger The query finger.
+   * @param t_sol The result from calling ReconstructTimeSolution().
+   * @param q_sol The result from calling prog().GetSolution(q_vars()).
+   * @param plant_mutable_context The context for the plant, please create it
+   * by doing diagram.CreateDefaultContext();
+   * diagram.GetMutableSubsystemContext();
+   */
+  optional<std::pair<double, BrickFace>> GetFingerContactLocationOnBrickFace(
+      double t, Finger finger, const Eigen::Ref<const Eigen::VectorXd>& t_sol,
+      const Eigen::Ref<const Eigen::MatrixXd>& q_sol,
+      systems::Context<double>* plant_mutable_context) const;
 
  private:
   void AssignVariableForContactForces(

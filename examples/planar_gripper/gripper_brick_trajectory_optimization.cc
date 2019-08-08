@@ -648,6 +648,108 @@ void GripperBrickTrajectoryOptimization::AddMiddlePointIntegrationConstraint() {
     prog_->AddConstraint(constraint, x_vars);
   }
 }
+
+trajectories::PiecewisePolynomial<double>
+GripperBrickTrajectoryOptimization::ReconstructFingerForceTrajectory(
+    Finger finger, const solvers::MathematicalProgramResult& result) const {
+  Eigen::Matrix2Xd f_Cf_B_sol(2, nT_);
+  f_Cf_B_sol.setZero();
+  for (int i = 0; i < nT_; ++i) {
+    auto it = f_FB_B_[i].find(finger);
+    if (it != f_FB_B_[i].end()) {
+      f_Cf_B_sol.col(i) = -result.GetSolution(it->second);
+    }
+  }
+  const Eigen::VectorXd t_sol = ReconstructTimeSolution(result);
+  return trajectories::PiecewisePolynomial<double>::FirstOrderHold(t_sol,
+                                                                   f_Cf_B_sol);
+}
+
+optional<BrickFace> GripperBrickTrajectoryOptimization::GetFingerContactFace(
+    double t, Finger finger,
+    const Eigen::Ref<const Eigen::VectorXd>& t_sol) const {
+  for (int i = 0; i < nT_ - 1; ++i) {
+    if (t > t_sol(i) && t < t_sol(i + 1)) {
+      // Found the interval.
+      auto it_l = finger_face_contacts_[i].find(finger);
+      if (it_l == finger_face_contacts_[i].end()) {
+        return {};
+      }
+      auto it_r = finger_face_contacts_[i + 1].find(finger);
+      if (it_r == finger_face_contacts_[i].end()) {
+        return {};
+      }
+      return it_l->second;
+    }
+  }
+  for (int i = 0; i < nT_; ++i) {
+    if (t == t_sol(i)) {
+      auto it = finger_face_contacts_[i].find(finger);
+      if (it == finger_face_contacts_[i].end()) {
+        return {};
+      } else {
+        return it->second;
+      }
+    }
+  }
+  return {};
+}
+
+optional<std::pair<double, BrickFace>>
+GripperBrickTrajectoryOptimization::GetFingerContactLocationOnBrickFace(
+    double t, Finger finger, const Eigen::Ref<const Eigen::VectorXd>& t_sol,
+    const Eigen::Ref<const Eigen::MatrixXd>& q_sol,
+    systems::Context<double>* plant_mutable_context) const {
+  // First find out the time interval.
+  for (int i = 0; i < nT_ - 1; ++i) {
+    if (t >= t_sol[i] && t <= t_sol[i + 1]) {
+      BrickFace face;
+      if (t == t_sol[i] || t == t_sol[i + 1]) {
+        int index = t == t_sol[i] ? i : i + 1;
+        auto it = finger_face_contacts_[index].find(finger);
+        if (it == finger_face_contacts_[index].end()) {
+          // Finger not in contact.
+          return {};
+        }
+        face = it->second;
+      } else {
+        // The finger contact must be active at both the left and the right
+        // knots.
+        auto it_l = finger_face_contacts_[i].find(finger);
+        if (it_l == finger_face_contacts_[i].end()) {
+          return {};
+        }
+        auto it_r = finger_face_contacts_[i + 1].find(finger);
+        if (it_r == finger_face_contacts_[i + 1].end()) {
+          return {};
+        }
+        face = it_l->second;
+      }
+
+      const double fraction = (t - t_sol[i]) / (t_sol[i + 1] - t_sol[i]);
+      const Eigen::VectorXd q =
+          fraction * q_sol.col(i) + (1 - fraction) * q_sol.col(i + 1);
+      gripper_brick_->plant().SetPositions(plant_mutable_context, q);
+      Eigen::Vector3d p_BFingertip;
+      gripper_brick_->plant().CalcPointsPositions(
+          *plant_mutable_context, gripper_brick_->finger_link2_frame(finger),
+          gripper_brick_->p_L2Fingertip(), gripper_brick_->brick_frame(),
+          &p_BFingertip);
+      switch (face) {
+        case BrickFace::kNegY:
+        case BrickFace::kPosY: {
+          return std::make_pair(p_BFingertip(2), face);
+        }
+        case BrickFace::kNegZ:
+        case BrickFace::kPosZ: {
+          return std::make_pair(p_BFingertip(1), face);
+        }
+        default: { throw std::runtime_error("Unknown face."); }
+      }
+    }
+  }
+  return {};
+}
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

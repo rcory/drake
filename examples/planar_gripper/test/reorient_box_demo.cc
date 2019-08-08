@@ -101,11 +101,10 @@ GenerateReorientationTrajectory() {
       &gripper_brick, nT, initial_contact, finger_transitions,
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
-          0.75,
-          GripperBrickTrajectoryOptimization::IntegrationMethod::kMidpoint,
+          0.7, GripperBrickTrajectoryOptimization::IntegrationMethod::kMidpoint,
           0.05 * M_PI, 0.03, depth, friction_cone_shrink_factor));
 
-  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.05, 0.15, dut.dt());
+  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.07, 0.12, dut.dt());
 
   // Initial pose constraint on the brick.
   dut.get_mutable_prog()->AddBoundingBoxConstraint(
@@ -203,6 +202,8 @@ GenerateReorientationTrajectory() {
   if (FLAGS_visualization == "plan" || FLAGS_visualization == "both") {
     VisualizeTrajectory(q_traj);
   }
+  const trajectories::PiecewisePolynomial<double> finger1_force_traj =
+      dut.ReconstructFingerForceTrajectory(Finger::kFinger1, result);
 
   return std::make_tuple(finger_traj, brick_initial_pose,
                          finger_joint_name_to_row_index_map);
