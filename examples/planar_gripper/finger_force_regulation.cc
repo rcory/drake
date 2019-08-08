@@ -17,6 +17,8 @@
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/systems/primitives/demultiplexer.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
@@ -56,9 +58,9 @@ DEFINE_bool(use_brick, false,
             "should use the 1dof surface.");
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(fz, -10, "Desired end effector force");
+DEFINE_double(fz, -2.0, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
-DEFINE_double(kpy, 800, "kpy");
+DEFINE_double(kpy, 70, "kpy");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -88,17 +90,25 @@ class ForceController : public systems::LeafSystem<double> {
         this->DeclareVectorInputPort(
                 "f_d", systems::BasicVector<double>(2 /* num forces */))
             .get_index();
-    state_input_port_ =
+    state_actual_input_port_ =  // actual state
         this->DeclareVectorInputPort(
-                "x", systems::BasicVector<double>(2 * plant.num_velocities()))
+                "xa", systems::BasicVector<double>(2 * plant.num_velocities()))
+            .get_index();
+    state_desired_input_port_ =  // desired state
+        this->DeclareVectorInputPort(
+                "xd", systems::BasicVector<double>(2 * plant.num_velocities()))
             .get_index();
     contact_results_input_port_ =
         this->DeclareAbstractInputPort("contact_results",
                                        Value<ContactResults<double>>{})
             .get_index();
+
+    const int kDebuggingOutputs = 3;
     torque_output_port_ =
         this->DeclareVectorOutputPort(
-                "tau", systems::BasicVector<double>(plant.num_actuators()),
+                "tau",
+                systems::BasicVector<double>(plant.num_actuators() +
+                                             kDebuggingOutputs),
                 &ForceController::CalcTauOutput)
             .get_index();
   }
@@ -107,8 +117,12 @@ class ForceController : public systems::LeafSystem<double> {
       return this->get_input_port(force_desired_input_port_);
   }
 
-  const InputPort<double>& get_state_input_port() const {
-      return this->get_input_port(state_input_port_);
+  const InputPort<double>& get_state_actual_input_port() const {
+      return this->get_input_port(state_actual_input_port_);
+  }
+
+  const InputPort<double>& get_state_desired_input_port() const {
+    return this->get_input_port(state_desired_input_port_);
   }
 
   const InputPort<double>& get_contact_results_input_port() const {
@@ -121,11 +135,11 @@ class ForceController : public systems::LeafSystem<double> {
 
   void CalcTauOutput(const systems::Context<double>& context,
                   systems::BasicVector<double>* output_vector) const {
-    auto torque_calc = output_vector->get_mutable_value();
+    auto output_calc = output_vector->get_mutable_value();
     auto force_des =
         this->EvalVectorInput(context, force_desired_input_port_)->get_value();
     auto state =
-        this->EvalVectorInput(context, state_input_port_)->get_value();
+        this->EvalVectorInput(context, state_actual_input_port_)->get_value();
 
     // Get the actual contact force.
     const auto& contact_results =
@@ -142,7 +156,7 @@ class ForceController : public systems::LeafSystem<double> {
 
     // Set the plant's position and velocity within the context.
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);
-    torque_calc.setZero();
+    Eigen::Vector2d torque_calc(0, 0);
 
     // Gravity compensation.
     torque_calc =
@@ -177,23 +191,38 @@ class ForceController : public systems::LeafSystem<double> {
     plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
                                plant_.world_frame(), &p_WFtip);
 
-    // Add the command to track y position.
-    Eigen::Vector2d fy_command(0, 0);
-    fy_command(0) = FLAGS_kpy * (0.04 - p_WFtip(1));
+    // Set up gains.
+//    Eigen::Matrix<double, 2, 2> Kp(2, 2);
+//    Eigen::Matrix<double, 2, 2> Ki(2,2);
+    Eigen::Matrix<double, 2, 2> Kf(2,2);
 
-    Eigen::Matrix<double, 2, 2> Kp(2, 2), Kf(2,2), Ki(2,2);
-    const double kKp_gain = 10;
+//    const double kKp_gain = 10;
+//    const double kKi_gain = 1;
     const double kKf_gain = 10;
-    const double kKi_gain = 1;
-    Kp << kKp_gain, 0, 0, kKp_gain;
-    Kf << kKf_gain, 0, 0, kKf_gain;
-    Ki << kKi_gain, 0, 0, kKi_gain;
 
+//    Kp << kKp_gain, 0, 0, kKp_gain;
+//    Ki << kKi_gain, 0, 0, kKi_gain;
+    Kf << 0, 0, 0, kKf_gain;  // Gain only on z-component
+
+    // Regulate force in z
     auto delta_f = force_des - force_act;
-    auto gamma = Kf * delta_f + force_des;
+    auto fz_command = Kf * delta_f + force_des;
     // auto gamma = K_f Δf + Kᵢ ∫ Δf dt + f_d
 
-    torque_calc += J.transpose() * (force_des + gamma + fy_command);
+    // Regulate position in y
+    const double kYSetpoint = 0.04;
+    double error_y = kYSetpoint - p_WFtip(1);
+    Eigen::Vector2d fy_command(FLAGS_kpy * error_y, 0);
+
+    torque_calc += J.transpose() * (force_des + fz_command + fy_command);
+
+    // The output consists of the calculated torques, and the associated
+    // calculated forces.
+    output_calc.head<2>() = torque_calc;
+
+    // These are just auxiliary debugging outputs.
+    output_calc.segment<2>(2) = force_des + fz_command + fy_command;
+    output_calc(4) = error_y;
   }
 
  private:
@@ -202,7 +231,8 @@ class ForceController : public systems::LeafSystem<double> {
   // velocities in plant_.
   std::unique_ptr<systems::Context<double>> plant_context_;  
   InputPortIndex force_desired_input_port_{};
-  InputPortIndex state_input_port_{};
+  InputPortIndex state_actual_input_port_{};
+  InputPortIndex state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   OutputPortIndex torque_output_port_{};
 };
@@ -264,13 +294,20 @@ int do_main() {
                   force_controller->get_force_desired_input_port());
 
   builder.Connect(plant.get_state_output_port(),
-                  force_controller->get_state_input_port());
+                  force_controller->get_state_actual_input_port());
   builder.Connect(plant.get_contact_results_output_port(),
                   zoh->get_input_port());
   builder.Connect(zoh->get_output_port(),
                   force_controller->get_contact_results_input_port());
+
+  std::vector<int> svec = {2, 2, 1}; // tau_des, f_des, ytip
+  auto demux = builder.AddSystem<systems::Demultiplexer<double>>(svec);
   builder.Connect(force_controller->get_torque_output_port(),
-                  plant.get_actuation_input_port());
+                  demux->get_input_port(0));
+  builder.Connect(demux->get_output_port(0), plant.get_actuation_input_port());
+
+//   builder.Connect(force_controller->get_torque_output_port(),
+//                  plant.get_actuation_input_port());
 
   // Connect MBP snd SG.
   builder.Connect(
@@ -284,6 +321,12 @@ int do_main() {
 
   // Publish contact results for visualization.
   ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
+
+  // ====== Publish the desired force calculation. =========
+  systems::lcm::ConnectLcmScope(demux->get_output_port(1), "FORCE_DES",
+                                &builder, &lcm);
+  systems::lcm::ConnectLcmScope(demux->get_output_port(2), "p_WTipy",
+                                &builder, &lcm);
 
   auto diagram = builder.Build();
 
