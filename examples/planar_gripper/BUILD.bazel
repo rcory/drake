@@ -164,6 +164,8 @@ drake_cc_binary(
         "//systems/lcm:connect_lcm_scope",
         "//systems/primitives:constant_vector_source",
         "//systems/primitives:demultiplexer",
+        "//systems/primitives:multiplexer",
+        "//systems/primitives:sine",
         "//systems/primitives:zero_order_hold",
         "@gflags",
     ],
