@@ -88,8 +88,8 @@ GenerateReorientationTrajectory() {
        {Finger::kFinger3, BrickFace::kPosY}});
 
   std::vector<FingerTransition> finger_transitions;
-  finger_transitions.emplace_back(1, 4, Finger::kFinger1, BrickFace::kPosZ);
-  finger_transitions.emplace_back(6, 9, Finger::kFinger3, BrickFace::kNegZ);
+  finger_transitions.emplace_back(2, 5, Finger::kFinger1, BrickFace::kPosZ);
+  finger_transitions.emplace_back(7, 9, Finger::kFinger3, BrickFace::kNegZ);
   finger_transitions.emplace_back(11, 14, Finger::kFinger2, BrickFace::kNegY);
 
   const double brick_lid_friction_force_magnitude = 0;
@@ -102,9 +102,9 @@ GenerateReorientationTrajectory() {
       brick_lid_friction_force_magnitude, brick_lid_friction_torque_magnitude,
       GripperBrickTrajectoryOptimization::Options(
           0.7, GripperBrickTrajectoryOptimization::IntegrationMethod::kMidpoint,
-          0.05 * M_PI, 0.03, depth, friction_cone_shrink_factor));
+          0.02 * M_PI, 0.03, depth, friction_cone_shrink_factor));
 
-  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.07, 0.12, dut.dt());
+  dut.get_mutable_prog()->AddBoundingBoxConstraint(0.05, 0.1, dut.dt());
 
   // Initial pose constraint on the brick.
   dut.get_mutable_prog()->AddBoundingBoxConstraint(
