@@ -62,8 +62,6 @@ DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(fz, -10.0, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
-DEFINE_double(kpy, 5e3, "kpy");
-DEFINE_double(kdy, 0, "kdy"); // already lots of damping
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -82,6 +80,8 @@ void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
   plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_PC1);
 }
 
+// Force controller with pure gravity compensation (no dynamics compensation
+// yet). Regulates position in y, and force in z.
 class ForceController : public systems::LeafSystem<double> {
  public:
   ForceController(MultibodyPlant<double>& plant)
@@ -97,7 +97,8 @@ class ForceController : public systems::LeafSystem<double> {
         this->DeclareVectorInputPort(
                 "xa", systems::BasicVector<double>(2 * plant.num_velocities()))
             .get_index();
-    state_desired_input_port_ =  // desired state
+    // desired state of the fingertip (y, z, ydot, zdot)
+    tip_state_desired_input_port_ =
         this->DeclareVectorInputPort(
                 "xd", systems::BasicVector<double>(2 * plant.num_velocities()))
             .get_index();
@@ -125,7 +126,7 @@ class ForceController : public systems::LeafSystem<double> {
   }
 
   const InputPort<double>& get_state_desired_input_port() const {
-    return this->get_input_port(state_desired_input_port_);
+    return this->get_input_port(tip_state_desired_input_port_);
   }
 
   const InputPort<double>& get_contact_results_input_port() const {
@@ -143,8 +144,8 @@ class ForceController : public systems::LeafSystem<double> {
         this->EvalVectorInput(context, force_desired_input_port_)->get_value();
     auto state =
         this->EvalVectorInput(context, state_actual_input_port_)->get_value();
-    auto state_desired =
-        this->EvalVectorInput(context, state_desired_input_port_)->get_value();
+    auto tip_state_desired =
+        this->EvalVectorInput(context, tip_state_desired_input_port_)->get_value();
 
     // Get the actual contact force.
     const auto& contact_results =
@@ -155,8 +156,8 @@ class ForceController : public systems::LeafSystem<double> {
       auto contact_info = contact_results.point_pair_contact_info(0);
       force_sim = contact_info.contact_force();
     }
-    // Keep only the 2d components of the force. Negative because this force
-    // returns as the force felt by the fingertip.
+    // Keep only the last two components of the force. Negative because this
+    // force returns as the force felt by the fingertip.
     Eigen::Vector2d force_act = -force_sim.tail<2>();
 
     // Set the plant's position and velocity within the context.
@@ -183,11 +184,10 @@ class ForceController : public systems::LeafSystem<double> {
         *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2Ftip,
         base_frame, base_frame, &Jv_V_WFtip);
 
-    // Extract the planar Jacobian.
-    Eigen::Matrix<double, 3, 2> J(3, 2);
+    // Extract the planar translational part of the Jacobian.
+    Eigen::Matrix<double, 2, 2> J(2, 2);
     J.block<1, 2>(0, 0) = Jv_V_WFtip.block<1, 2>(4, 0);
     J.block<1, 2>(1, 0) = Jv_V_WFtip.block<1, 2>(5, 0);
-    J.block<1, 2>(2, 0) = Jv_V_WFtip.block<1, 2>(0, 0);
 
     // Get the fingertip position
     const multibody::Frame<double>& L2_frame =
@@ -196,39 +196,34 @@ class ForceController : public systems::LeafSystem<double> {
     plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
                                plant_.world_frame(), &p_WFtip);
 
-    // Set up gains.
-//    Eigen::Matrix<double, 2, 2> Kp(2, 2);
-//    Eigen::Matrix<double, 2, 2> Ki(2,2);
+    // Force control gains.
     Eigen::Matrix<double, 2, 2> Kf(2,2);
+    Kf << 0, 0, 0, 10;  // Gain only on z component (y regulates position)
 
-//    const double kKp_gain = 10;
-//    const double kKi_gain = 1;
-    const double kKf_gain = 10;
-
-//    Kp << kKp_gain, 0, 0, kKp_gain;
-//    Ki << kKi_gain, 0, 0, kKi_gain;
-    Kf << 0, 0, 0, kKf_gain;  // Gain only on z-component
-
-    // Regulate force in z
+    // Regulate force in z (in world frame)
     auto delta_f = force_des - force_act;
     auto fz_command = Kf * delta_f + force_des;
-    // auto gamma = K_f Δf + Kᵢ ∫ Δf dt - K_p p_e + f_d
+    // auto fz_command = Kf Δf + Ki ∫ Δf dt - Kp p_e + f_d  // More general.
 
-    // Regulate position in y
-    double error_y = state_desired(0) - p_WFtip(1);  // yd - y
-    double error_ydot = state_desired(2) - state(2);  // yd_dot - ydot
-    double fy_des = FLAGS_kpy * error_y + FLAGS_kdy * error_ydot;
-    Eigen::Vector2d fy_command(fy_des, 0);
+    // Regulate position in y (in world frame)
+    auto tip_velocity_actual = J * state;  // does MBP provide this?
+    auto delta_pos = tip_state_desired.head<2>() - p_WFtip.tail<2>();
+    auto delta_vel =
+        tip_state_desired.tail<2>() - tip_velocity_actual.head<2>();
+    Eigen::Matrix<double, 2, 2> Kp_pos(2,2), Kd_pos(2,2);
+    Kp_pos << 5e3, 0, 0, 0;  // position control only in y
+    Kd_pos << 0, 0, 0, 0;  // already lots of damping
+    auto fy_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
+    // Torque due to hybrid position/force control
     torque_calc += J.transpose() * (force_des + fz_command + fy_command);
 
-    // The output consists of the calculated torques, and the associated
-    // calculated forces.
+    // The output for calculated torques.
     output_calc.head<2>() = torque_calc;
 
     // These are just auxiliary debugging outputs.
     output_calc.segment<2>(2) = force_des + fz_command + fy_command;
-    output_calc(4) = error_y;
+    output_calc(4) = delta_pos(0);
   }
 
  private:
@@ -238,7 +233,7 @@ class ForceController : public systems::LeafSystem<double> {
   std::unique_ptr<systems::Context<double>> plant_context_;  
   InputPortIndex force_desired_input_port_{};
   InputPortIndex state_actual_input_port_{};
-  InputPortIndex state_desired_input_port_{};
+  InputPortIndex tip_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   OutputPortIndex torque_output_port_{};
 };

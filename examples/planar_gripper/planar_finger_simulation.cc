@@ -28,16 +28,16 @@ namespace planar_gripper {
 namespace {
 
 using geometry::SceneGraph;
-
-using drake::multibody::MultibodyPlant;
-using drake::multibody::Parser;
-using drake::multibody::RevoluteJoint;
-using drake::multibody::PrismaticJoint;
-using drake::math::RigidTransform;
-using drake::math::RollPitchYaw;
-using drake::multibody::JointActuatorIndex;
-using drake::multibody::ModelInstanceIndex;
-using drake::multibody::ConnectContactResultsToDrakeVisualizer;
+using math::RigidTransformd;
+using multibody::MultibodyPlant;
+using multibody::Parser;
+using multibody::RevoluteJoint;
+using multibody::PrismaticJoint;
+using math::RigidTransform;
+using math::RollPitchYaw;
+using multibody::JointActuatorIndex;
+using multibody::ModelInstanceIndex;
+using multibody::ConnectContactResultsToDrakeVisualizer;
 using lcm::DrakeLcm;
 
 DEFINE_double(target_realtime_rate, 1.0,
@@ -55,21 +55,21 @@ DEFINE_bool(use_brick, true,
             "True if sim should use the 1dof brick (revolute), false if it "
             "should use the 1dof surface.");
 
-template<typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
-  // This function is copied and adapted from planar_gripper_simulation.py
-  const double outer_radius = 0.19;
-  const double f1_angle = 0;
-  const math::RigidTransformd XT(math::RollPitchYaw<double>(0, 0, 0),
-                                 Eigen::Vector3d(0, 0, outer_radius));
+template <typename T>
+void WeldFingerFrame(MultibodyPlant<T>* plant) {
+  // The finger base link is welded a fixed distance from the world
+  // origin, on the Y-Z plane.
+  const double kOriginToBaseDistance = 0.19;
 
-  // Weld the first finger.
-  math::RigidTransformd X_PC1(math::RollPitchYaw<double>(f1_angle, 0, 0),
-                              Eigen::Vector3d::Zero());
-  X_PC1 = X_PC1 * XT;
-  const multibody::Frame<T> &finger1_base_frame =
+  // Before welding, the finger base link sits at the world origin with the
+  // finger pointing along the -Z axis, with all joint angles being zero.
+
+  // Weld the finger. Frame F1 corresponds to the base link finger frame.
+  RigidTransformd X_WF(Eigen::Vector3d::Zero());
+  X_WF = X_WF * RigidTransformd(Eigen::Vector3d(0, 0, kOriginToBaseDistance));
+  const multibody::Frame<T>& finger_base_frame =
       plant->GetFrameByName("finger_base");
-  plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_PC1);
+  plant->WeldFrames(plant->world_frame(), finger_base_frame, X_WF);
 }
 
 /// Converts the generalized force output of the ID controller (internally using
@@ -235,9 +235,9 @@ int do_main() {
 
   // Set the brick's initial condition.
   if (FLAGS_use_brick) {
-    const RevoluteJoint<double> &box_pin =
-        plant.GetJointByName<RevoluteJoint>("box_pin_joint");
-    box_pin.set_angle(&plant_context, 0);
+    const RevoluteJoint<double> &brick_pin =
+        plant.GetJointByName<RevoluteJoint>("brick_pin_joint");
+    brick_pin.set_angle(&plant_context, 0);
   }
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
