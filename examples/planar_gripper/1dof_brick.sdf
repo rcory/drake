@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <sdf version='1.6'>
 <model name="brick">
-  <link name="box_base_link">
+  <link name="brick_base_link">
     <inertial>
       <pose frame=''>0 0 0 0 0 0 </pose>
       <mass>0.028</mass>
@@ -45,9 +45,9 @@
       </geometry>
     </collision>
    </link>
-  <joint name="box_pin_joint" type="revolute">
+  <joint name="brick_pin_joint" type="revolute">
     <parent>world</parent>
-    <child>box_base_link</child>
+    <child>brick_base_link</child>
     <pose>0 0 0 0 0 0</pose>
     <axis>
       <xyz>1 0 0</xyz>
