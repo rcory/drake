@@ -13,7 +13,10 @@ package(
 drake_cc_binary(
     name = "run_teleop",
     srcs = ["run_teleop.cc"],
-    data = ["//manipulation/models/allegro_hand_description:models"],
+    data = [
+        ":block.sdf",
+        "//manipulation/models/allegro_hand_description:models",
+    ],
     deps = [
         "//common:find_resource",
         "//common:text_logging_gflags",
