@@ -10,6 +10,7 @@
 #include "drake/multibody/inverse_kinematics/distance_constraint.h"
 #include "drake/multibody/inverse_kinematics/kinematic_constraint_utilities.h"
 #include "drake/multibody/inverse_kinematics/position_constraint.h"
+#include "drake/solvers/solve.h"
 #include "drake/systems/trajectory_optimization/integration_constraint.h"
 
 namespace drake {
@@ -27,18 +28,19 @@ GripperBrickTrajectoryOptimization::GripperBrickTrajectoryOptimization(
       nT_{nT},
       prog_{std::make_unique<solvers::MathematicalProgram>()},
       q_vars_{prog_->NewContinuousVariables(
-          gripper_brick_->plant().num_positions(), nT_)},
-      brick_v_y_vars_{prog_->NewContinuousVariables(nT_)},
-      brick_v_z_vars_{prog_->NewContinuousVariables(nT_)},
-      brick_omega_x_vars_{prog_->NewContinuousVariables(nT_)},
+          gripper_brick_->plant().num_positions(), nT_, "q")},
+      brick_v_y_vars_{prog_->NewContinuousVariables(nT_, "brick_v_y")},
+      brick_v_z_vars_{prog_->NewContinuousVariables(nT_, "brick_v_z")},
+      brick_omega_x_vars_{prog_->NewContinuousVariables(nT_, "brick_omega_x")},
       f_FB_B_(nT_),
       plant_mutable_contexts_(nT_),
-      dt_(prog_->NewContinuousVariables(nT_ - 1)),
+      dt_(prog_->NewContinuousVariables(nT_ - 1, "dt")),
       finger_transitions_(finger_transitions),
       finger_face_contacts_(nT_),
       q_mid_vars_{prog_->NewContinuousVariables(
-          gripper_brick_->plant().num_positions(), nT_ - 1)},
-      plant_mutable_contexts_mid_(nT_ - 1) {
+          gripper_brick_->plant().num_positions(), nT_ - 1, "q_mid")},
+      plant_mutable_contexts_mid_(nT_ - 1),
+      depth_{options.depth} {
   // Create the contexts used at each knot.
   diagram_contexts_.reserve(nT_);
   for (int i = 0; i < nT_; ++i) {
@@ -79,7 +81,7 @@ GripperBrickTrajectoryOptimization::GripperBrickTrajectoryOptimization(
 
   // Add the kinematic in-contact constraint.
   AddKinematicInContactConstraint(options.face_shrink_factor,
-                                  options.rolling_angle_bound, options.depth);
+                                  options.rolling_angle_bound, depth_);
 
   // During finger transition, the transition finger should avoid the brick.
   AddCollisionAvoidanceConstraint(sorted_finger_transitions,
@@ -156,7 +158,8 @@ void GripperBrickTrajectoryOptimization::AssignVariableForContactForces(
   // Now assign the decision variables for the contact forces.
   for (int i = 0; i < nT_; ++i) {
     for (const auto& finger_face : finger_face_contacts_[i]) {
-      auto f = prog_->NewContinuousVariables<2>();
+      auto f =
+          prog_->NewContinuousVariables<2>("f_FB_[" + std::to_string(i) + "]");
       f_FB_B_[i].emplace(finger_face.first, f);
     }
   }
@@ -337,30 +340,31 @@ void GripperBrickTrajectoryOptimization::AddKinematicInContactConstraint(
         AddFingerTipInContactWithBrickFaceConstraint(
             *gripper_brick_, finger_face_contact.first,
             finger_face_contact.second, prog_.get(), q_vars_.col(i),
-            plant_mutable_contexts_[i], face_shrink_factor);
+            plant_mutable_contexts_[i], face_shrink_factor, depth_);
       } else if (it->second == finger_face_contact.second) {
         // This finger sticks to the face.
         AddFingerNoSlidingConstraint(
             *gripper_brick_, finger_face_contact.first,
             finger_face_contact.second, rolling_angle_bound, prog_.get(),
             plant_mutable_contexts_[i - 1], plant_mutable_contexts_[i],
-            q_vars_.col(i - 1), q_vars_.col(i), face_shrink_factor);
+            q_vars_.col(i - 1), q_vars_.col(i), face_shrink_factor, depth_);
         // The middle-point also sticks to the face.
-        AddFingerNoSlidingConstraint(
-            *gripper_brick_, finger_face_contact.first,
-            finger_face_contact.second, rolling_angle_bound, prog_.get(),
-            plant_mutable_contexts_[i - 1], plant_mutable_contexts_mid_[i - 1],
-            q_vars_.col(i - 1), q_mid_vars_.col(i - 1), face_shrink_factor);
+        // AddFingerNoSlidingConstraint(
+        //    *gripper_brick_, finger_face_contact.first,
+        //    finger_face_contact.second, rolling_angle_bound, prog_.get(),
+        //    plant_mutable_contexts_[i - 1], plant_mutable_contexts_mid_[i -
+        //    1], q_vars_.col(i - 1), q_mid_vars_.col(i - 1),
+        //    face_shrink_factor);
       }
       // If the finger tip is in contact, we want to avoid that the finger link
       // 2 body is also in contact with the brick. We do this by requiring that
       // the origin of link2 is outside of the contact face.
       Eigen::Vector3d p_BLink2_lower(-kInf, -kInf, -kInf);
       Eigen::Vector3d p_BLink2_upper(kInf, kInf, kInf);
-      UpdatePositionBoundsOutsideFace(finger_face_contact.second,
-                                      gripper_brick_->brick_size(),
-                                      gripper_brick_->finger_tip_radius(),
-                                      &p_BLink2_lower, &p_BLink2_upper);
+      UpdatePositionBoundsOutsideFace(
+          finger_face_contact.second, gripper_brick_->brick_size(),
+          0.02 + gripper_brick_->finger_tip_radius(), &p_BLink2_lower,
+          &p_BLink2_upper);
       prog_->AddConstraint(
           std::make_shared<multibody::PositionConstraint>(
               &(gripper_brick_->plant()), gripper_brick_->brick_frame(),
@@ -383,11 +387,13 @@ void GripperBrickTrajectoryOptimization::AddCollisionAvoidanceConstraint(
     for (int i = finger_transition->start_knot_index + 1;
          i < finger_transition->end_knot_index; ++i) {
       // At the i'th knot, the finger is not in collision.
-      prog_->AddConstraint(
+      auto distance_constraint = prog_->AddConstraint(
           std::make_shared<multibody::DistanceConstraint>(
               &(gripper_brick_->plant()), geometry_pair,
               plant_mutable_contexts_[i], collision_avoidance_margin, kInf),
           q_vars_.col(i));
+      distance_constraint.evaluator()->set_description(
+          to_string(finger_transition->finger) + "_tip_collision_avoidance");
     }
 
     // The mid point posture (q[n] + q[n+1])/2, is also not in collision.
@@ -410,7 +416,7 @@ void GripperBrickTrajectoryOptimization::AddCollisionAvoidanceConstraint(
         prog_->AddConstraint(
             std::make_shared<multibody::DistanceConstraint>(
                 &(gripper_brick_->plant()), finger_pair,
-                plant_mutable_contexts_[landing_knot], 0.02, kInf),
+                plant_mutable_contexts_[landing_knot], 0.03, kInf),
             q_vars_.col(landing_knot));
       }
     }
@@ -521,11 +527,11 @@ Eigen::VectorXd GripperBrickTrajectoryOptimization::ReconstructTimeSolution(
 
 trajectories::PiecewisePolynomial<double>
 GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
-    const solvers::MathematicalProgramResult& result,
+    const Eigen::VectorXd& t_sol, const Eigen::MatrixXd& q_sol,
     const std::map<std::string, int>& finger_joint_name_to_row_index_map)
     const {
-  const Eigen::MatrixXd q_sol = result.GetSolution(q_vars_);
-  Matrix6X<double> finger_keyframes(6, nT_);
+  DRAKE_ASSERT(t_sol.rows() == q_sol.cols());
+  Matrix6X<double> finger_keyframes(6, t_sol.rows());
   finger_keyframes.row(
       finger_joint_name_to_row_index_map.at("finger1_BaseJoint")) =
       q_sol.row(gripper_brick_->finger_base_position_index(Finger::kFinger1));
@@ -545,9 +551,35 @@ GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
       finger_joint_name_to_row_index_map.at("finger3_MidJoint")) =
       q_sol.row(gripper_brick_->finger_mid_position_index(Finger::kFinger3));
 
-  const Eigen::VectorXd t_sol = ReconstructTimeSolution(result);
   return trajectories::PiecewisePolynomial<double>::FirstOrderHold(
       t_sol, finger_keyframes);
+}
+
+trajectories::PiecewisePolynomial<double>
+GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
+    const solvers::MathematicalProgramResult& result,
+    const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+    const {
+  const Eigen::MatrixXd q_sol = result.GetSolution(q_vars_);
+
+  const Eigen::VectorXd t_sol = ReconstructTimeSolution(result);
+  return ReconstructFingerTrajectory(t_sol, q_sol,
+                                     finger_joint_name_to_row_index_map);
+}
+
+trajectories::PiecewisePolynomial<double>
+GripperBrickTrajectoryOptimization::ReconstructFingerTrajectory(
+    const trajectories::PiecewisePolynomial<double>& q_traj,
+    const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+    const {
+  Eigen::VectorXd t = Eigen::Map<const Eigen::VectorXd>(
+      q_traj.get_segment_times().data(), q_traj.get_number_of_segments() + 1);
+  Eigen::MatrixXd q_val(gripper_brick_->plant().num_positions(), t.rows());
+  for (int i = 0; i < t.rows(); ++i) {
+    q_val.col(i) = q_traj.value(t(i));
+  }
+  return ReconstructFingerTrajectory(t, q_val,
+                                     finger_joint_name_to_row_index_map);
 }
 
 class QuadraitcPolynomialMidpointInterpolationConstraint
@@ -749,6 +781,120 @@ GripperBrickTrajectoryOptimization::GetFingerContactLocationOnBrickFace(
     }
   }
   return {};
+}
+
+trajectories::PiecewisePolynomial<double>
+GripperBrickTrajectoryOptimization::RefineTrajectory(
+    const solvers::MathematicalProgramResult& result) const {
+  const Eigen::VectorXd t_sol = ReconstructTimeSolution(result);
+  const Eigen::MatrixXd q_sol = result.GetSolution(q_vars_);
+  Eigen::MatrixXd q_refine_sol;
+  const int nq = gripper_brick_->plant().num_positions();
+  Eigen::VectorXd t_refine_sol;
+  q_refine_sol.resize(nq, 1);
+  t_refine_sol.resize(1);
+  q_refine_sol.col(0) = q_sol.col(0);
+  t_refine_sol(0) = t_sol(0);
+  const trajectories::PiecewisePolynomial<double> q_traj_raw =
+      trajectories::PiecewisePolynomial<double>::FirstOrderHold(t_sol, q_sol);
+  auto diagram_context_refine =
+      gripper_brick_->diagram().CreateDefaultContext();
+  systems::Context<double>* plant_mutable_context_refine =
+      &(gripper_brick_->diagram().GetMutableSubsystemContext(
+          gripper_brick_->plant(), diagram_context_refine.get()));
+  auto diagram_context_left = gripper_brick_->diagram().CreateDefaultContext();
+  systems::Context<double>* plant_mutable_context_left =
+      &(gripper_brick_->diagram().GetMutableSubsystemContext(
+          gripper_brick_->plant(), diagram_context_left.get()));
+  // Now solve IK problem with much finer grids.
+  for (int i = 0; i < nT_ - 1; ++i) {
+    // Between knot i and i + 1, we discretize the time densely, and impose the
+    // kinematic constraints (fingers keep in contact / collision avoidance) at
+    // these densely discretized points.
+    const int num_discretization = 20;
+    gripper_brick_->plant().SetPositions(plant_mutable_context_left,
+                                         q_sol.col(i));
+    Eigen::MatrixXd q_refine_segment(nq, num_discretization);
+    q_refine_segment.col(0) = q_sol.col(i);
+    q_refine_segment.col(num_discretization - 1) = q_sol.col(i + 1);
+    Eigen::VectorXd t_refine_segment =
+        Eigen::VectorXd::LinSpaced(num_discretization, t_sol(i), t_sol(i + 1));
+    t_refine_sol.conservativeResize(t_refine_sol.rows() + num_discretization -
+                                    1);
+    t_refine_sol.tail(num_discretization - 1) =
+        t_refine_segment.tail(num_discretization - 1);
+    q_refine_sol.conservativeResize(
+        nq, q_refine_sol.cols() + num_discretization - 1);
+    const double dt_dense = (t_sol(i + 1) - t_sol(i)) / num_discretization;
+    std::map<Finger, BrickFace> sticking_finger_face_contacts =
+        finger_face_contacts_[i];
+    for (auto it_l = sticking_finger_face_contacts.begin();
+         it_l != sticking_finger_face_contacts.end();) {
+      auto it_r = finger_face_contacts_[i + 1].find(it_l->first);
+      if (it_r == finger_face_contacts_[i + 1].end() ||
+          it_r->second != it_l->second) {
+        it_l = sticking_finger_face_contacts.erase(it_l);
+      } else {
+        ++it_l;
+      }
+    }
+    for (int j = 1; j < num_discretization - 1; ++j) {
+      const Eigen::VectorXd q_raw = q_traj_raw.value(t_sol(i) + j * dt_dense);
+      // Now solve an IK problem.
+      solvers::MathematicalProgram ik_refine;
+      const auto q_refine = ik_refine.NewContinuousVariables(nq);
+      // Should not deviate from q_raw too much.
+      ik_refine.AddBoundingBoxConstraint(
+          q_raw - 0.1 * Eigen::VectorXd::Ones(nq),
+          q_raw + 0.1 * Eigen::VectorXd::Ones(nq), q_refine);
+      for (const auto& sticking_finger_face : sticking_finger_face_contacts) {
+        const Finger finger = sticking_finger_face.first;
+        const double rolling_angle_raw =
+            gripper_brick_->CalcFingerLink2Orientation(
+                finger,
+                q_raw(gripper_brick_->finger_base_position_index(finger)),
+                q_raw(gripper_brick_->finger_mid_position_index(finger)));
+        const double rolling_angle_from =
+            gripper_brick_->CalcFingerLink2Orientation(
+                finger,
+                q_sol(gripper_brick_->finger_base_position_index(finger), i),
+                q_sol(gripper_brick_->finger_mid_position_index(finger), i));
+        double rolling_angle_lower =
+            rolling_angle_raw - rolling_angle_from - 0.2;
+        double rolling_angle_upper =
+            rolling_angle_raw - rolling_angle_from + 0.2;
+        AddFingerNoSlidingFromFixedPostureConstraint(
+            *gripper_brick_, sticking_finger_face.first,
+            sticking_finger_face.second, rolling_angle_lower,
+            rolling_angle_upper, &ik_refine, *plant_mutable_context_left,
+            plant_mutable_context_refine, q_refine, 0.8, depth_);
+      }
+      // Now add the collision avoidance constraint
+      for (Finger moving_finger :
+           {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
+        if (sticking_finger_face_contacts.count(moving_finger) == 0) {
+          SortedPair<geometry::GeometryId> geometry_pair(
+              gripper_brick_->finger_tip_sphere_geometry_id(moving_finger),
+              gripper_brick_->brick_geometry_id());
+          ik_refine.AddConstraint(
+              std::make_shared<multibody::DistanceConstraint>(
+                  &(gripper_brick_->plant()), geometry_pair,
+                  plant_mutable_context_refine, 0.01, kInf),
+              q_refine);
+        }
+      }
+
+      const auto refine_result = solvers::Solve(ik_refine, q_raw);
+      if (!refine_result.is_success()) {
+        std::cout << "i: " << i << " j: " << j << ", ik refine failed.\n";
+      }
+      q_refine_segment.col(j) = refine_result.GetSolution(q_refine);
+    }
+    q_refine_sol.rightCols(num_discretization - 1) =
+        q_refine_segment.rightCols(num_discretization - 1);
+  }
+  return trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+      t_refine_sol, q_refine_sol);
 }
 }  // namespace planar_gripper
 }  // namespace examples

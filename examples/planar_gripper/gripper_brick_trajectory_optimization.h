@@ -141,6 +141,11 @@ class GripperBrickTrajectoryOptimization {
       const std::map<std::string, int>& finger_joint_name_to_row_index_map)
       const;
 
+  trajectories::PiecewisePolynomial<double> ReconstructFingerTrajectory(
+      const trajectories::PiecewisePolynomial<double>& q_traj,
+      const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+      const;
+
   /**
    * Returns the contacting face of a given finger at a given time. If the
    * finger is not in contact, then return empty.
@@ -183,6 +188,9 @@ class GripperBrickTrajectoryOptimization {
       const Eigen::Ref<const Eigen::MatrixXd>& q_sol,
       systems::Context<double>* plant_mutable_context) const;
 
+  trajectories::PiecewisePolynomial<double> RefineTrajectory(
+      const solvers::MathematicalProgramResult& result) const;
+
  private:
   void AssignVariableForContactForces(
       const std::map<Finger, BrickFace>& initial_contact,
@@ -211,6 +219,11 @@ class GripperBrickTrajectoryOptimization {
   void AddFrictionConeConstraints(double friction_cone_shrink_factor);
 
   void AddMiddlePointIntegrationConstraint();
+
+  trajectories::PiecewisePolynomial<double> ReconstructFingerTrajectory(
+      const Eigen::VectorXd& t_sol, const Eigen::MatrixXd& q_sol,
+      const std::map<std::string, int>& finger_joint_name_to_row_index_map)
+      const;
 
   const GripperBrickHelper<double>* const gripper_brick_;
   // number of knots.
@@ -251,6 +264,8 @@ class GripperBrickTrajectoryOptimization {
   // during optimization.
   std::vector<std::unique_ptr<systems::Context<double>>>
       diagram_contexts_interpolated_;
+
+  double depth_;
 };
 }  // namespace planar_gripper
 }  // namespace examples
