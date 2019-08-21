@@ -134,6 +134,16 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "contact_force_qp",
+    srcs = ["contact_force_qp.cc"],
+    hdrs = ["contact_force_qp.h"],
+    deps = [
+        ":gripper_brick",
+        "//solvers:mathematical_program_lite",
+    ],
+)
+
 drake_cc_googletest(
     name = "gripper_brick_test",
     deps = [
@@ -190,9 +200,20 @@ drake_cc_binary(
         "//solvers:solve",
         "//systems/controllers:inverse_dynamics_controller",
         "//systems/primitives:constant_vector_source",
-        "//systems/primitives:trajectory_source",
         "//systems/primitives:signal_logger",
+        "//systems/primitives:trajectory_source",
         "//systems/rendering:multibody_position_to_geometry_pose",
+    ],
+)
+
+drake_cc_googletest(
+    name = "contact_force_qp_test",
+    deps = [
+        ":contact_force_qp",
+        ":gripper_brick_planning_constraint_helper",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/inverse_kinematics",
+        "//solvers:solve",
     ],
 )
 
