@@ -27,6 +27,7 @@
 #include "drake/systems/primitives/signal_logger.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/examples/allegro_hand/allegro_common.h"
 #include "drake/examples/allegro_hand/allegro_lcm.h"
 #include "drake/lcmt_allegro_command.hpp"
@@ -44,17 +45,7 @@ using drake::multibody::ModelInstanceIndex;
 using drake::math::RigidTransformd;
 using drake::math::RollPitchYawd;
 
-DEFINE_double(desired_position, 1, "Desired position of all joints");
-
-DEFINE_double(initial_position, 0, "Initial position of all joints except thumb inversion");
-
-DEFINE_double(initial_velocity, 0, "Initial velocity of all joints");
-
-DEFINE_double(step_joint_index, 0, "Finger index to apply step input to");
-
-DEFINE_double(step_position, 0, "Step amount for desired finger (in addition to desired position)");
-
-DEFINE_double(simulation_time, 1,
+DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
 "Desired duration of the simulation in seconds");
 
 DEFINE_double(time_constant, 0.085,
@@ -64,13 +55,13 @@ DEFINE_bool(use_right_hand, true,
 "Which hand to model: true for right hand or false for left hand");
 
 DEFINE_double(kp, 1000000,
-"Proportional control gain for all joints, 1000 seems good");
+"Proportional control gain for all joints, 1000000 seems good");
 
 DEFINE_double(ki, 0,
-"Integral control gain for all joints, 325 seems good");
+"Integral control gain for all joints, 0 seems good");
 
 DEFINE_double(kd, 1500,
-"Derivative control gain for all joints, 65 seems good");
+"Derivative control gain for all joints, 1500 seems good");
 
 DEFINE_double(max_time_step, 5.0e-4,
 "Simulation time step used for integrator.");
@@ -180,12 +171,6 @@ void DoMain() {
     DRAKE_DEMAND(plant.num_actuators() == 16);
     DRAKE_DEMAND(plant.num_actuated_dofs() == 16);
 
-    // Add desired position input
-    VectorX<double> desired_position = VectorX<double>::Ones(kAllegroNumJoints) * FLAGS_desired_position;
-    desired_position(FLAGS_step_joint_index) += FLAGS_step_position;
-    desired_position(1) = desired_position(1) + 0.3; //invert the thumb to avoid the joint limit
-    auto position_source = builder.AddSystem<systems::ConstantVectorSource<double>>(desired_position);
-    position_source->set_name("position_source");
     // Add inverse dynamics controller
     auto IDC = builder.AddSystem<systems::controllers::InverseDynamicsController<double>>(control_plant,
             Eigen::VectorXd::Ones(kAllegroNumJoints) * FLAGS_kp,
@@ -193,22 +178,10 @@ void DoMain() {
             Eigen::VectorXd::Ones(kAllegroNumJoints) * FLAGS_kd, false);
     // Add low pass filter block
     auto filter = builder.AddSystem<systems::FirstOrderLowPassFilter<double>>(
-            FLAGS_time_constant, kAllegroNumJoints);
-    // Add multiplexer to combine position and velocity after filter to go into IDC
-    std::vector<int> input_sizes = {kAllegroNumJoints, kAllegroNumJoints};
-    auto IDC_multiplexer = builder.AddSystem<systems::Multiplexer<double>>(input_sizes);
-    // Add multiplexer to combine position before and velocity after filter to go into logger
-    auto state_multiplexer = builder.AddSystem<systems::Multiplexer<double>>(input_sizes);
+            FLAGS_time_constant, 2*kAllegroNumJoints);
     // Add demultiplexer to pass only first elements of remap system output to status sender
     std::vector<int> output_sizes = {kAllegroNumJoints, 6};
     auto demultiplexer = builder.AddSystem<systems::Demultiplexer<double>>(output_sizes);
-    // Add desired velocity vector to feed into IDC
-    VectorX<double> desired_velocity = VectorX<double>::Zero(kAllegroNumJoints);
-    auto velocity_source = builder.AddSystem<systems::ConstantVectorSource<double>>(desired_velocity);
-    velocity_source->set_name("velocity_source");
-    // Add signal loggers to log system desired and actual state to a file
-    auto desired_state_logger = LogOutput(state_multiplexer->get_output_port(0),&builder);
-    auto actual_state_logger = LogOutput(plant.get_state_output_port(hand_index),&builder);
     // Create the status publisher and sender to log hand info so it is visible on LCM Spy
     auto& hand_status_pub = *builder.AddSystem(
             systems::lcm::LcmPublisherSystem::Make<lcmt_allegro_status>(
@@ -223,6 +196,17 @@ void DoMain() {
     // don't use it (we use the generalized forces input).
     auto const_src = builder.AddSystem<systems::ConstantVectorSource>(
             VectorX<double>::Zero(kAllegroNumJoints));
+    // Create the command subscriber for the hand.
+    auto& hand_command_sub = *builder.AddSystem(
+            systems::lcm::LcmSubscriberSystem::Make<lcmt_allegro_command>(
+                    "ALLEGRO_COMMAND", lcm));
+    hand_command_sub.set_name("hand_command_subscriber");
+    auto& hand_command_receiver =
+            *builder.AddSystem<AllegroCommandReceiver>(kAllegroNumJoints);
+    hand_command_receiver.set_name("hand_command_receiver");
+    // Add signal loggers to log system desired and actual state to a file
+    auto desired_state_logger = LogOutput(hand_command_receiver.get_commanded_state_output_port(),&builder);
+    auto actual_state_logger = LogOutput(plant.get_state_output_port(hand_index),&builder);
 
     // Connect ports
 //    builder.Connect(IDC->get_output_port_control(), remap_sys->get_input_port(0));
@@ -232,19 +216,8 @@ void DoMain() {
                     plant.get_actuation_input_port());
     builder.Connect(plant.get_state_output_port(hand_index),
                     IDC->get_input_port_estimated_state());
-    builder.Connect(position_source->get_output_port(),
-                    filter->get_input_port());
     builder.Connect(filter->get_output_port(),
-                    IDC_multiplexer->get_input_port(0));
-    builder.Connect(velocity_source->get_output_port(),
-                    IDC_multiplexer->get_input_port(1));
-    builder.Connect(IDC_multiplexer->get_output_port(0),
                     IDC->get_input_port_desired_state());
-    builder.Connect(position_source->get_output_port(),
-                    state_multiplexer->get_input_port(0));
-    builder.Connect(velocity_source->get_output_port(),
-                    state_multiplexer->get_input_port(1));
-    builder.Connect(state_multiplexer->get_output_port(0), status_sender.get_command_input_port());
     builder.Connect(remap_sys->get_output_port(0),
                     demultiplexer->get_input_port(0));
     builder.Connect(demultiplexer->get_output_port(0),
@@ -252,6 +225,12 @@ void DoMain() {
     builder.Connect(plant.get_state_output_port(hand_index), status_sender.get_state_input_port());
     builder.Connect(status_sender.get_output_port(0),
                     hand_status_pub.get_input_port());
+    builder.Connect(hand_command_sub.get_output_port(),
+                    hand_command_receiver.get_input_port(0));
+    builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
+                    filter->get_input_port());
+    builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
+                    status_sender.get_command_input_port());
 
     // Connect scenegraph and drake visualizer
     geometry::ConnectDrakeVisualizer(&builder, scene_graph);
@@ -282,13 +261,6 @@ void DoMain() {
             RollPitchYawd(M_PI / 2, 0, 0),
             p_WHand + Eigen::Vector3d(0.095, 0.062, 0.095));
     plant.SetFreeBodyPose(&plant_context, block, X_WM);
-
-    // Set initial joint angles for hand
-    Eigen::VectorXd q = Eigen::VectorXd::Ones(kAllegroNumJoints)*FLAGS_initial_position;
-    q(1) = q(1)+0.3; // invert thumb to avoid joint limit
-    plant.SetPositions(&plant_context, hand_index, q);
-    Eigen::VectorXd v = Eigen::VectorXd::Ones(kAllegroNumJoints)*FLAGS_initial_velocity;
-    plant.SetVelocities(&plant_context, hand_index, v);
 
     // Set up simulator.
     systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
