@@ -46,7 +46,7 @@ DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
               "Desired duration of the simulation in seconds");
 DEFINE_bool(use_right_hand, true,
             "Which hand to model: true for right hand or false for left hand");
-DEFINE_double(max_time_step, 1.5e-4,
+DEFINE_double(max_time_step, 3e-4,
               "Simulation time step used for intergrator.");
 DEFINE_bool(add_gravity, false,
             "Whether adding gravity (9.81 m/s^2) in the simulation");
@@ -78,7 +78,7 @@ void DoMain() {
         "allegro_hand_description/sdf/allegro_hand_description_left.sdf");
 
   const std::string object_model_path = FindResourceOrThrow(
-      "drake/examples/allegro_hand/joint_control/simple_mug.sdf");
+      "drake/examples/allegro_hand/teleop_manus/simple_mug.sdf");
   multibody::Parser parser(&plant);
   parser.AddModelFromFile(hand_model_path);
   parser.AddModelFromFile(object_model_path);
@@ -121,18 +121,6 @@ void DoMain() {
   builder.Connect(hand_controller.get_output_port_control(),
                   plant.get_actuation_input_port());
 
-  // Create an output port of the continuous state from the plant that only
-  // output the status of the hand finger joints related DOFs, and put them in
-  // the pre-defined order that is easy for understanding.
-  const auto& hand_status_converter =
-      *builder.AddSystem<systems::MatrixGain<double>>(Sx);
-  builder.Connect(plant.get_state_output_port(),
-                  hand_status_converter.get_input_port());
-  const auto& hand_output_torque_converter =
-      *builder.AddSystem<systems::MatrixGain<double>>(Sy);
-  builder.Connect(hand_controller.get_output_port_control(),
-                  hand_output_torque_converter.get_input_port());
-
   // Create the command subscriber and status publisher for the hand.
   auto& hand_command_sub = *builder.AddSystem(
       systems::lcm::LcmSubscriberSystem::Make<lcmt_allegro_command>(
@@ -141,26 +129,11 @@ void DoMain() {
   auto& hand_command_receiver =
       *builder.AddSystem<AllegroCommandReceiver>(kAllegroNumJoints);
   hand_command_receiver.set_name("hand_command_receiver");
-  auto& hand_status_pub = *builder.AddSystem(
-      systems::lcm::LcmPublisherSystem::Make<lcmt_allegro_status>(
-          "ALLEGRO_STATUS", lcm, kLcmStatusPeriod /* publish period */));
-  hand_status_pub.set_name("hand_status_publisher");
-  auto& status_sender =
-      *builder.AddSystem<AllegroStatusSender>(kAllegroNumJoints);
-  status_sender.set_name("status_sender");
 
   builder.Connect(hand_command_sub.get_output_port(),
                   hand_command_receiver.get_input_port(0));
   builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
                   hand_controller.get_input_port_desired_state());
-  builder.Connect(hand_status_converter.get_output_port(),
-                  status_sender.get_state_input_port());
-  builder.Connect(hand_command_receiver.get_output_port(0),
-                  status_sender.get_command_input_port());
-  builder.Connect(hand_output_torque_converter.get_output_port(),
-                  status_sender.get_commanded_torque_input_port());
-  builder.Connect(status_sender.get_output_port(0),
-                  hand_status_pub.get_input_port());
 
   // Now the model is complete.
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
