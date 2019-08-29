@@ -21,7 +21,7 @@ namespace {
 
 const char* const kLcmCommandChannel = "ALLEGRO_COMMAND";
 
-DEFINE_int64(joint_index, 5,
+DEFINE_int64(joint_index, 0,
         "Joint index to move");
 
 class PositionCommander {
@@ -47,23 +47,6 @@ class PositionCommander {
       target_joint_position.setZero();
       PublishPositionCommand(target_joint_position);
       sleep(1);
-//
-//        target_joint_position.segment<3>(9) +=
-//          (0.1 * Eigen::Vector3d(1, 1, 0.5));
-//      PublishPositionCommand(target_joint_position);
-//      while (0 == lcm_.handleTimeout(10)) {}
-//      target_joint_position.segment<3>(9) -=
-//          (0.1 * Eigen::Vector3d(1, 1, 0.5));
-//      PublishPositionCommand(target_joint_position);
-//      while (0 == lcm_.handleTimeout(10)) {}
-//      target_joint_position.segment<3>(5) +=
-//          (0.6 * Eigen::Vector3d(1, 0.3, 0.5));
-//      PublishPositionCommand(target_joint_position);
-//      while (0 == lcm_.handleTimeout(10)) {}
-//      target_joint_position.segment<3>(5) -=
-//          (0.6 * Eigen::Vector3d(1, 0.3, 0.5));
-//      PublishPositionCommand(target_joint_position);
-//      while (0 == lcm_.handleTimeout(10)) {}
     }
   }
 

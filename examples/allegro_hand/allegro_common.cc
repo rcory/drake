@@ -20,12 +20,6 @@ void SetPositionControlledGains(Eigen::VectorXd* Kp, Eigen::VectorXd* Ki,
 std::vector<std::string> GetPreferredJointOrdering() {
   std::vector<std::string> joint_name_mapping;
 
-  // Thumb finger
-  joint_name_mapping.push_back("joint_12");
-  joint_name_mapping.push_back("joint_13");
-  joint_name_mapping.push_back("joint_14");
-  joint_name_mapping.push_back("joint_15");
-
   // Index finger
   joint_name_mapping.push_back("joint_0");
   joint_name_mapping.push_back("joint_1");
@@ -43,6 +37,12 @@ std::vector<std::string> GetPreferredJointOrdering() {
   joint_name_mapping.push_back("joint_9");
   joint_name_mapping.push_back("joint_10");
   joint_name_mapping.push_back("joint_11");
+
+  // Thumb finger
+  joint_name_mapping.push_back("joint_12");
+  joint_name_mapping.push_back("joint_13");
+  joint_name_mapping.push_back("joint_14");
+  joint_name_mapping.push_back("joint_15");
 
   return joint_name_mapping;
 }
