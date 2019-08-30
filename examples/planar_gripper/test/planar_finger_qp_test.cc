@@ -1,0 +1,127 @@
+#include "drake/examples/planar_gripper/planar_finger_qp.h"
+
+#include <limits>
+
+#include <gtest/gtest.h>
+
+#include "drake/common/find_resource.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
+#include "drake/geometry/scene_graph.h"
+#include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
+#include "drake/multibody/parsing/parser.h"
+#include "drake/solvers/solve.h"
+#include "drake/systems/framework/diagram.h"
+
+namespace drake {
+namespace examples {
+namespace planar_gripper {
+const double kInf = std::numeric_limits<double>::infinity();
+
+GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
+  systems::DiagramBuilder<double> builder;
+
+  geometry::SceneGraph<double>& scene_graph =
+      *builder.AddSystem<geometry::SceneGraph>();
+  scene_graph.set_name("scene_graph");
+
+  // Make and add the planar_gripper model.
+  const std::string full_name =
+      FindResourceOrThrow("drake/examples/planar_gripper/planar_finger.sdf");
+  multibody::MultibodyPlant<double>& plant =
+      *builder.AddSystem<multibody::MultibodyPlant>();
+  multibody::Parser(&plant, &scene_graph).AddModelFromFile(full_name);
+  WeldFingerFrame<double>(&plant);
+
+  // Adds the object to be manipulated.
+  auto object_file_name =
+      FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
+  multibody::Parser(&plant).AddModelFromFile(object_file_name, "object");
+
+  plant.Finalize();
+
+  const Eigen::Vector3d p_L2FingerTip =
+      GetFingerTipSpherePositionInFingerTip(plant, scene_graph);
+  const double finger_tip_radius = GetFingerTipSphereRadius(plant, scene_graph);
+  const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
+  const multibody::Frame<double>& brick_frame =
+      plant.GetFrameByName("brick_base_link");
+  const geometry::GeometryId finger_tip_geometry_id =
+      GetFingerTipGeometryId(plant, scene_graph);
+  // First solve an IK problem that the finger is making contact with the brick.
+  multibody::InverseKinematics ik(plant);
+  // Finger in contact with +z face.
+  ik.AddPositionConstraint(
+      plant.GetFrameByName("finger_link2"), p_L2FingerTip, brick_frame,
+      Eigen::Vector3d(-kInf, -brick_size(1) / 2,
+                      brick_size(2) / 2 + finger_tip_radius),
+      Eigen::Vector3d(kInf, brick_size(1) / 2,
+                      brick_size(2) / 2 + finger_tip_radius));
+
+  Eigen::Vector3d q_guess(0.1, 0.2, 0.3);
+  const auto ik_result = solvers::Solve(ik.prog(), q_guess);
+  EXPECT_TRUE(ik_result.is_success());
+  const Eigen::Vector3d q_ik = ik_result.GetSolution(ik.q());
+
+  const multibody::CoulombFriction<double>& brick_friction =
+      plant.default_coulomb_friction(
+          plant.GetCollisionGeometriesForBody(brick_frame.body())[0]);
+  const multibody::CoulombFriction<double>& finger_tip_friction =
+      plant.default_coulomb_friction(finger_tip_geometry_id);
+  const double mu = multibody::CalcContactFrictionFromSurfaceProperties(
+                        brick_friction, finger_tip_friction)
+                        .static_friction();
+  Eigen::Vector3d v(0.2, 0.3, -0.1);
+  auto plant_context = plant.CreateDefaultContext();
+  plant.SetPositions(plant_context.get(), q_ik);
+  plant.SetVelocities(plant_context.get(), v);
+
+  const double theta_planned = 0.05;
+  const double thetadot_planned = 0.12;
+  const double thetaddot_planned = 0.23;
+  const double Kp = 0.1;
+  const double Kd = 0.2;
+  const double weight_thetaddot_error = 0.5;
+  const double weight_f_Cb = 1.2;
+  BrickFace contact_face = BrickFace::kPosZ;
+  double I_B =
+      dynamic_cast<const multibody::RigidBody<double>&>(brick_frame.body())
+          .default_rotational_inertia()
+          .get_moments()(0);
+
+  PlanarFingerInstantaneousQP qp(
+      &plant, theta_planned, thetadot_planned, thetaddot_planned, Kp, Kd,
+      *plant_context, weight_thetaddot_error, weight_f_Cb, contact_face, mu,
+      p_L2FingerTip, I_B, finger_tip_radius);
+
+  const auto qp_result = solvers::Solve(qp.prog());
+  EXPECT_TRUE(qp_result.is_success());
+
+  // Now check the result.
+  // First check if the contact force is within the friction cone.
+  const Eigen::Vector2d f_Cb_B = qp.GetContactForceResult(qp_result);
+  EXPECT_LE(f_Cb_B(1), 0);
+  EXPECT_LE(std::abs(f_Cb_B(0)), -mu * f_Cb_B(1));
+
+  // Now check the cost. First compute the angular acceleration.
+  Eigen::Vector3d p_BFingerTip;
+  plant.CalcPointsPositions(*plant_context,
+                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
+                            brick_frame, &p_BFingerTip);
+  Eigen::Vector2d p_BCb(p_BFingerTip(1), p_BFingerTip(2) - finger_tip_radius);
+  const int brick_theta_index =
+      plant.GetJointByName("brick_pin_joint").position_start();
+  const double theta = q_ik(brick_theta_index);
+  const double thetadot = v(brick_theta_index);
+  const double thetaddot = (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0)) / I_B;
+  const double thetaddot_des = Kp * (theta_planned - theta) +
+                               Kd * (thetadot_planned - thetadot) +
+                               thetaddot_planned;
+  const double cost_expected =
+      weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
+      weight_f_Cb * f_Cb_B.squaredNorm();
+  EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-10);
+}
+
+}  // namespace planar_gripper
+}  // namespace examples
+}  // namespace drake
