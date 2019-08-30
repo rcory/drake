@@ -24,6 +24,9 @@
   frequently led to meaningless collisions with other hand geometries but its
   omission is justified because it is small enough that its removal is
   unlikely to cause us to miss meaningful collisions.
+
+  Note: The joint number here reflects the joint ordering of the physical hand.
+  ordered index, middle, ring, thumb
 -->
 <sdf version='1.6'>
   <model name='allegro_hand_right'>
@@ -91,6 +94,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- index proximal rotate -->
     <joint name='joint_0' type='revolute'>
       <child>link_0</child>
       <parent>hand_root</parent>
@@ -139,6 +143,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- index proximal bend -->
     <joint name='joint_1' type='revolute'>
       <child>link_1</child>
       <parent>link_0</parent>
@@ -187,6 +192,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- index middle bend -->
     <joint name='joint_2' type='revolute'>
       <child>link_2</child>
       <parent>link_1</parent>
@@ -252,6 +258,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- index distal bend -->
     <joint name='joint_3' type='revolute'>
       <child>link_3</child>
       <parent>link_2</parent>
@@ -300,6 +307,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- thumb proximal bend -->
     <joint name='joint_12' type='revolute'>
       <child>link_12</child>
       <parent>hand_root</parent>
@@ -350,6 +358,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- thumb proximal rotate -->
     <joint name='joint_13' type='revolute'>
       <child>link_13</child>
       <parent>link_12</parent>
@@ -398,6 +407,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- thumb middle bend -->
     <joint name='joint_14' type='revolute'>
       <child>link_14</child>
       <parent>link_13</parent>
@@ -463,6 +473,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- thumb distal bend -->
     <joint name='joint_15' type='revolute'>
       <child>link_15</child>
       <parent>link_14</parent>
@@ -511,6 +522,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- middle proximal rotate -->
     <joint name='joint_4' type='revolute'>
       <child>link_4</child>
       <parent>hand_root</parent>
@@ -559,6 +571,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- middle proximal bend -->
     <joint name='joint_5' type='revolute'>
       <child>link_5</child>
       <parent>link_4</parent>
@@ -607,6 +620,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- middle middle bend -->
     <joint name='joint_6' type='revolute'>
       <child>link_6</child>
       <parent>link_5</parent>
@@ -672,6 +686,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- middle distal bend -->
     <joint name='joint_7' type='revolute'>
       <child>link_7</child>
       <parent>link_6</parent>
@@ -720,6 +735,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- ring proximal rotate -->
     <joint name='joint_8' type='revolute'>
       <child>link_8</child>
       <parent>hand_root</parent>
@@ -768,6 +784,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- ring proximal bend -->
     <joint name='joint_9' type='revolute'>
       <child>link_9</child>
       <parent>link_8</parent>
@@ -816,6 +833,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- ring middle bend -->
     <joint name='joint_10' type='revolute'>
       <child>link_10</child>
       <parent>link_9</parent>
@@ -881,6 +899,7 @@
         </geometry>
       </visual>
     </link>
+    <!-- ring distal bend -->
     <joint name='joint_11' type='revolute'>
       <child>link_11</child>
       <parent>link_10</parent>
