@@ -21,7 +21,7 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
   Eigen::Vector3d p_BFingerTip;
   plant_->CalcPointsPositions(
       plant_context, plant_->GetFrameByName("finger_link2"), p_L2FingerTip,
-      plant_->GetFrameByName("brick"), &p_BFingerTip);
+      plant_->GetFrameByName("brick_base_link"), &p_BFingerTip);
   Eigen::Vector2d p_BCb = p_BFingerTip.tail<2>();
   switch (contact_face) {
     case BrickFace::kPosZ: {

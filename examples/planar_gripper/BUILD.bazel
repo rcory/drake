@@ -67,6 +67,15 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "finger_brick",
+    srcs = ["finger_brick.cc"],
+    hdrs = ["finger_brick.h"],
+    deps = [
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_library(
     name = "planar_finger_qp",
     srcs = ["planar_finger_qp.cc"],
     hdrs = ["planar_finger_qp.h"],
@@ -133,6 +142,7 @@ drake_cc_binary(
         "--target_realtime_rate=0",
     ],
     deps = [
+        ":finger_brick",
         "//common:find_resource",
         "//common:text_logging_gflags",
         "//geometry:geometry_visualization",
@@ -206,5 +216,26 @@ drake_cc_googletest(
         "//solvers:solve",
     ],
 )
+
+drake_cc_googletest(
+    name = "planar_finger_qp_test",
+    data = [
+        "//examples/planar_gripper:1dof_brick.sdf",
+        "//examples/planar_gripper:fixed_surface.sdf",
+        "//examples/planar_gripper:planar_finger.sdf",
+    ],
+    deps = [
+        ":finger_brick",
+        ":planar_finger_qp",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/parsing",
+        "//multibody/inverse_kinematics:inverse_kinematics",
+        "//multibody/plant",
+        "//solvers:solve",
+        "//systems/framework:diagram",
+    ],
+)
+
 
 add_lint_tests()

@@ -5,22 +5,23 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/text_logging_gflags.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/multibody_plant.h"
-#include "drake/multibody/tree/revolute_joint.h"
-#include "drake/multibody/tree/prismatic_joint.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
-#include "drake/systems/analysis/simulator.h"
-#include "drake/systems/framework/diagram_builder.h"
-#include "drake/systems/controllers/inverse_dynamics_controller.h"
-#include "drake/systems/primitives/constant_vector_source.h"
-#include "drake/systems/primitives/constant_value_source.h"
-#include "drake/systems/primitives/sine.h"
-#include "drake/systems/primitives/multiplexer.h"
-#include "drake/systems/primitives/adder.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
+#include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/tree/prismatic_joint.h"
+#include "drake/multibody/tree/revolute_joint.h"
+#include "drake/systems/analysis/simulator.h"
+#include "drake/systems/controllers/inverse_dynamics_controller.h"
+#include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/primitives/adder.h"
+#include "drake/systems/primitives/constant_value_source.h"
+#include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/systems/primitives/multiplexer.h"
+#include "drake/systems/primitives/sine.h"
 
 namespace drake {
 namespace examples {
@@ -54,23 +55,6 @@ DEFINE_double(fix_input, false, "Fix the actuation inputs to zero?");
 DEFINE_bool(use_brick, true,
             "True if sim should use the 1dof brick (revolute), false if it "
             "should use the 1dof surface.");
-
-template <typename T>
-void WeldFingerFrame(MultibodyPlant<T>* plant) {
-  // The finger base link is welded a fixed distance from the world
-  // origin, on the Y-Z plane.
-  const double kOriginToBaseDistance = 0.19;
-
-  // Before welding, the finger base link sits at the world origin with the
-  // finger pointing along the -Z axis, with all joint angles being zero.
-
-  // Weld the finger. Frame F1 corresponds to the base link finger frame.
-  RigidTransformd X_WF(Eigen::Vector3d::Zero());
-  X_WF = X_WF * RigidTransformd(Eigen::Vector3d(0, 0, kOriginToBaseDistance));
-  const multibody::Frame<T>& finger_base_frame =
-      plant->GetFrameByName("finger_base");
-  plant->WeldFrames(plant->world_frame(), finger_base_frame, X_WF);
-}
 
 /// Converts the generalized force output of the ID controller (internally using
 /// a control plant with only the finger) to the generalized force input for
