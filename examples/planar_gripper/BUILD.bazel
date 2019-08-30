@@ -66,6 +66,17 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "planar_finger_qp",
+    srcs = ["planar_finger_qp.cc"],
+    hdrs = ["planar_finger_qp.h"],
+    deps = [
+        ":gripper_brick",
+        "//multibody/plant",
+        "//solvers:mathematical_program_lite",
+    ],
+)
+
 drake_cc_binary(
     name = "planar_gripper_simulation",
     srcs = ["planar_gripper_simulation.cc"],
