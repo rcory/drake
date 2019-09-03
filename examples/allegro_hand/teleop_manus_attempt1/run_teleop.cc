@@ -80,6 +80,21 @@ DEFINE_double(floor_coef_kinetic_friction, 0,
         "When time_step > 0, this value is ignored. Only the "
         "coefficient of static friction is used in fixed-time step.");
 
+DEFINE_double(hand_angle, 90,
+        "Angle in degrees to rotate hand base about Y axis.");
+
+DEFINE_double(hand_height, 0.1,
+        "Height in meters to raise hand above floor.");
+
+DEFINE_double(object_x, 0.1,
+        "Object's initial x position in meters.");
+
+DEFINE_double(object_y, 0.05,
+        "Object's initial y position in meters.");
+
+DEFINE_double(object_z, 0.04,
+        "Object's initial z position in meters.");
+
 /// Maps a user state xₛ to the MPB state x, based on the preferred ordering
 /// defined in allegro_common.cc
 class DesiredStateToIDCRemap : public systems::LeafSystem<double> {
@@ -180,9 +195,13 @@ void DoMain() {
 
     // Weld the hand to the world frame
     const auto& joint_hand_root = plant.GetBodyByName("hand_root");
+    const math::RotationMatrix<double> R_WH =
+            math::RotationMatrix<double>::MakeYRotation(FLAGS_hand_angle/180*M_PI);
+    const Vector3<double> p_WoHo_W = Eigen::Vector3d(0, 0, FLAGS_hand_height);
+    const math::RigidTransform<double> X_WA(R_WH, p_WoHo_W);
     plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(),
                                          nullopt, joint_hand_root, nullopt,
-                                         math::RigidTransformd::Identity());
+                                         X_WA);
 
     if (!FLAGS_add_gravity) {
       plant.mutable_gravity_field().set_gravity_vector(Eigen::Vector3d::Zero());
@@ -323,12 +342,9 @@ void DoMain() {
 
     // Set initial conditions for block
     const multibody::Body<double>& block = plant.GetBodyByName("main_body");
-    const multibody::Body<double>& hand = plant.GetBodyByName("hand_root");
-    const Eigen::Vector3d& p_WHand =
-            plant.EvalBodyPoseInWorld(plant_context, hand).translation();
     RigidTransformd X_WM(
             RollPitchYawd(M_PI / 2, 0, 0),
-            p_WHand + Eigen::Vector3d(0.095, 0.062, 0.095));
+            Eigen::Vector3d(FLAGS_object_x,FLAGS_object_y, FLAGS_object_z));
     plant.SetFreeBodyPose(&plant_context, block, X_WM);
 
     // Set up simulator.
