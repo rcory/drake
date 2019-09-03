@@ -72,10 +72,10 @@ DEFINE_double(target_realtime_rate, 1,
 "Desired rate relative to real time.  See documentation for "
 "Simulator::set_target_realtime_rate() for details.");
 
-DEFINE_double(floor_coef_static_friction, 0,
+DEFINE_double(floor_coef_static_friction, 0.5,
         "Coefficient of static friction for the floor.");
 
-DEFINE_double(floor_coef_kinetic_friction, 0,
+DEFINE_double(floor_coef_kinetic_friction, 0.5,
         "Coefficient of kinetic friction for the floor. "
         "When time_step > 0, this value is ignored. Only the "
         "coefficient of static friction is used in fixed-time step.");
