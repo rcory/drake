@@ -72,6 +72,14 @@ DEFINE_double(target_realtime_rate, 1,
 "Desired rate relative to real time.  See documentation for "
 "Simulator::set_target_realtime_rate() for details.");
 
+DEFINE_double(floor_coef_static_friction, 0,
+        "Coefficient of static friction for the floor.");
+
+DEFINE_double(floor_coef_kinetic_friction, 0,
+        "Coefficient of kinetic friction for the floor. "
+        "When time_step > 0, this value is ignored. Only the "
+        "coefficient of static friction is used in fixed-time step.");
+
 /// Maps a user state xₛ to the MPB state x, based on the preferred ordering
 /// defined in allegro_common.cc
 class DesiredStateToIDCRemap : public systems::LeafSystem<double> {
@@ -187,6 +195,19 @@ void DoMain() {
         "weld_hand", control_plant.world_body(), nullopt,
         control_plant.GetBodyByName("hand_root"), nullopt,
         math::RigidTransformd::Identity());
+
+    // Add a floor (an infinite halfspace) to the plant
+    const Vector4<double> color(1.0, 1.0, 1.0, 1.0);
+    const drake::multibody::CoulombFriction<double> coef_friction_floor(
+            FLAGS_floor_coef_static_friction,
+            FLAGS_floor_coef_kinetic_friction);
+    plant.RegisterVisualGeometry(plant.world_body(),
+            math::RigidTransformd::Identity(),
+            geometry::HalfSpace(), "FloorVisualGeometry", color);
+    plant.RegisterCollisionGeometry(plant.world_body(),
+            math::RigidTransformd::Identity(),
+            geometry::HalfSpace(), "InclinedPlaneCollisionGeometry",
+            coef_friction_floor);
 
     // Now the plant is complete.
     plant.Finalize();
