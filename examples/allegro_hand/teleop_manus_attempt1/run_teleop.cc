@@ -89,10 +89,10 @@ DEFINE_double(hand_height, 0.1,
 DEFINE_double(object_x, 0.1,
         "Object's initial x position in meters.");
 
-DEFINE_double(object_y, 0.05,
+DEFINE_double(object_y, 0,
         "Object's initial y position in meters.");
 
-DEFINE_double(object_z, 0.04,
+DEFINE_double(object_z, 0.025,
         "Object's initial z position in meters.");
 
 /// Maps a user state xₛ to the MPB state x, based on the preferred ordering
