@@ -48,11 +48,27 @@ DEFINE_bool(use_right_hand, true,
             "Which hand to model: true for right hand or false for left hand");
 DEFINE_double(max_time_step, 3e-4,
               "Simulation time step used for intergrator.");
-DEFINE_bool(add_gravity, false,
+DEFINE_bool(add_gravity, true,
             "Whether adding gravity (9.81 m/s^2) in the simulation");
 DEFINE_double(target_realtime_rate, 1,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
+DEFINE_double(floor_coef_static_friction, 0.5,
+        "Coefficient of static friction for the floor.");
+DEFINE_double(floor_coef_kinetic_friction, 0.5,
+        "Coefficient of kinetic friction for the floor. "
+        "When time_step > 0, this value is ignored. Only the "
+        "coefficient of static friction is used in fixed-time step.");
+DEFINE_double(hand_angle, 100,
+        "Angle in degrees to rotate hand base about Y axis.");
+DEFINE_double(hand_height, 0.15,
+        "Height in meters to raise hand above floor.");
+DEFINE_double(object_x, 0.1,
+        "Object's initial x position in meters.");
+DEFINE_double(object_y, 0,
+        "Object's initial y position in meters.");
+DEFINE_double(object_z, 0.025,
+        "Object's initial z position in meters.");
 
 void DoMain() {
   DRAKE_DEMAND(FLAGS_simulation_time > 0);
@@ -78,21 +94,38 @@ void DoMain() {
         "allegro_hand_description/sdf/allegro_hand_description_left.sdf");
 
   const std::string object_model_path = FindResourceOrThrow(
-      "drake/examples/allegro_hand/teleop_manus/simple_mug.sdf");
+      "drake/examples/allegro_hand/teleop_manus/block.sdf");
   multibody::Parser parser(&plant);
   parser.AddModelFromFile(hand_model_path);
   parser.AddModelFromFile(object_model_path);
 
   // Weld the hand to the world frame
   const auto& joint_hand_root = plant.GetBodyByName("hand_root");
-  plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(), nullopt,
-                                       joint_hand_root, nullopt,
-                                       RigidTransformd::Identity());
+  const math::RotationMatrix<double> R_WH =
+        math::RotationMatrix<double>::MakeYRotation(FLAGS_hand_angle/180*M_PI);
+  const Vector3<double> p_WoHo_W = Eigen::Vector3d(0, 0, FLAGS_hand_height);
+  const math::RigidTransform<double> X_WA(R_WH, p_WoHo_W);
+  plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(),
+                                     nullopt, joint_hand_root, nullopt,
+                                     X_WA);
 
   if (!FLAGS_add_gravity) {
     plant.mutable_gravity_field().set_gravity_vector(
         Eigen::Vector3d::Zero());
   }
+
+  // Add a floor (an infinite halfspace) to the plant
+    const Vector4<double> color(1.0, 1.0, 1.0, 1.0);
+    const drake::multibody::CoulombFriction<double> coef_friction_floor(
+            FLAGS_floor_coef_static_friction,
+            FLAGS_floor_coef_kinetic_friction);
+    plant.RegisterVisualGeometry(plant.world_body(),
+            math::RigidTransformd::Identity(),
+            geometry::HalfSpace(), "FloorVisualGeometry", color);
+    plant.RegisterCollisionGeometry(plant.world_body(),
+            math::RigidTransformd::Identity(),
+            geometry::HalfSpace(), "InclinedPlaneCollisionGeometry",
+            coef_friction_floor);
 
   // Finished building the plant
   plant.Finalize();
@@ -143,19 +176,14 @@ void DoMain() {
       diagram->CreateDefaultContext();
   diagram->SetDefaultContext(diagram_context.get());
 
-  // Set the position of object
-  const multibody::Body<double>& mug = plant.GetBodyByName("main_body");
-  const multibody::Body<double>& hand = plant.GetBodyByName("hand_root");
+  // Set initial conditions for the object
+  const multibody::Body<double>& object = plant.GetBodyByName("main_body");
   systems::Context<double>& plant_context =
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
-
-  // Initialize the mug pose to be right in the middle between the fingers.
-  const Eigen::Vector3d& p_WHand =
-      plant.EvalBodyPoseInWorld(plant_context, hand).translation();
   RigidTransformd X_WM(
       RollPitchYawd(M_PI / 2, 0, 0),
-      p_WHand + Eigen::Vector3d(0.095, 0.062, 0.095));
-  plant.SetFreeBodyPose(&plant_context, mug, X_WM);
+      Eigen::Vector3d(FLAGS_object_x,FLAGS_object_y, FLAGS_object_z));
+  plant.SetFreeBodyPose(&plant_context, object, X_WM);
 
   // Set up simulator.
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
