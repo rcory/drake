@@ -186,7 +186,7 @@ void DoMain() {
           "allegro_hand_description/sdf/allegro_hand_description_left.sdf");
 
     const std::string object_model_path = FindResourceOrThrow(
-        "drake/examples/allegro_hand/teleop_manus_attempt1/block.sdf");
+        "drake/examples/allegro_hand/teleop_manus_IDC/block.sdf");
 
     multibody::Parser parser(&plant);
     const ModelInstanceIndex hand_index =

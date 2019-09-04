@@ -47,7 +47,7 @@ DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
 DEFINE_bool(use_right_hand, true,
             "Which hand to model: true for right hand or false for left hand");
 DEFINE_double(max_time_step, 3e-4,
-              "Simulation time step used for intergrator.");
+              "Simulation time step used for integrator.");
 DEFINE_bool(add_gravity, true,
             "Whether adding gravity (9.81 m/s^2) in the simulation");
 DEFINE_double(target_realtime_rate, 1,
@@ -94,7 +94,7 @@ void DoMain() {
         "allegro_hand_description/sdf/allegro_hand_description_left.sdf");
 
   const std::string object_model_path = FindResourceOrThrow(
-      "drake/examples/allegro_hand/teleop_manus/block.sdf");
+      "drake/examples/allegro_hand/teleop_manus_PD/block.sdf");
   multibody::Parser parser(&plant);
   parser.AddModelFromFile(hand_model_path);
   parser.AddModelFromFile(object_model_path);

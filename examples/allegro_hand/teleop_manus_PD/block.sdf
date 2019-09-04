@@ -4,21 +4,21 @@
       <pose frame=''>0 0 0 0 -0 0</pose>
       <inertial>
         <pose frame=''>0 0 0 0 -0 0</pose>
-        <mass>0.1</mass>
+        <mass>0.01</mass>
         <inertia>
-          <ixx>0.00004167</ixx>
+          <ixx>0.000009375</ixx> //for a cube: 1/6*m*l^2
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>0.00004167</iyy>
+          <iyy>0.000009375</iyy>
           <iyz>0</iyz>
-          <izz>0.00004167</izz>
+          <izz>0.000009375</izz>
         </inertia>
       </inertial>
       <collision name='main_body_collision'>
         <pose frame=''>0 0 0 0 -0 0</pose>
         <geometry>
           <box>
-            <size>0.05 0.05 0.05</size>
+            <size>0.075 0.075 0.075</size>
           </box>
         </geometry>
         <surface>
@@ -34,7 +34,7 @@
         <pose frame=''>0 0 0 0 -0 0</pose>
         <geometry>
           <box>
-            <size>0.05 0.05 0.05</size>
+            <size>0.075 0.075 0.075</size>
           </box>
         </geometry>
         <material>
