@@ -28,7 +28,8 @@ class PlanarFingerInstantaneousQP {
    * @param thetaddot_planned The planned angular acceleration of the brick.
    * @param Kp The proportional gain.
    * @param Kd The derivative gain.
-   * @param plant_context The context containing the system current q and v.
+   * @param q The generalized position of the finger/brick system.
+   * @param v The generalized velocity of the finger/brick system.
    * @param weight_thetaddot_error The weight of the thetaddot error in the
    * cost.
    * @param weight_f_Cb The weight of the contact force in the cost.
@@ -39,14 +40,13 @@ class PlanarFingerInstantaneousQP {
    * @param I_B The inertia of the brick.
    * @param finger_tip_radius The radius of the bubble on the finger.
    */
-  PlanarFingerInstantaneousQP(const multibody::MultibodyPlant<double>* plant,
-                              double theta_planned, double thetadot_planned,
-                              double thetaddot_planned, double Kp, double Kd,
-                              const systems::Context<double>& plant_context,
-                              double weight_thetaddot_error, double weight_f_Cb,
-                              BrickFace contact_face, double mu,
-                              const Eigen::Vector3d& p_L2FingerTip, double I_B,
-                              double finger_tip_radius);
+  PlanarFingerInstantaneousQP(
+      const multibody::MultibodyPlant<double>* plant, double theta_planned,
+      double thetadot_planned, double thetaddot_planned, double Kp, double Kd,
+      double theta, double thetadot,
+      const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
+      double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
+      double mu, double I_B, double finger_tip_radius);
 
   const solvers::MathematicalProgram& prog() const { return *prog_; }
 

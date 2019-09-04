@@ -30,7 +30,8 @@ class PlanarBrickInstantaneousQP {
    * @param thetaddot_planned The planned angular acceleration of the brick.
    * @param Kp The proportional gain.
    * @param Kd The derivative gain.
-   * @param plant_context The context containing the system current q and v.
+   * @param theta The current orientation of the brick.
+   * @param thetadot The current angular velocity of the brick.
    * @param weight_thetaddot_error The weight of the thetaddot error in the
    * cost.
    * @param weight_f_Cb The weight of the contact force in the cost.
