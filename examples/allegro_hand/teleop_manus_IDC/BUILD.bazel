@@ -28,6 +28,7 @@ drake_cc_binary(
         "//lcmtypes:allegro",
         "//multibody/parsing",
         "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis",
         "//systems/controllers",
         "//systems/lcm:lcm_pubsub_system",

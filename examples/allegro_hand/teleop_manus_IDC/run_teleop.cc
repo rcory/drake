@@ -15,6 +15,8 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/contact_results.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/tree/uniform_gravity_field_element.h"
@@ -46,52 +48,37 @@ using drake::math::RollPitchYawd;
 
 DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
 "Desired duration of the simulation in seconds");
-
 DEFINE_double(time_constant, 0.085,
 "Time constant for actuator delay");
-
 DEFINE_bool(use_right_hand, true,
 "Which hand to model: true for right hand or false for left hand");
-
 DEFINE_double(kp, 1000000,
 "Proportional control gain for all joints, 1000000 seems good");
-
 DEFINE_double(ki, 0,
 "Integral control gain for all joints, 0 seems good");
-
 DEFINE_double(kd, 1500,
 "Derivative control gain for all joints, 1500 seems good");
-
 DEFINE_double(max_time_step, 5.0e-4,
 "Simulation time step used for integrator.");
-
 DEFINE_bool(add_gravity, true, "Indicator for whether terrestrial gravity"
 " (9.81 m/s²) is included or not.");
-
 DEFINE_double(target_realtime_rate, 1,
 "Desired rate relative to real time.  See documentation for "
 "Simulator::set_target_realtime_rate() for details.");
-
 DEFINE_double(floor_coef_static_friction, 0.5,
         "Coefficient of static friction for the floor.");
-
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
         "Coefficient of kinetic friction for the floor. "
         "When time_step > 0, this value is ignored. Only the "
         "coefficient of static friction is used in fixed-time step.");
-
-DEFINE_double(hand_angle, 90,
+DEFINE_double(hand_angle, 100,
         "Angle in degrees to rotate hand base about Y axis.");
-
-DEFINE_double(hand_height, 0.1,
+DEFINE_double(hand_height, 0.15,
         "Height in meters to raise hand above floor.");
-
 DEFINE_double(object_x, 0.1,
         "Object's initial x position in meters.");
-
 DEFINE_double(object_y, 0,
         "Object's initial y position in meters.");
-
 DEFINE_double(object_z, 0.025,
         "Object's initial z position in meters.");
 
@@ -327,6 +314,9 @@ void DoMain() {
         scene_graph.get_source_pose_port(plant.get_source_id().value()));
     builder.Connect(scene_graph.get_query_output_port(),
                     plant.get_geometry_query_input_port());
+
+    // Publish contact results for visualization.
+    multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant, lcm);
 
     // Build diagram
     std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
