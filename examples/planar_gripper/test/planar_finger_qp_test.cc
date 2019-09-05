@@ -74,6 +74,10 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   auto plant_context = plant.CreateDefaultContext();
   plant.SetPositions(plant_context.get(), q_ik);
   plant.SetVelocities(plant_context.get(), v);
+  Eigen::Vector3d p_BFingerTip;
+  plant.CalcPointsPositions(*plant_context,
+                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
+                            brick_frame, &p_BFingerTip);
 
   const double theta_planned = 0.05;
   const double thetadot_planned = 0.12;
@@ -88,10 +92,15 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
           .default_rotational_inertia()
           .get_moments()(0);
 
+  const int brick_revolute_position_index =
+      plant.GetJointByName("brick_pin_joint").position_start();
+  const double theta = q_ik(brick_revolute_position_index);
+  const double thetadot = v(brick_revolute_position_index);
+
   PlanarFingerInstantaneousQP qp(
-      &plant, theta_planned, thetadot_planned, thetaddot_planned, Kp, Kd,
-      *plant_context, weight_thetaddot_error, weight_f_Cb, contact_face, mu,
-      p_L2FingerTip, I_B, finger_tip_radius);
+      &plant, theta_planned, thetadot_planned, thetaddot_planned, Kp, Kd, theta,
+      thetadot, p_BFingerTip.tail<2>(), weight_thetaddot_error, weight_f_Cb,
+      contact_face, mu, I_B, finger_tip_radius);
 
   const auto qp_result = solvers::Solve(qp.prog());
   EXPECT_TRUE(qp_result.is_success());
@@ -103,15 +112,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   EXPECT_LE(std::abs(f_Cb_B(0)), -mu * f_Cb_B(1));
 
   // Now check the cost. First compute the angular acceleration.
-  Eigen::Vector3d p_BFingerTip;
-  plant.CalcPointsPositions(*plant_context,
-                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
-                            brick_frame, &p_BFingerTip);
   Eigen::Vector2d p_BCb(p_BFingerTip(1), p_BFingerTip(2) - finger_tip_radius);
-  const int brick_theta_index =
-      plant.GetJointByName("brick_pin_joint").position_start();
-  const double theta = q_ik(brick_theta_index);
-  const double thetadot = v(brick_theta_index);
   const double thetaddot = (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0)) / I_B;
   const double thetaddot_des = Kp * (theta_planned - theta) +
                                Kd * (thetadot_planned - thetadot) +
