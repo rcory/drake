@@ -121,7 +121,7 @@ class BrickInstantaneousQPController
   int output_index_control_{-1};
   int input_index_p_BCb_{-1};
   int input_index_contact_face_{-1};
-};  // namespace planar_gripper
+};
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

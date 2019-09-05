@@ -83,6 +83,9 @@ drake_cc_library(
         ":gripper_brick",
         "//multibody/plant",
         "//solvers:mathematical_program_lite",
+        "//solvers:solve",
+        "//systems/controllers:state_feedback_controller_interface",
+        "//systems/framework:leaf_system",
     ],
 )
 
