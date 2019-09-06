@@ -29,6 +29,7 @@
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
@@ -45,6 +46,7 @@ using drake::math::RigidTransformd;
 using drake::math::RollPitchYawd;
 using drake::multibody::ModelInstanceIndex;
 using drake::multibody::MultibodyPlant;
+using drake::lcm::DrakeLcm;
 
 DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
               "Desired duration of the simulation in seconds");
@@ -150,6 +152,39 @@ class DesiredStateToIDCRemap : public systems::LeafSystem<double> {
   MatrixX<double> Sx_inverse_;
 };
 
+
+/// Maps a MBP state x to the user preferred ordering xₛ defined in
+/// allegro_common.cc
+class MBPStateToPreferredStateRemap : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MBPStateToPreferredStateRemap);
+  MBPStateToPreferredStateRemap(const MultibodyPlant<double>& full_plant) {
+    this->DeclareVectorInputPort(
+        "input", systems::BasicVector<double>(full_plant.num_positions() +
+                                              full_plant.num_velocities()));
+    this->DeclareVectorOutputPort(
+        "output",
+        systems::BasicVector<double>(kAllegroNumJoints * 2),
+        &MBPStateToPreferredStateRemap::remap_output);
+
+    // Get the state/actuation mapping for the control plant.
+    MatrixX<double> Sx, Sy;
+    GetControlPortMapping(full_plant, &Sx, &Sy);
+    Sx_ = Sx;
+  }
+
+  void remap_output(const systems::Context<double>& context,
+                    systems::BasicVector<double>* output_vector) const {
+    auto output_value = output_vector->get_mutable_value();
+    auto input_value = this->EvalVectorInput(context, 0)->get_value();
+    output_value = Sx_ * input_value;
+  }
+
+ private:
+  MatrixX<double> Sx_;
+};
+
+
 /// Remaps the input vector (which is mapped using the code's torque vector
 /// mapping and corresponds to the generalized force output of the ID controller
 /// using a control plant with only the hand) into the output vector (which is
@@ -188,7 +223,8 @@ void DoMain() {
   DRAKE_DEMAND(FLAGS_simulation_time > 0);
 
   systems::DiagramBuilder<double> builder;
-  auto lcm = builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
+  DrakeLcm dlcm;
+  auto lcm = builder.AddSystem<systems::lcm::LcmInterfaceSystem>(&dlcm);
 
   geometry::SceneGraph<double>& scene_graph =
       *builder.AddSystem<geometry::SceneGraph>();
@@ -332,7 +368,6 @@ void DoMain() {
                   filter->get_input_port(0));
   builder.Connect(filter->get_output_port(0),
                   desired_state_remap->get_input_port(0));
-
   builder.Connect(desired_state_remap->get_output_port(0),
                   IDC->get_input_port_desired_state());
   builder.Connect(plant.get_state_output_port(hand_index),
@@ -342,7 +377,7 @@ void DoMain() {
                   status_sender.get_command_input_port());
 
   // Connect scenegraph and drake visualizer
-  geometry::ConnectDrakeVisualizer(&builder, scene_graph);
+  geometry::ConnectDrakeVisualizer(&builder, scene_graph, lcm);
   DRAKE_DEMAND(!!plant.get_source_id());
   builder.Connect(
       plant.get_geometry_poses_output_port(),
@@ -353,10 +388,18 @@ void DoMain() {
   // Publish contact results for visualization.
   multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant, lcm);
 
+  // Publish the (post-filtered) commanded positions vs. actual positions.
+  auto mbp_remapped_state =
+      builder.AddSystem<MBPStateToPreferredStateRemap>(plant);
+  builder.Connect(plant.get_state_output_port(),
+                  mbp_remapped_state->get_input_port(0));
+  systems::lcm::ConnectLcmScope(filter->get_output_port(0),
+                                "FILTERED_COMMANDED_POS", &builder, &dlcm);
+  systems::lcm::ConnectLcmScope(mbp_remapped_state->get_output_port(0),
+                                "ACTUAL_POS", &builder, &dlcm);
+
   // Build diagram
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
-
-  geometry::DispatchLoadMessage(scene_graph, lcm);
 
   // Create a context for this system
   std::unique_ptr<systems::Context<double>> diagram_context =
