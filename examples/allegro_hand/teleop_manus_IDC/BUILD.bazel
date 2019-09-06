@@ -14,7 +14,7 @@ drake_cc_binary(
     name = "run_teleop",
     srcs = ["run_teleop.cc"],
     data = [
-        ":block.sdf",
+        "//examples/allegro_hand/teleop_manus_IDC:block.sdf",
         "//manipulation/models/allegro_hand_description:models",
     ],
     deps = [

@@ -2,6 +2,10 @@
 ///
 /// This demo sets up a simple dynamic simulation for the Allegro hand using
 /// the multi-body library with inverse dynamics control.
+/// Note: If data logging is desired, do not run with Bazel. Instead, run with, e.g.
+/// ./bazel-bin/examples/allegro_hand/teleop_manus_IDC/run_teleop - -simulation_time=2 -log_state=true
+
+
 
 #include <fstream>
 #include <gflags/gflags.h>
@@ -77,6 +81,7 @@ DEFINE_double(hand_height, 0.15, "Height in meters to raise hand above floor.");
 DEFINE_double(object_x, 0.1, "Object's initial x position in meters.");
 DEFINE_double(object_y, 0, "Object's initial y position in meters.");
 DEFINE_double(object_z, 0.025, "Object's initial z position in meters.");
+DEFINE_bool(log_state, false, "Whether to log desired and actual state data to a file");
 
 /// A re-implementation of a low pass filter that directly inherets from
 /// LeafSystem (and not VectorSystem).
@@ -299,12 +304,6 @@ void DoMain() {
       *builder.AddSystem<AllegroCommandReceiver>(kAllegroNumJoints);
   hand_command_receiver.set_name("hand_command_receiver");
 
-  // Add signal loggers to log system desired and actual state to a file
-  auto desired_state_logger = LogOutput(
-      hand_command_receiver.get_commanded_state_output_port(), &builder);
-  auto actual_state_logger =
-      LogOutput(plant.get_state_output_port(hand_index), &builder);
-
   // A system to remap the incoming state input to the IDC.
   auto desired_state_remap =
       builder.AddSystem<DesiredStateToIDCRemap>(control_plant);
@@ -353,6 +352,11 @@ void DoMain() {
   // Publish contact results for visualization.
   multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant, lcm);
 
+  // If state logging is desired, add signal logging and map data into loggers
+  auto desired_state_logger =
+          LogOutput(hand_command_receiver.get_commanded_state_output_port(),&builder);
+  auto actual_state_logger = LogOutput(plant.get_state_output_port(),&builder);
+
   // Build diagram
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
 
@@ -385,25 +389,26 @@ void DoMain() {
 
   drake::log()->info("Num steps taken: {}", simulator.get_num_steps_taken());
 
-  // Print logged data to file
-  // Gets the time stamps when each data point is saved.
-  const auto& desired_times = desired_state_logger->sample_times();
-  // Gets the logged data.
-  const auto& desired_data = desired_state_logger->data();
-  // Gets the time stamps when each data point is saved.
-  const auto& actual_times = actual_state_logger->sample_times();
-  // Gets the logged data.
-  const auto& actual_data = actual_state_logger->data();
+  // If desired, print logged data to file
+  if (FLAGS_log_state) {
+      // Gets the time stamps when each data point is saved.
+      const auto& desired_times = desired_state_logger->sample_times();
+      // Gets the logged data.
+      const auto& desired_data = desired_state_logger->data();
+      // Gets the time stamps when each data point is saved.
+      const auto& actual_times = actual_state_logger->sample_times();
+      // Gets the logged data.
+      const auto& actual_data = actual_state_logger->data();
 
-  std::fstream outfile;
-  outfile.open("test.txt", std::fstream::out);
-  outfile << desired_times.transpose() << std::endl;
-  outfile << desired_data << std::endl;
-  outfile << actual_times.transpose() << std::endl;
-  outfile << actual_data << std::endl;
-  outfile.close();
+      std::fstream outfile;
+      outfile.open("test.txt", std::fstream::out);
+      outfile << desired_times.transpose() << std::endl;
+      outfile << desired_data << std::endl;
+      outfile << actual_times.transpose() << std::endl;
+      outfile << actual_data << std::endl;
+      outfile.close();
+  }
 }
-
 }  // namespace allegro_hand
 }  // namespace examples
 }  // namespace drake
