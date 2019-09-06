@@ -386,11 +386,7 @@ void DoMain() {
 
   // Publish contact results for visualization.
   multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant, lcm);
-  
-  // Add signal logging and map data into loggers
-  auto desired_state_logger =
-          LogOutput(hand_command_receiver.get_commanded_state_output_port(),&builder);
-  auto actual_state_logger = LogOutput(plant.get_state_output_port(),&builder);
+
   // Publish the (post-filtered) commanded positions vs. actual positions.
   auto mbp_remapped_state =
       builder.AddSystem<MBPStateToPreferredStateRemap>(plant);
@@ -400,6 +396,11 @@ void DoMain() {
                                 "FILTERED_COMMANDED_POS", &builder, &dlcm);
   systems::lcm::ConnectLcmScope(mbp_remapped_state->get_output_port(0),
                                 "ACTUAL_POS", &builder, &dlcm);
+
+  // Add signal logging and map data into loggers
+  auto desired_state_logger =
+          LogOutput(hand_command_receiver.get_commanded_state_output_port(),&builder);
+  auto actual_state_logger = LogOutput(mbp_remapped_state->get_output_port(0),&builder);
 
   // Build diagram
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
