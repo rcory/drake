@@ -98,26 +98,15 @@ class LowPassFilter : public systems::LeafSystem<double> {
   void DoCalcTimeDerivatives(
       const systems::Context<double>& context,
       systems::ContinuousState<double>* derivatives) const final {
-    const Eigen::VectorBlock<const VectorX<double>> input_block =
-        this->get_input_port(0).Eval(context);
+    auto input = this->EvalVectorInput(context, 0)->get_value();
 
-    // Obtain the block form of xc.
     DRAKE_ASSERT(context.has_only_continuous_state());
-    const systems::VectorBase<double>& state_vector =
-        context.get_continuous_state_vector();
-    const Eigen::VectorBlock<const VectorX<double>> state_block =
-        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
-            .get_value();
+    auto state_vector = context.get_continuous_state_vector().CopyToVector();
 
-    // Obtain the block form of xcdot.
-    systems::VectorBase<double>& derivatives_vector =
-        derivatives->get_mutable_vector();
-    Eigen::VectorBlock<VectorX<double>> derivatives_block =
-        dynamic_cast<systems::BasicVector<double>&>(derivatives_vector)
-            .get_mutable_value();
+    auto& derivatives_vector = derivatives->get_mutable_vector();
 
-    derivatives_block.array() =
-        (input_block - state_block).array() / time_constants_.array();
+    derivatives_vector.SetFromVector((input - state_vector).array() /
+                                     time_constants_.array());
   }
 
   void CalcOutput(const systems::Context<double>& context,
@@ -339,11 +328,11 @@ void DoMain() {
                   hand_status_pub.get_input_port());
   builder.Connect(hand_command_sub.get_output_port(),
                   hand_command_receiver.get_input_port(0));
-
   builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
                   filter->get_input_port(0));
   builder.Connect(filter->get_output_port(0),
                   desired_state_remap->get_input_port(0));
+
   builder.Connect(desired_state_remap->get_output_port(0),
                   IDC->get_input_port_desired_state());
   builder.Connect(plant.get_state_output_port(hand_index),
