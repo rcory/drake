@@ -1,0 +1,12 @@
+# File produced by Open Asset Import Library (http://www.assimp.sf.net)
+# (assimp v4.1.0)
+
+newmtl initialShadingGroup
+Kd 1 1 1
+Ke 0 0 0
+Ns 700
+illum 2
+map_Kd corelle_livingware_11oz_mug_red_color.png
+bump corelle_livingware_11oz_mug_red_normal.png
+map_bump corelle_livingware_11oz_mug_red_normal.png
+

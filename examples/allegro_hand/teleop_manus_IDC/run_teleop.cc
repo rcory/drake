@@ -80,9 +80,14 @@ DEFINE_double(floor_coef_kinetic_friction, 0.5,
 DEFINE_double(hand_angle, 100,
               "Angle in degrees to rotate hand base about Y axis.");
 DEFINE_double(hand_height, 0.15, "Height in meters to raise hand above floor.");
+DEFINE_double(hand_y, 0.2, "The hand y-position. Default value is above the mug.");
 DEFINE_double(object_x, 0.1, "Object's initial x position in meters.");
 DEFINE_double(object_y, 0, "Object's initial y position in meters.");
 DEFINE_double(object_z, 0.025, "Object's initial z position in meters.");
+DEFINE_double(mug_x, 0.08, "Mug's initial x position in meters.");
+DEFINE_double(mug_y, 0.2, "Mug's initial y position in meters.");
+DEFINE_double(mug_z, 0.051, "Mug's initial z position in meters.");
+
 DEFINE_bool(log_state, false, "Whether to log desired and actual state data to a file");
 
 /// A re-implementation of a low pass filter that directly inherets from
@@ -251,17 +256,22 @@ void DoMain() {
   const std::string object_model_path = FindResourceOrThrow(
       "drake/examples/allegro_hand/teleop_manus_IDC/block.sdf");
 
+  const std::string mug_model_path = FindResourceOrThrow(
+      "drake/examples/allegro_hand/teleop_manus_IDC/"
+      "corelle_livingware_11oz_mug_red.sdf");
+
   multibody::Parser parser(&plant);
   const ModelInstanceIndex hand_index =
       parser.AddModelFromFile(hand_model_path);
   parser.AddModelFromFile(object_model_path);
+  parser.AddModelFromFile(mug_model_path);
 
   // Weld the hand to the world frame
   const auto& joint_hand_root = plant.GetBodyByName("hand_root");
   const math::RotationMatrix<double> R_WH =
       math::RotationMatrix<double>::MakeYRotation(FLAGS_hand_angle / 180 *
                                                   M_PI);
-  const Vector3<double> p_WoHo_W = Eigen::Vector3d(0, 0, FLAGS_hand_height);
+  const Vector3<double> p_WoHo_W = Eigen::Vector3d(0, FLAGS_hand_y, FLAGS_hand_height);
   const math::RigidTransform<double> X_WA(R_WH, p_WoHo_W);
   plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(), nullopt,
                                        joint_hand_root, nullopt, X_WA);
@@ -308,7 +318,7 @@ void DoMain() {
 
   // Add demultiplexer to pass only first elements of remap system output to
   // status sender
-  std::vector<int> output_sizes = {kAllegroNumJoints, 6};
+  std::vector<int> output_sizes = {kAllegroNumJoints, 6 + 6};
   auto demultiplexer =
       builder.AddSystem<systems::Demultiplexer<double>>(output_sizes);
 
@@ -414,11 +424,18 @@ void DoMain() {
   diagram_context->EnableCaching();
 
   // Set initial conditions for block
-  const multibody::Body<double>& block = plant.GetBodyByName("main_body");
-  RigidTransformd X_WM(
+  const multibody::Body<double>& block = plant.GetBodyByName("block_body");
+  RigidTransformd X_WB(
       RollPitchYawd(M_PI / 2, 0, 0),
       Eigen::Vector3d(FLAGS_object_x, FLAGS_object_y, FLAGS_object_z));
-  plant.SetFreeBodyPose(&plant_context, block, X_WM);
+  plant.SetFreeBodyPose(&plant_context, block, X_WB);
+
+  // Set initial conditions for the mug
+  const multibody::Body<double>& mug = plant.GetBodyByName("corelle_livingware_11oz_mug_red");
+  RigidTransformd X_WM(
+      RollPitchYawd(0, 0, M_PI),
+      Eigen::Vector3d(FLAGS_mug_x, FLAGS_mug_y, FLAGS_mug_z));
+  plant.SetFreeBodyPose(&plant_context, mug, X_WM);
 
   // Set up simulator.
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
