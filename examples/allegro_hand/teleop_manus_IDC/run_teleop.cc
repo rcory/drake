@@ -41,6 +41,7 @@
 #include "drake/systems/primitives/demultiplexer.h"
 #include "drake/systems/primitives/multiplexer.h"
 #include "drake/systems/primitives/signal_logger.h"
+#include "drake/multibody/tree/revolute_joint.h"
 
 namespace drake {
 namespace examples {
@@ -95,16 +96,16 @@ DEFINE_bool(log_state, false, "Whether to log desired and actual state data to a
 class LowPassFilter : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(LowPassFilter);
-  LowPassFilter(double time_constant, int size)
-      : time_constants_(VectorX<double>::Ones(size) * time_constant) {
+  LowPassFilter(double time_constant)
+      : time_constants_(VectorX<double>::Ones(kAllegroNumJoints) * time_constant) {
     DRAKE_ASSERT(time_constants_.size() > 0);
     DRAKE_ASSERT((time_constants_.array() > 0).all());
-    this->DeclareContinuousState(time_constants_.size());
+    this->DeclareContinuousState(kAllegroNumJoints);
     this->DeclareVectorInputPort(
-        "input", systems::BasicVector<double>(time_constants_.size()));
+        "input", systems::BasicVector<double>(kAllegroNumJoints * 2));
     this->DeclareVectorOutputPort(
-        "output", systems::BasicVector<double>(time_constants_.size()),
-        &LowPassFilter::CalcOutput);
+        "position_output", systems::BasicVector<double>(kAllegroNumJoints * 2),
+        &LowPassFilter::CalcPositionOutput);
   }
 
   void DoCalcTimeDerivatives(
@@ -117,14 +118,21 @@ class LowPassFilter : public systems::LeafSystem<double> {
 
     auto& derivatives_vector = derivatives->get_mutable_vector();
 
-    derivatives_vector.SetFromVector((input - state_vector).array() /
+    derivatives_vector.SetFromVector((input.head(kAllegroNumJoints) - state_vector).array() /
                                      time_constants_.array());
   }
 
-  void CalcOutput(const systems::Context<double>& context,
+  void CalcPositionOutput(const systems::Context<double>& context,
                   systems::BasicVector<double>* output) const {
-    output->get_mutable_value() =
+    auto output_vector = output->get_mutable_value();
+    output_vector.setZero();
+    output_vector.head(kAllegroNumJoints) =
         context.get_continuous_state_vector().CopyToVector();
+
+    auto derivatives = context.get_continuous_state().Clone();
+
+    DoCalcTimeDerivatives(context, derivatives.get());
+    output_vector.tail(kAllegroNumJoints) = derivatives->CopyToVector();
   }
 
  private:
@@ -319,7 +327,7 @@ void DoMain() {
   // Add demultiplexer to pass only first elements of remap system output to
   // status sender
   std::vector<int> output_sizes = {kAllegroNumJoints, 6 + 6};
-  auto demultiplexer =
+  auto generalized_force_demultiplexer =
       builder.AddSystem<systems::Demultiplexer<double>>(output_sizes);
 
   // Create the status publisher and sender to log hand info so it is visible
@@ -355,17 +363,14 @@ void DoMain() {
       builder.AddSystem<DesiredStateToIDCRemap>(control_plant);
 
   // Add low pass filter block
-  auto filter = builder.AddSystem<LowPassFilter>(FLAGS_time_constant,
-                                                 2 * kAllegroNumJoints);
+  auto filter = builder.AddSystem<LowPassFilter>(FLAGS_time_constant);
 
   // Connect ports
-  builder.Connect(remap_sys->get_output_port(0),
-                  plant.get_applied_generalized_force_input_port());
   builder.Connect(const_src->get_output_port(),
                   plant.get_actuation_input_port());
   builder.Connect(remap_sys->get_output_port(0),
-                  demultiplexer->get_input_port(0));
-  builder.Connect(demultiplexer->get_output_port(0),
+                  generalized_force_demultiplexer->get_input_port(0));
+  builder.Connect(generalized_force_demultiplexer->get_output_port(0),
                   status_sender.get_commanded_torque_input_port());
   builder.Connect(plant.get_state_output_port(hand_index),
                   status_sender.get_state_input_port());
@@ -382,6 +387,8 @@ void DoMain() {
   builder.Connect(plant.get_state_output_port(hand_index),
                   IDC->get_input_port_estimated_state());
   builder.Connect(*IDC, *remap_sys);
+  builder.Connect(remap_sys->get_output_port(0),
+                  plant.get_applied_generalized_force_input_port());
   builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
                   status_sender.get_command_input_port());
 
@@ -436,6 +443,24 @@ void DoMain() {
       RollPitchYawd(0, 0, M_PI),
       Eigen::Vector3d(FLAGS_mug_x, FLAGS_mug_y, FLAGS_mug_z));
   plant.SetFreeBodyPose(&plant_context, mug, X_WM);
+
+  // Set the initial conditions for the hand.
+  VectorX<double> hand_initial_positions(kAllegroNumJoints);
+  hand_initial_positions.setZero();
+  hand_initial_positions(12) = 0.3;  // thumb
+  for (int i = 0; i < kAllegroNumJoints; i++) {
+    std::string jname = "joint_" + std::to_string(i);
+    const multibody::RevoluteJoint<double>& joint_pin =
+        plant.GetJointByName<multibody::RevoluteJoint>(jname);
+    joint_pin.set_angle(&plant_context, hand_initial_positions(i));
+
+  }
+
+//  // Set the initial condition for the LCM receiver
+//  hand_command_receiver.set_initial_position(
+//      &diagram->GetMutableSubsystemContext(hand_command_receiver,
+//                                           diagram_context.get()),
+//      hand_initial_positions);
 
   // Set up simulator.
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
