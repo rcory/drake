@@ -38,6 +38,7 @@ class PositionCommander {
 
     Eigen::VectorXd target_joint_position(kAllegroNumJoints);
     target_joint_position.setZero();
+    target_joint_position(12) = 0.3;
 
 
     while (true) {
@@ -45,6 +46,8 @@ class PositionCommander {
       PublishPositionCommand(target_joint_position);
       sleep(1);
       target_joint_position.setZero();
+      target_joint_position(12) = 0.3;
+
       PublishPositionCommand(target_joint_position);
       sleep(1);
     }
