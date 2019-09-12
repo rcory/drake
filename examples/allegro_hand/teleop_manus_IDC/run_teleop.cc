@@ -58,10 +58,10 @@ DEFINE_double(simulation_time, std::numeric_limits<double>::infinity(),
 DEFINE_double(time_constant, 0.085, "Time constant for actuator delay");
 DEFINE_bool(use_right_hand, true,
             "Which hand to model: true for right hand or false for left hand");
-DEFINE_double(kp, 1000000,
+DEFINE_double(kp, 5e3,
               "Proportional control gain for all joints, 1000000 seems good");
 DEFINE_double(ki, 0, "Integral control gain for all joints, 0 seems good");
-DEFINE_double(kd, 1500,
+DEFINE_double(kd, 500,
               "Derivative control gain for all joints, 1500 seems good");
 DEFINE_double(max_time_step, 5.0e-4,
               "Discretization time step used for MBP.");
@@ -202,25 +202,24 @@ class MBPStateToPreferredStateRemap : public systems::LeafSystem<double> {
   MatrixX<double> Sx_;
 };
 
-
-/// Remaps the input vector (which is mapped using the code's torque vector
-/// mapping and corresponds to the generalized force output of the ID controller
-/// using a control plant with only the hand) into the output vector (which is
-/// mapped using the code's position vector mapping and corresponds to the
-/// generalized force input for the full simulation plant containing hand and
-/// object).
-class MapTorqueToPositionVector : public systems::LeafSystem<double> {
+/// Remaps the input vector (which is mapped using the control plant's torque
+/// vector mapping and corresponds to the generalized force output of the ID
+/// controller using a control plant with only the hand) into the output vector
+/// (which is mapped using the full plant's velocity vector mapping and
+/// corresponds to the generalized force input for the full simulation plant
+/// containing hand and object(s)).
+class MapActuationToVelocityOrdering : public systems::LeafSystem<double> {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapTorqueToPositionVector);
-  MapTorqueToPositionVector(const MultibodyPlant<double>* plant,
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapActuationToVelocityOrdering);
+  MapActuationToVelocityOrdering(const MultibodyPlant<double>* full_plant,
                             ModelInstanceIndex gripper_instance)
-      : plant_(plant), gripper_instance_(gripper_instance) {
-    DRAKE_DEMAND(plant != nullptr);
+      : full_plant_(full_plant), gripper_instance_(gripper_instance) {
+    DRAKE_DEMAND(full_plant != nullptr);
     this->DeclareVectorInputPort(
-        "input", systems::BasicVector<double>(plant->num_actuators()));
+        "input", systems::BasicVector<double>(full_plant->num_actuators()));
     this->DeclareVectorOutputPort(
-        "output", systems::BasicVector<double>(plant->num_velocities()),
-        &MapTorqueToPositionVector::remap_output);
+        "output", systems::BasicVector<double>(full_plant->num_velocities()),
+        &MapActuationToVelocityOrdering::remap_output);
   }
 
   void remap_output(const systems::Context<double>& context,
@@ -229,11 +228,11 @@ class MapTorqueToPositionVector : public systems::LeafSystem<double> {
     output_value.setZero();
     auto input_value = this->EvalVectorInput(context, 0)->get_value();
     VectorX<double> hand_actuator_values(kAllegroNumJoints);
-    plant_->SetVelocitiesInArray(gripper_instance_, input_value, &output_value);
+    full_plant_->SetVelocitiesInArray(gripper_instance_, input_value, &output_value);
   }
 
  private:
-  const MultibodyPlant<double>* plant_;
+  const MultibodyPlant<double>* full_plant_;
   const ModelInstanceIndex gripper_instance_;
 };
 
@@ -284,17 +283,18 @@ void DoMain() {
   plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(), std::nullopt,
                                        joint_hand_root, std::nullopt, X_WA);
 
-  if (!FLAGS_add_gravity) {
-    plant.mutable_gravity_field().set_gravity_vector(Eigen::Vector3d::Zero());
-  }
-
   // Create the controlled plant. Contains only the hand (no objects).
   MultibodyPlant<double> control_plant(FLAGS_max_time_step);
   multibody::Parser(&control_plant).AddModelFromFile(hand_model_path);
   control_plant.AddJoint<multibody::WeldJoint>(
       "weld_hand", control_plant.world_body(), std::nullopt,
-      control_plant.GetBodyByName("hand_root"), std::nullopt,
-      math::RigidTransformd::Identity());
+      control_plant.GetBodyByName("hand_root"), std::nullopt, X_WA);
+
+  if (!FLAGS_add_gravity) {
+    plant.mutable_gravity_field().set_gravity_vector(Eigen::Vector3d::Zero());
+    control_plant.mutable_gravity_field().set_gravity_vector(
+        Eigen::Vector3d::Zero());
+  }     
 
   // Add a floor (an infinite halfspace) to the plant
   const Vector4<double> color(1.0, 1.0, 1.0, 1.0);
@@ -324,8 +324,9 @@ void DoMain() {
               Eigen::VectorXd::Ones(kAllegroNumJoints) * FLAGS_ki,
               Eigen::VectorXd::Ones(kAllegroNumJoints) * FLAGS_kd, false);
 
-  // Add demultiplexer to pass only first elements of remap system output to
-  // status sender
+  // Add demultiplexer, where its first output contains the generalized
+  // force vector for only the hand (the second output contains generalized
+  // forces for the rest of the plant).
   std::vector<int> output_sizes = {kAllegroNumJoints, 6 + 6};
   auto generalized_force_demultiplexer =
       builder.AddSystem<systems::Demultiplexer<double>>(output_sizes);
@@ -342,7 +343,7 @@ void DoMain() {
 
   // Add system to remap control ports to match indexing of state ports
   auto remap_sys =
-      builder.AddSystem<MapTorqueToPositionVector>(&plant, hand_index);
+      builder.AddSystem<MapActuationToVelocityOrdering>(&plant, hand_index);
 
   // Create a constant zero vector to connect to the actuation input port of
   // MBP since we don't use it (we use the generalized forces input).
@@ -358,7 +359,8 @@ void DoMain() {
       *builder.AddSystem<AllegroCommandReceiver>(kAllegroNumJoints);
   hand_command_receiver.set_name("hand_command_receiver");
 
-  // A system to remap the incoming state input to the IDC.
+  // A system to remap the incoming state input (having user preferred ordering) 
+  // to the IDC MBP state.
   auto desired_state_remap =
       builder.AddSystem<DesiredStateToIDCRemap>(control_plant);
 
@@ -366,12 +368,20 @@ void DoMain() {
   auto filter = builder.AddSystem<LowPassFilter>(FLAGS_time_constant);
 
   // Connect ports
+  // Zero the plant's actuation port (since we use the generalized forces
+  // input port below).
   builder.Connect(const_src->get_output_port(),
                   plant.get_actuation_input_port());
+
+  // Demux the plant's generalized forces vector, and take only the first output
+  // of the mux (containing generalized forces for hand only) to send out via
+  // LCM.
   builder.Connect(remap_sys->get_output_port(0),
                   generalized_force_demultiplexer->get_input_port(0));
   builder.Connect(generalized_force_demultiplexer->get_output_port(0),
                   status_sender.get_commanded_torque_input_port());
+
+  // LCM sender/receiver connections.
   builder.Connect(plant.get_state_output_port(hand_index),
                   status_sender.get_state_input_port());
   builder.Connect(status_sender.get_output_port(0),
@@ -379,18 +389,20 @@ void DoMain() {
   builder.Connect(hand_command_sub.get_output_port(),
                   hand_command_receiver.get_input_port(0));
   builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
+                  status_sender.get_command_input_port());
+  builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
                   filter->get_input_port(0));
+
+  // Connections between controller and plant.
   builder.Connect(filter->get_output_port(0),
                   desired_state_remap->get_input_port(0));
   builder.Connect(desired_state_remap->get_output_port(0),
                   IDC->get_input_port_desired_state());
   builder.Connect(plant.get_state_output_port(hand_index),
                   IDC->get_input_port_estimated_state());
-  builder.Connect(*IDC, *remap_sys);
-  builder.Connect(remap_sys->get_output_port(0),
-                  plant.get_applied_generalized_force_input_port());
-  builder.Connect(hand_command_receiver.get_commanded_state_output_port(),
-                  status_sender.get_command_input_port());
+   builder.Connect(*IDC, *remap_sys);
+   builder.Connect(remap_sys->get_output_port(0),
+                   plant.get_applied_generalized_force_input_port());
 
   // Connect scenegraph and drake visualizer
   //geometry::ConnectDrakeVisualizer(&builder, scene_graph, lcm);
@@ -455,14 +467,14 @@ void DoMain() {
     const multibody::RevoluteJoint<double>& joint_pin =
         plant.GetJointByName<multibody::RevoluteJoint>(jname);
     joint_pin.set_angle(&plant_context, hand_initial_positions(i));
-
+    joint_pin.set_angular_rate(&plant_context, 0);  // zero initial velocity.
   }
 
-//  // Set the initial condition for the LCM receiver
-//  hand_command_receiver.set_initial_position(
-//      &diagram->GetMutableSubsystemContext(hand_command_receiver,
-//                                           diagram_context.get()),
-//      hand_initial_positions);
+ // Set the initial condition for the LCM receiver
+ hand_command_receiver.set_initial_position(
+     &diagram->GetMutableSubsystemContext(hand_command_receiver,
+                                          diagram_context.get()),
+     hand_initial_positions);
 
   // Set up simulator.
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
