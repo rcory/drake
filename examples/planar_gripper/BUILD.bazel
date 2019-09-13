@@ -103,6 +103,16 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "publish_frames_to_lcm",
+    srcs = ["publish_frames_to_lcm.cc"],
+    hdrs = ["publish_frames_to_lcm.h"],
+    deps = [
+        "//lcm:interface",
+        "//lcmtypes:viewer",
+    ],
+)
+
 drake_cc_binary(
     name = "planar_gripper_simulation",
     srcs = ["planar_gripper_simulation.cc"],
@@ -246,8 +256,8 @@ drake_cc_googletest(
         ":planar_finger_qp",
         "//common:find_resource",
         "//geometry:geometry_visualization",
+        "//multibody/inverse_kinematics",
         "//multibody/parsing",
-        "//multibody/inverse_kinematics:inverse_kinematics",
         "//multibody/plant",
         "//solvers:solve",
         "//systems/framework:diagram",
@@ -266,11 +276,12 @@ drake_cc_binary(
         "--target_realtime_rate=0",
     ],
     deps = [
-        ":finger_brick",
         ":brick_qp",
+        ":finger_brick",
         "//common:find_resource",
         "//common:text_logging_gflags",
         "//common/proto:call_python",
+        "//examples/planar_gripper:publish_frames_to_lcm",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",

@@ -17,6 +17,7 @@
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/signal_logger.h"
 #include "drake/systems/primitives/trajectory_source.h"
+#include "drake/examples/planar_gripper/publish_frames_to_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -30,6 +31,25 @@ DEFINE_double(time_step, 1e-4,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
+
+void PublishInitialFrames(systems::Context<double>& context,
+                          multibody::MultibodyPlant<double>& plant,
+                          lcm::DrakeLcm &lcm) {
+  std::vector<std::string> body_names;
+  std::vector<Eigen::Isometry3d> poses;
+
+  // list the body names.
+  body_names.push_back("brick_base_link");
+
+  for (size_t i = 0; i < body_names.size(); i++) {
+    auto& body = plant.GetBodyByName(body_names[i]);
+    math::RigidTransform<double> X_WB = plant.EvalBodyPoseInWorld(context, body);
+    poses.push_back(X_WB.GetAsIsometry3());
+  }
+
+  PublishFramesToLcm("SIM", poses, body_names, &lcm);
+}
+
 int DoMain() {
   systems::DiagramBuilder<double> builder;
   geometry::SceneGraph<double>& scene_graph =
@@ -120,6 +140,9 @@ int DoMain() {
   plant.SetPositions(&plant_context, Vector1d(0));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
+
+  // Publish the initial frames
+//  PublishInitialFrames(plant_context, plant, lcm);
 
   simulator.set_publish_every_time_step(false);
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
