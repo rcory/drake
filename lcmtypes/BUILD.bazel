@@ -86,6 +86,19 @@ drake_lcm_cc_library(
 )
 
 drake_lcm_cc_library(
+    name = "spatial_forces_for_viz",
+    lcm_package = "drake",
+    lcm_srcs = ["lcmt_spatial_forces_for_viz.lcm"],
+    deps = [":spatial_force_for_viz"],
+)
+
+drake_lcm_cc_library(
+    name = "spatial_force_for_viz",
+    lcm_package = "drake",
+    lcm_srcs = ["lcmt_spatial_force_for_viz.lcm"],
+)
+
+drake_lcm_cc_library(
     name = "contact_information",
     lcm_package = "drake",
     lcm_srcs = ["lcmt_contact_information.lcm"],
