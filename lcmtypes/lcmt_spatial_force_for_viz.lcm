@@ -1,0 +1,15 @@
+package drake;
+
+struct lcmt_spatial_force_for_viz {
+  // in microseconds
+  int64_t timestamp;
+
+  // Application point in the world frame.
+  double p_W[3];
+
+  // Force vector in the world frame.
+  double force_W[3];
+
+  // Torque vector in the world frame.
+  double torque_W[3];
+}
