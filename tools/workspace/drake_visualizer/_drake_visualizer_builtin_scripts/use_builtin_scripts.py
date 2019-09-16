@@ -7,6 +7,7 @@ import sys
 
 from _drake_visualizer_builtin_scripts import (
     AVAILABLE_SCRIPTS,
+    show_forces,	
     limit_clipping_range,
     show_frame,
     show_hydroelastic_contact,
@@ -20,6 +21,7 @@ from _drake_visualizer_builtin_scripts import (
 @scoped_singleton_func
 def init_visualizer():
     available = OrderedDict((
+        ("forces", show_forces.init_visualizer),
         ("frame", show_frame.init_visualizer),
         ("hydroelastic_contact", show_hydroelastic_contact.init_visualizer),
         ("image", show_image.init_visualizer),

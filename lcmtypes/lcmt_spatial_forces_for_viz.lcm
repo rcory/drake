@@ -1,0 +1,9 @@
+package drake;
+
+struct lcmt_spatial_forces_for_viz {
+  // in microseconds
+  int64_t timestamp;
+
+  int32_t num_forces_to_visualize;
+  lcmt_spatial_force_for_viz forces[num_forces_to_visualize];
+}
