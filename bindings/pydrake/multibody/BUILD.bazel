@@ -1,6 +1,7 @@
 # -*- python -*-
 
 load("@drake//tools/install:install.bzl", "install")
+load("//tools/lint:lint.bzl", "add_lint_tests")
 load(
     "@drake//tools/skylark:pybind.bzl",
     "drake_pybind_library",
@@ -73,6 +74,9 @@ drake_pybind_library(
         "//bindings/pydrake/common:eigen_geometry_pybind",
         "//bindings/pydrake/common:type_pack",
         "//bindings/pydrake/common:type_safe_index_pybind",
+        "//bindings/pydrake/systems:systems_pybind",
+        "//multibody/plant:spatial_forces_to_lcm",
+        "//lcm:lcm",
     ],
     cc_srcs = ["tree_py.cc"],
     package_info = PACKAGE_INFO,
@@ -81,6 +85,7 @@ drake_pybind_library(
         ":module_py",
         "//bindings/pydrake/common:eigen_geometry_py",
         "//bindings/pydrake/systems:framework_py",
+        "//bindings/pydrake/common:eigen_geometry_py",
     ],
 )
 
@@ -198,6 +203,7 @@ drake_py_unittest(
         "//multibody/benchmarks/acrobot:models",
     ],
     deps = [
+        ":multibody_tree_py",
         ":parsing_py",
         ":plant_py",
         "//bindings/pydrake/common/test_utilities",

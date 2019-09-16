@@ -7,6 +7,7 @@ import os
 import sys
 
 from drake.tools.workspace.drake_visualizer.plugin import (
+    show_forces,
     show_frame,
     show_hydroelastic_contact_surface,
     show_image,
@@ -19,6 +20,7 @@ from drake.tools.workspace.drake_visualizer.plugin import (
 @scoped_singleton_func
 def init_visualizer():
     available = OrderedDict((
+        ("forces", show_forces.init_visualizer),
         ("frame", show_frame.init_visualizer),
         ("hydroelastic_contact_surface",
             show_hydroelastic_contact_surface.init_visualizer),

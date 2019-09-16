@@ -8,6 +8,7 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/benchmarks/acrobot/make_acrobot_plant.h"
+#include "drake/multibody/plant/spatial_forces_to_lcm.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/systems/analysis/runge_kutta3_integrator.h"
@@ -87,6 +88,8 @@ int do_main() {
       scene_graph.get_source_pose_port(acrobot.get_source_id().value()));
 
   geometry::ConnectDrakeVisualizer(&builder, scene_graph);
+  drake::multibody::ConnectSpatialForcesToDrakeVisualizer(&builder, acrobot);
+
   auto diagram = builder.Build();
 
   // Create a context for this system:

@@ -23,6 +23,7 @@
 #include "drake/multibody/plant/coulomb_friction.h"
 #include "drake/multibody/plant/implicit_stribeck_solver.h"
 #include "drake/multibody/plant/implicit_stribeck_solver_results.h"
+#include "drake/multibody/plant/spatial_force_output.h"
 #include "drake/multibody/topology/multibody_graph.h"
 #include "drake/multibody/tree/force_element.h"
 #include "drake/multibody/tree/multibody_tree-inl.h"
@@ -2853,6 +2854,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   ///          `is_discrete() == false`).
   const systems::OutputPort<T>& get_contact_results_output_port() const;
 
+  /// Returns a constant reference to the port that outputs all spatial forces
+  /// (including fictitious ones).
+  const systems::OutputPort<T>& get_spatial_forces_output_port() const;
+
   /// Returns a constant reference to the *world* body.
   const RigidBody<T>& world_body() const {
     return internal_tree().world_body();
@@ -3376,6 +3381,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void AddAppliedExternalSpatialForces(
       const systems::Context<T>& context, MultibodyForces<T>* forces) const;
 
+  void CalcSpatialForcesOutput(
+      const systems::Context<T>& context,
+      std::vector<SpatialForceOutput<T>>* spatial_forces_output) const;
+
   // Helper method to register geometry for a given body, either visual or
   // collision. The registration includes:
   // 1. Register a frame for this body if not already done so. The body gets
@@ -3726,6 +3735,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   // Index for the output port of ContactResults.
   systems::OutputPortIndex contact_results_port_;
+
+  // Index for the output port of spatial forces.
+  systems::OutputPortIndex spatial_forces_output_port_;
 
   // A vector containing the index for the generalized contact forces port for
   // each model instance. This vector is indexed by ModelInstanceIndex. An
