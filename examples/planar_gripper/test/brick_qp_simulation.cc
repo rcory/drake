@@ -18,6 +18,7 @@
 #include "drake/systems/primitives/signal_logger.h"
 #include "drake/systems/primitives/trajectory_source.h"
 #include "drake/examples/planar_gripper/publish_frames_to_lcm.h"
+#include "drake/multibody/plant/spatial_forces_to_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -49,6 +50,54 @@ void PublishInitialFrames(systems::Context<double>& context,
 
   PublishFramesToLcm("SIM", poses, body_names, &lcm);
 }
+
+// Visualizes the spatial forces via Evan's spatial force visualization PR.
+class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+public:
+ DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+
+ ExternalSpatialToSpatialViz(multibody::MultibodyPlant<double>& plant)
+     : plant_(plant) {
+   // Make context with default parameters.
+   plant_context_ = plant.CreateDefaultContext();
+   this->DeclareAbstractInputPort(
+       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
+   this->DeclareVectorInputPort("x",
+                                systems::BasicVector<double>(2 /* state */));
+   this->DeclareAbstractOutputPort(&ExternalSpatialToSpatialViz::CalcOutput);
+ }
+
+ void CalcOutput(const systems::Context<double>& context,
+                 std::vector<multibody::SpatialForceOutput<double>>*
+                     spatial_forces_viz_output) const {
+   auto external_spatial_forces_vec =
+       this->get_input_port(0)
+           .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+               context);
+   auto state = this->EvalVectorInput(context, 1)->get_value();
+   plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+   spatial_forces_viz_output->clear();
+   for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
+     // convert contact point from brick frame to world frame
+     auto ext_spatial_force = external_spatial_forces_vec[i];
+//     drake::log()->info("p: \n{}", ext_spatial_force.p_BoBq_B);
+//     drake::log()->info("f: \n{}", ext_spatial_force.F_Bq_W.translational());
+
+     // Compute the spatial force in the world frame.
+     auto& body = plant_.get_body(ext_spatial_force.body_index);
+     auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);
+     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
+
+     spatial_forces_viz_output->emplace_back(
+         p_BoBq_W, X_WB.rotation() * ext_spatial_force.F_Bq_W * 5);
+   }
+ }
+
+private:
+multibody::MultibodyPlant<double>& plant_;
+std::unique_ptr<systems::Context<double>> plant_context_;  
+
+};
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
@@ -92,6 +141,14 @@ int DoMain() {
                   qp_controller->get_input_port_estimated_state());
   builder.Connect(qp_controller->get_output_port(0),
                   plant.get_applied_spatial_force_input_port());
+
+  // To visualize the applied spatial forces.
+  auto converter = builder.AddSystem<ExternalSpatialToSpatialViz>(plant);
+  builder.Connect(qp_controller->get_output_port(0),
+                  converter->get_input_port(0));
+  multibody::ConnectSpatialForcesToDrakeVisualizer(
+      &builder, plant, converter->get_output_port(0), &lcm);
+  builder.Connect(plant.get_state_output_port(), converter->get_input_port(1));
 
   // Always get in contact with the +z face.
   auto contact_face_source =
@@ -142,7 +199,7 @@ int DoMain() {
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 
   // Publish the initial frames
-//  PublishInitialFrames(plant_context, plant, lcm);
+// PublishInitialFrames(plant_context, plant, lcm);
 
   simulator.set_publish_every_time_step(false);
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);

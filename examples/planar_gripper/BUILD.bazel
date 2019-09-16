@@ -295,6 +295,7 @@ drake_cc_binary(
         "//systems/primitives:signal_logger",
         "//systems/primitives:sine",
         "//systems/primitives:trajectory_source",
+        "//multibody/plant:spatial_forces_to_lcm",
         "@gflags",
     ],
 )
