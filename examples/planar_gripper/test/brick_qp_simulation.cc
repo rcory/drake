@@ -33,6 +33,12 @@ DEFINE_double(time_step, 1e-4,
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
 
+DEFINE_double(yc, 0, "y contact point");
+DEFINE_double(zc, 0.046, "z contact point");
+DEFINE_double(theta0, -M_PI_4, "initial theta");
+DEFINE_double(thetaf, M_PI_4, "final theta");
+DEFINE_double(T, 1.0, "time horizon");
+
 int DoMain() {
   systems::DiagramBuilder<double> builder;
   geometry::SceneGraph<double>& scene_graph =
@@ -93,7 +99,7 @@ int DoMain() {
 
   // Always make contact at position (-0.01, 0.023).
   auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
-      Eigen::Vector2d(-0.01, 0.023));
+      Eigen::Vector2d(FLAGS_yc, FLAGS_zc));
   builder.Connect(p_BCb_source->get_output_port(),
                   qp_controller->get_input_port_p_BCb());
 
@@ -106,7 +112,7 @@ int DoMain() {
   // The planned theta trajectory is from 0 to 90 degree in 1 second.
   const trajectories::PiecewisePolynomial<double> theta_planned_traj =
       trajectories::PiecewisePolynomial<double>::FirstOrderHold(
-          {0, 1}, {Vector1d(0), Vector1d(M_PI_2)});
+          {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
 
   auto theta_traj_source = builder.AddSystem<systems::TrajectorySource<double>>(
       theta_planned_traj, 1 /* take 1st derivatives */);
@@ -128,7 +134,7 @@ int DoMain() {
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Set initial conditions.
-  plant.SetPositions(&plant_context, Vector1d(0));
+  plant.SetPositions(&plant_context, Vector1d(FLAGS_theta0));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 

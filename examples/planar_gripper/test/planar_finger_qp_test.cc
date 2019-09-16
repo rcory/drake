@@ -39,14 +39,14 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   plant.Finalize();
 
-  const Eigen::Vector3d p_L2FingerTip =
+  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
       GetFingerTipSpherePositionInFingerTip(plant, scene_graph);
   const double finger_tip_radius = GetFingerTipSphereRadius(plant, scene_graph);
   const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
   const multibody::Frame<double>& brick_frame =
       plant.GetFrameByName("brick_base_link");
   const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph);
+      GetFingerTipGeometryId(plant, scene_graph);  //fingertip sphere id
   // First solve an IK problem that the finger is making contact with the brick.
   multibody::InverseKinematics ik(plant);
   // Finger in contact with +z face.
@@ -74,7 +74,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   auto plant_context = plant.CreateDefaultContext();
   plant.SetPositions(plant_context.get(), q_ik);
   plant.SetVelocities(plant_context.get(), v);
-  Eigen::Vector3d p_BFingerTip;
+  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
   plant.CalcPointsPositions(*plant_context,
                             plant.GetFrameByName("finger_link2"), p_L2FingerTip,
                             brick_frame, &p_BFingerTip);

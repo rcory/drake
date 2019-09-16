@@ -275,7 +275,7 @@ void ExternalSpatialToSpatialViz::CalcOutput(
     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
 
     spatial_forces_viz_output->emplace_back(
-        p_BoBq_W, X_WB.rotation() * ext_spatial_force.F_Bq_W * 5);
+        p_BoBq_W, X_WB.rotation() * ext_spatial_force.F_Bq_W * 10);
   }
 }
 

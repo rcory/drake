@@ -23,7 +23,7 @@ Eigen::Vector3d GetFingerTipSpherePositionInFingerTip(
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
       GetFingerTipGeometryId(plant, scene_graph);
-  Eigen::Vector3d p_L2Tip =
+  Eigen::Vector3d p_L2Tip =  // position of sphere center in L2 frame
       inspector.GetPoseInFrame(finger_tip_geometry_id).translation();
   return p_L2Tip;
 }
