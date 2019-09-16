@@ -59,6 +59,7 @@ drake_cc_library(
         ":hydroelastic_traction",
         ":tamsi_solver",
         ":tamsi_solver_results",
+        ":spatial_force_output",
         "//common:default_scalars",
         "//common:essential",
         "//geometry:geometry_ids",
@@ -177,6 +178,7 @@ drake_cc_library(
         ":plant",
         "//geometry:geometry_ids",
         "//lcmtypes:contact_results_for_viz",
+        "//lcmtypes:hydroelastic_contact_surface_for_viz",
         "//lcmtypes:point_pair_contact_info_for_viz",
         "//systems/framework:diagram_builder",
         "//systems/lcm:lcm_pubsub_system",
@@ -253,6 +255,43 @@ drake_cc_library(
     hdrs = ["propeller.h"],
     deps = [
         ":multibody_plant_core",
+    ],
+)
+
+drake_cc_library(
+    name = "spatial_forces_to_lcm",
+    srcs = [
+        "spatial_forces_to_lcm.cc",
+    ],
+    hdrs = [
+        "spatial_forces_to_lcm.h",
+    ],
+    tags = [
+        # Don't add this library into the ":multibody_plant" package library.
+        # Use of MBP doesn't imply use of contact visualization so this
+        # dependency should be invoked explicitly.
+        "exclude_from_package",
+    ],
+    deps = [
+        ":plant",
+        ":spatial_force_output",
+        "//lcmtypes:spatial_forces_for_viz",
+        "//systems/framework:diagram_builder",
+        "//systems/lcm:lcm_pubsub_system",
+    ],
+)
+
+drake_cc_library(
+    name = "spatial_force_output",
+    srcs = [
+        "spatial_force_output.cc",
+    ],
+    hdrs = [
+        "spatial_force_output.h",
+    ],
+    deps = [
+        "//common:default_scalars",
+        "//multibody/tree",
     ],
 )
 
