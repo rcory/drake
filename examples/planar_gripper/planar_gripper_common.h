@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/lcm/drake_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -46,6 +47,39 @@ void WeldGripperFrames(MultibodyPlant<T>* plant);
  */
 std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
     const std::string& name, EigenPtr<Vector3<double>> brick_initial_pose);
+
+/// Utility to publish frames to LCM.
+void PublishFramesToLcm(
+    const std::string &channel_name,
+    const std::unordered_map<std::string, Eigen::Isometry3d> &name_to_frame_map,
+    drake::lcm::DrakeLcmInterface *lcm);
+
+void PublishFramesToLcm(
+    const std::string &channel_name,
+    const std::vector<Eigen::Isometry3d> &frames,
+    const std::vector<std::string> &frame_names,
+    drake::lcm::DrakeLcmInterface *lcm);
+
+/// Publishes frames once.
+void PublishInitialFrames(systems::Context<double>& context,
+                          multibody::MultibodyPlant<double>& plant,
+                          lcm::DrakeLcm &lcm);
+
+/// Visualizes the spatial forces via Evan's spatial force visualization PR.
+class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+
+  ExternalSpatialToSpatialViz(multibody::MultibodyPlant<double>& plant);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  std::vector<multibody::SpatialForceOutput<double>>*
+                  spatial_forces_viz_output) const;
+
+ private:
+  multibody::MultibodyPlant<double>& plant_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
+};
 
 }  // namespace planar_gripper
 }  // namespace examples

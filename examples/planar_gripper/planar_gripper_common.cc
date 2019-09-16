@@ -11,6 +11,8 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/lcmt_viewer_draw.hpp"
 
 namespace drake {
 namespace examples {
@@ -168,6 +170,113 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
 
   return std::make_pair(finger_joint_keyframes,
                         finger_joint_name_to_col_index_map);
+}
+
+/// Utility to publish frames to LCM.
+void PublishFramesToLcm(
+    const std::string& channel_name,
+    const std::unordered_map<std::string, Eigen::Isometry3d>& name_to_frame_map,
+    drake::lcm::DrakeLcmInterface* lcm) {
+  std::vector<Eigen::Isometry3d> poses;
+  std::vector<std::string> names;
+  for (const auto& pair : name_to_frame_map) {
+    poses.push_back(pair.second);
+    names.push_back(pair.first);
+  }
+  PublishFramesToLcm(channel_name, poses, names, lcm);
+}
+
+void PublishFramesToLcm(const std::string& channel_name,
+                        const std::vector<Eigen::Isometry3d>& poses,
+                        const std::vector<std::string>& names,
+                        drake::lcm::DrakeLcmInterface* dlcm) {
+  DRAKE_DEMAND(poses.size() == names.size());
+  lcmt_viewer_draw frame_msg{};
+  frame_msg.timestamp = 0;
+  int32_t vsize = poses.size();
+  frame_msg.num_links = vsize;
+  frame_msg.link_name.resize(vsize);
+  frame_msg.robot_num.resize(vsize, 0);
+
+  for (size_t i = 0; i < poses.size(); i++) {
+    Eigen::Isometry3f pose = poses[i].cast<float>();
+    // Create a frame publisher
+    Eigen::Vector3f goal_pos = pose.translation();
+    Eigen::Quaternion<float> goal_quat =
+        Eigen::Quaternion<float>(pose.linear());
+    frame_msg.link_name[i] = names[i];
+    frame_msg.position.push_back({goal_pos(0), goal_pos(1), goal_pos(2)});
+    frame_msg.quaternion.push_back(
+        {goal_quat.w(), goal_quat.x(), goal_quat.y(), goal_quat.z()});
+  }
+
+  const int num_bytes = frame_msg.getEncodedSize();
+  const size_t size_bytes = static_cast<size_t>(num_bytes);
+  std::vector<uint8_t> bytes(size_bytes);
+  frame_msg.encode(bytes.data(), 0, num_bytes);
+  dlcm->Publish(
+      "DRAKE_DRAW_FRAMES_" + channel_name, bytes.data(), num_bytes, {});
+}
+
+/// Publishes frames once.
+void PublishInitialFrames(systems::Context<double>& context,
+                          multibody::MultibodyPlant<double>& plant,
+                          lcm::DrakeLcm &lcm) {
+  std::vector<std::string> body_names;
+  std::vector<Eigen::Isometry3d> poses;
+
+  // list the body names.
+  body_names.push_back("brick_base_link");
+
+  for (size_t i = 0; i < body_names.size(); i++) {
+    auto& body = plant.GetBodyByName(body_names[i]);
+    math::RigidTransform<double> X_WB = plant.EvalBodyPoseInWorld(context, body);
+    poses.push_back(X_WB.GetAsIsometry3());
+  }
+
+  PublishFramesToLcm("SIM", poses, body_names, &lcm);
+}
+
+
+/// Visualizes the spatial forces via Evan's spatial force visualization PR.
+ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
+    MultibodyPlant<double>& plant)
+    : plant_(plant) {
+  // Make context with default parameters.
+  plant_context_ = plant.CreateDefaultContext();
+  this->DeclareAbstractInputPort(
+      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
+  this->DeclareVectorInputPort("x",
+                               systems::BasicVector<double>(2 /* state */));
+  this->DeclareAbstractOutputPort(&ExternalSpatialToSpatialViz::CalcOutput);
+}
+
+void ExternalSpatialToSpatialViz::CalcOutput(
+    const systems::Context<double>& context,
+    std::vector<multibody::SpatialForceOutput<double>>*
+    spatial_forces_viz_output) const {
+  auto external_spatial_forces_vec =
+      this->get_input_port(0)
+          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  auto state = this->EvalVectorInput(context, 1)->get_value();
+  plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+  spatial_forces_viz_output->clear();
+  for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
+    // convert contact point from brick frame to world frame
+    auto ext_spatial_force = external_spatial_forces_vec[i];
+    //     drake::log()->info("p: \n{}", ext_spatial_force.p_BoBq_B);
+    //     drake::log()->info("f: \n{}",
+    //     ext_spatial_force.F_Bq_W.translational());
+
+    // Compute the spatial force in the world frame.
+    auto& body = plant_.get_body(ext_spatial_force.body_index);
+    auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);
+    auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
+
+    spatial_forces_viz_output->emplace_back(
+        p_BoBq_W, X_WB.rotation() * ext_spatial_force.F_Bq_W * 5);
+  }
 }
 
 }  // namespace planar_gripper

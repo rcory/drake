@@ -25,7 +25,10 @@ drake_cc_library(
     hdrs = ["planar_gripper_common.h"],
     deps = [
         "//common:find_resource",
+        "//lcm:interface",
+        "//lcmtypes:viewer",
         "//multibody/plant",
+        "//multibody/plant:externally_applied_spatial_force",
         "//systems/lcm:lcm_interface_system",
         "@lcmtypes_robotlocomotion",
     ],
@@ -100,16 +103,6 @@ drake_cc_library(
         "//solvers:solve",
         "//systems/controllers:state_feedback_controller_interface",
         "//systems/framework:leaf_system",
-    ],
-)
-
-drake_cc_library(
-    name = "publish_frames_to_lcm",
-    srcs = ["publish_frames_to_lcm.cc"],
-    hdrs = ["publish_frames_to_lcm.h"],
-    deps = [
-        "//lcm:interface",
-        "//lcmtypes:viewer",
     ],
 )
 
@@ -281,11 +274,12 @@ drake_cc_binary(
         "//common:find_resource",
         "//common:text_logging_gflags",
         "//common/proto:call_python",
-        "//examples/planar_gripper:publish_frames_to_lcm",
+        "//examples/planar_gripper:planar_gripper_common",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
         "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/primitives:adder",
@@ -295,7 +289,6 @@ drake_cc_binary(
         "//systems/primitives:signal_logger",
         "//systems/primitives:sine",
         "//systems/primitives:trajectory_source",
-        "//multibody/plant:spatial_forces_to_lcm",
         "@gflags",
     ],
 )
