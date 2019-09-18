@@ -82,15 +82,15 @@ DEFINE_double(finger_x_offset, 0,
               "x-coordinate offset for welding the finger base.");
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
-DEFINE_bool(force_direct_control, false, "Force direct force control?");
+DEFINE_bool(force_direct_control, true, "Force direct force control?");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
 DEFINE_double(yc, 0, "y contact point, for brick only qp");
 DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
-DEFINE_double(T, 1.0, "time horizon");
-DEFINE_double(force_scale, .05, "spatial force viz scale factor");
+DEFINE_double(T, 1.5, "time horizon");
+DEFINE_double(force_scale, .5, "spatial force viz scale factor");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -119,9 +119,14 @@ class ForceController : public systems::LeafSystem<double> {
     // Make context with default parameters.
     plant_context_ = plant.CreateDefaultContext();
 
+    // force_desired_input_port_ =
+    //     this->DeclareVectorInputPort(
+    //             "f_d", systems::BasicVector<double>(2 /* num forces */))
+    //         .get_index();
     force_desired_input_port_ =
-        this->DeclareVectorInputPort(
-                "f_d", systems::BasicVector<double>(2 /* num forces */))
+        this->DeclareAbstractInputPort(
+                "f_d", Value<std::vector<
+                           multibody::ExternallyAppliedSpatialForce<double>>>())
             .get_index();
     const int kNumFingerVelocities = 2;
     state_actual_input_port_ =  // actual state of the finger
@@ -173,8 +178,16 @@ class ForceController : public systems::LeafSystem<double> {
                   systems::BasicVector<double>* output_vector) const {
     auto output_calc = output_vector->get_mutable_value();
     output_calc.setZero();
+    // auto force_des =
+    //     this->EvalVectorInput(context, force_desired_input_port_)->get_value();
+   auto external_spatial_forces_vec =
+      this->get_input_port(force_desired_input_port_)
+          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+    DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
     auto force_des =
-        this->EvalVectorInput(context, force_desired_input_port_)->get_value();
+        external_spatial_forces_vec[0].F_Bq_W.translational().tail<2>();
+    // force_des << -.2, -.2;
     auto state =
         this->EvalVectorInput(context, state_actual_input_port_)->get_value();
     auto tip_state_desired =
@@ -257,7 +270,7 @@ class ForceController : public systems::LeafSystem<double> {
     auto fz_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
     if (FLAGS_force_direct_control || contact_results.num_point_pair_contacts() > 0) {
-      drake::log()->info("contact > 0");
+    //   drake::log()->info("contact > 0");
       // Adds Joint damping.
       Eigen::Matrix2d Kd;
       Kd << FLAGS_Kd, 0, 0, FLAGS_Kd;
@@ -342,12 +355,12 @@ int do_main() {
   // Connect the force controler
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
   1e-3, Value<ContactResults<double>>());
-  Vector2<double> const_force_vec(FLAGS_fy, FLAGS_fz);  // {fy, fz}
+//   Vector2<double> const_force_vec(FLAGS_fy, FLAGS_fz);  // {fy, fz}
   auto force_controller = builder.AddSystem<ForceController>(plant);
-  auto const_force_src =
-      builder.AddSystem<systems::ConstantVectorSource>(const_force_vec);
-  builder.Connect(const_force_src->get_output_port(),
-                  force_controller->get_force_desired_input_port());
+//   auto const_force_src =
+//       builder.AddSystem<systems::ConstantVectorSource>(const_force_vec);
+//   builder.Connect(const_force_src->get_output_port(),
+//                   force_controller->get_force_desired_input_port());
 
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_state_actual_input_port());
@@ -477,8 +490,10 @@ if (FLAGS_brick_only) {
   // TODO(rcory) Connect this to the force controller.     
   // Note: The spatial forces coming from the output of the QP controller
   // are already in the world frame (only the contact point is in the brick frame)      
+//   builder.Connect(qp_controller->get_output_port_control(),
+//                   plant.get_applied_spatial_force_input_port());
   builder.Connect(qp_controller->get_output_port_control(),
-                  plant.get_applied_spatial_force_input_port());
+                  force_controller->get_force_desired_input_port());
 
   // To visualize the applied spatial forces.
   auto viz_converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
