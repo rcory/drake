@@ -13,6 +13,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/lcmt_viewer_draw.hpp"
+#include "drake/examples/planar_gripper/finger_brick.h"
 
 namespace drake {
 namespace examples {
@@ -175,9 +176,9 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
 /// Utility to publish frames to LCM.
 void PublishFramesToLcm(
     const std::string& channel_name,
-    const std::unordered_map<std::string, Eigen::Isometry3d>& name_to_frame_map,
+    const std::unordered_map<std::string, RigidTransformd>& name_to_frame_map,
     drake::lcm::DrakeLcmInterface* lcm) {
-  std::vector<Eigen::Isometry3d> poses;
+  std::vector<RigidTransformd> poses;
   std::vector<std::string> names;
   for (const auto& pair : name_to_frame_map) {
     poses.push_back(pair.second);
@@ -187,7 +188,7 @@ void PublishFramesToLcm(
 }
 
 void PublishFramesToLcm(const std::string& channel_name,
-                        const std::vector<Eigen::Isometry3d>& poses,
+                        const std::vector<RigidTransformd>& poses,
                         const std::vector<std::string>& names,
                         drake::lcm::DrakeLcmInterface* dlcm) {
   DRAKE_DEMAND(poses.size() == names.size());
@@ -199,11 +200,11 @@ void PublishFramesToLcm(const std::string& channel_name,
   frame_msg.robot_num.resize(vsize, 0);
 
   for (size_t i = 0; i < poses.size(); i++) {
-    Eigen::Isometry3f pose = poses[i].cast<float>();
+    math::RigidTransform<float> pose = poses[i].cast<float>();
     // Create a frame publisher
     Eigen::Vector3f goal_pos = pose.translation();
     Eigen::Quaternion<float> goal_quat =
-        Eigen::Quaternion<float>(pose.linear());
+        Eigen::Quaternion<float>(pose.rotation().matrix());
     frame_msg.link_name[i] = names[i];
     frame_msg.position.push_back({goal_pos(0), goal_pos(1), goal_pos(2)});
     frame_msg.quaternion.push_back(
@@ -219,24 +220,42 @@ void PublishFramesToLcm(const std::string& channel_name,
 }
 
 /// Publishes frames once.
-void PublishInitialFrames(systems::Context<double>& context,
+void PublishFrames(systems::Context<double>& plant_context,
                           multibody::MultibodyPlant<double>& plant,
                           lcm::DrakeLcm &lcm) {
   std::vector<std::string> body_names;
-  std::vector<Eigen::Isometry3d> poses;
+  std::vector<RigidTransformd> poses;
 
   // list the body names.
   body_names.push_back("brick_base_link");
 
   for (size_t i = 0; i < body_names.size(); i++) {
     auto& body = plant.GetBodyByName(body_names[i]);
-    math::RigidTransform<double> X_WB = plant.EvalBodyPoseInWorld(context, body);
-    poses.push_back(X_WB.GetAsIsometry3());
+    math::RigidTransform<double> X_WB =
+        plant.EvalBodyPoseInWorld(plant_context, body);
+    poses.push_back(X_WB);
   }
 
   PublishFramesToLcm("SIM", poses, body_names, &lcm);
 }
 
+/// A system that publishes frames at a specified period.
+FrameViz::FrameViz(multibody::MultibodyPlant<double>& plant,
+                   lcm::DrakeLcm& lcm, double period) : plant_(plant), lcm_(lcm) {
+  this->DeclareVectorInputPort("x",
+                               systems::BasicVector<double>(6 /* mbp state*/));
+  this->DeclarePeriodicPublishEvent(period, 0.,
+                                    &FrameViz::PublishFramePose);
+  plant_context_ = plant.CreateDefaultContext();
+}
+
+systems::EventStatus FrameViz::PublishFramePose(
+    const drake::systems::Context<double>& context) const {
+  auto state = this->EvalVectorInput(context, 0)->get_value();
+  plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+  PublishFrames(*plant_context_, plant_, lcm_);
+  return systems::EventStatus::Succeeded();
+}
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
 ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
@@ -283,6 +302,43 @@ void ExternalSpatialToSpatialViz::CalcOutput(
         p_BoBq_W,
         ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
+}
+
+
+/// A utility system for the planar-finger/1-dof brick that computes the
+/// fingertip-sphere contact location in brick frame given the current state.
+ContactPointInBrickFrame::ContactPointInBrickFrame(
+    MultibodyPlant<double>& plant, geometry::SceneGraph<double>& sg)
+    : plant_(plant), sg_(sg), plant_context_(plant.CreateDefaultContext()) {
+  this->DeclareVectorInputPort("x",
+                               systems::BasicVector<double>(6 /* state */));
+  this->DeclareVectorOutputPort("p_BCb",
+                                systems::BasicVector<double>(2 /* {y,z} */),
+                                &ContactPointInBrickFrame::CalcOutput);
+}
+
+void ContactPointInBrickFrame::CalcOutput(
+    const drake::systems::Context<double>& context,
+    systems::BasicVector<double>* output) const {
+
+  auto state = this->EvalVectorInput(context, 0)->get_value();
+  auto p_BCb = output->get_mutable_value();
+
+  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
+      GetFingerTipSpherePositionInFingerTip(plant_, sg_);
+  const multibody::Frame<double>& brick_frame =
+      plant_.GetFrameByName("brick_base_link");
+
+  plant_.SetPositions(plant_context_.get(), state.head(3));
+  plant_.SetVelocities(plant_context_.get(), state.tail(3));
+  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
+  plant_.CalcPointsPositions(*plant_context_,
+                            plant_.GetFrameByName("finger_link2"), p_L2FingerTip,
+                            brick_frame, &p_BFingerTip);
+  // The contact point in brick frame. Note the input port that this value is
+  // feed into expects the sphere center, so we don't need to compensate for
+  // the sphere radius here.
+  p_BCb = p_BFingerTip.tail<2>();
 }
 
 }  // namespace planar_gripper

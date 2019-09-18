@@ -95,6 +95,8 @@ DEFINE_double(force_scale, -0.05, "spatial force viz scale factor");
 DEFINE_double(QP_Kp, 20, "QP controller Kp gain");
 DEFINE_double(QP_Kd, 20, "QP controller Kd gain");
 
+DEFINE_bool(set_zero_brick_damping, false, "Override brick joint damping with zero.");
+
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -191,7 +193,7 @@ class ForceController : public systems::LeafSystem<double> {
     DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
     auto force_des =
         external_spatial_forces_vec[0].F_Bq_W.translational().tail<2>();
-    // force_des << -.2, -.2;
+
     auto state =
         this->EvalVectorInput(context, state_actual_input_port_)->get_value();
     auto tip_state_desired =
@@ -260,7 +262,7 @@ class ForceController : public systems::LeafSystem<double> {
     // Regulate force in y (in world frame)
     auto delta_f = force_des - force_act;
     // auto fy_command = Kf * delta_f + force_des;  //TODO(rcory) bug?
-    auto fy_command = Kf * delta_f;
+    auto force_error_command = Kf * delta_f;
     // auto fy_command = Kf Δf + Ki ∫ Δf dt - Kp p_e + f_d  // More general.
 
     // Regulate position in z (in world frame)
@@ -271,7 +273,7 @@ class ForceController : public systems::LeafSystem<double> {
     Eigen::Matrix<double, 2, 2> Kp_pos(2,2), Kd_pos(2,2);
     Kp_pos << 0, 0, 0, FLAGS_kpz;  // position control only in z
     Kd_pos << 0, 0, 0, FLAGS_kdz;
-    auto fz_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
+    auto position_z_error_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
     if (FLAGS_force_direct_control || contact_results.num_point_pair_contacts() > 0) {
     //   drake::log()->info("contact > 0");
@@ -281,7 +283,8 @@ class ForceController : public systems::LeafSystem<double> {
       torque_calc += -Kd * state.segment<2>(2);
 
       // Torque due to hybrid position/force control
-      torque_calc += J.transpose() * (force_des + fy_command + fz_command);
+      torque_calc += J.transpose() * (force_des + force_error_command +
+                                      position_z_error_command);
     } else {  // regulate the fingertip position back to the surface w/ impedance control
 //      drake::log()->info("contact == 0!!");
       // implement a simple spring law for now (-kx), i.e., just compliance control
@@ -297,7 +300,8 @@ class ForceController : public systems::LeafSystem<double> {
     output_calc.head<2>() = torque_calc;
 
     // These are just auxiliary debugging outputs.
-    output_calc.segment<2>(2) = force_des + fz_command + fy_command;
+    output_calc.segment<2>(2) =
+        force_des + position_z_error_command + force_error_command;
     output_calc(4) = delta_pos(0);
   }
 
@@ -479,9 +483,17 @@ if (FLAGS_brick_only) {
   double weight_thetaddot_error = 1;
   double weight_f_Cb_B = 1;
   double mu = 0.5;
-  double damping =
-      plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
-          .damping();
+
+  // damping for the 1-dof brick joint (strictly for the QP controller).
+  double damping;
+  if (!FLAGS_set_zero_brick_damping) {
+    damping =
+        plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+            .damping();
+  } else {
+    damping = 0;
+  }
+
   double fingertip_radius = 0.015;
   auto qp_controller = builder.AddSystem<PlanarFingerInstantaneousQPController>(
       &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu,
@@ -519,7 +531,7 @@ if (FLAGS_brick_only) {
   // Compute the contact point in the brick frame, based on the initial
   // finger joint positions. Assume it remains fixed...for now.
   // TODO(rcory) update the estimate of the contact point based on the
-  // finger state.
+  //  finger state. update: Turns out, this is important.
   auto plant_context_local = plant.CreateDefaultContext();
   int bindex = plant.GetJointByName("brick_pin_joint").position_start();
   int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
@@ -550,6 +562,14 @@ if (FLAGS_brick_only) {
   builder.Connect(p_BCb_source->get_output_port(),
                   qp_controller->get_input_port_p_BFingerTip());
 
+//  // Adds system to calculate fingertip contact.
+//  auto contact_point_calc_sys =
+//      builder.AddSystem<ContactPointInBrickFrame>(plant, scene_graph);
+//  builder.Connect(plant.get_state_output_port(),
+//                  contact_point_calc_sys->get_input_port(0));
+//  builder.Connect(contact_point_calc_sys->get_output_port(0),
+//      qp_controller->get_input_port_p_BFingerTip());
+
   // thetaddot_planned is 0. Use a constant source.
   auto thetaddot_planned_source =
       builder.AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
@@ -571,6 +591,9 @@ if (FLAGS_brick_only) {
 }
 
 
+  // publish body frames.
+  auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0);
+  builder.Connect(plant.get_state_output_port(), frame_viz->get_input_port(0));
 
   auto diagram = builder.Build();
 
@@ -602,7 +625,7 @@ if (FLAGS_brick_only) {
  plant.SetPositions(&plant_context, brick_index, Vector1d(FLAGS_theta0));
 
   PrintJointOrdering(plant);
-  PublishInitialFrames(plant_context, plant, lcm);
+//  PublishFrames(plant_context, plant, lcm);
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 
