@@ -240,8 +240,11 @@ void PublishInitialFrames(systems::Context<double>& context,
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
 ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
-    MultibodyPlant<double>& plant)
-    : plant_(plant) {
+    MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
+    double force_scale_factor)
+    : plant_(plant),
+      instance_(instance),
+      force_scale_factor_(force_scale_factor) {
   // Make context with default parameters.
   plant_context_ = plant.CreateDefaultContext();
   this->DeclareAbstractInputPort(
@@ -260,7 +263,7 @@ void ExternalSpatialToSpatialViz::CalcOutput(
           .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
               context);
   auto state = this->EvalVectorInput(context, 1)->get_value();
-  plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+  plant_.SetPositionsAndVelocities(plant_context_.get(), instance_, state);
   spatial_forces_viz_output->clear();
   for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
     // convert contact point from brick frame to world frame
@@ -275,7 +278,8 @@ void ExternalSpatialToSpatialViz::CalcOutput(
     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
 
     spatial_forces_viz_output->emplace_back(
-        p_BoBq_W, X_WB.rotation() * ext_spatial_force.F_Bq_W * 10);
+        p_BoBq_W,
+        X_WB.rotation() * ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
 }
 

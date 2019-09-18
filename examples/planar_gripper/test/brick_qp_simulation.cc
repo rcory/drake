@@ -19,6 +19,7 @@
 #include "drake/systems/primitives/trajectory_source.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/multibody/tree/revolute_joint.h"
 
 namespace drake {
 namespace examples {
@@ -38,6 +39,7 @@ DEFINE_double(zc, 0.046, "z contact point");
 DEFINE_double(theta0, -M_PI_4, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
 DEFINE_double(T, 1.0, "time horizon");
+DEFINE_double(force_scale, .05, "force viz scale factor");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
@@ -73,8 +75,11 @@ int DoMain() {
   double weight_thetaddot_error = 1;
   double weight_f_Cb_B = 1;
   double mu = 0.5;
+  double damping =
+      plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+          .damping();
   auto qp_controller = builder.AddSystem<BrickInstantaneousQPController>(
-      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu);
+      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping);
 
   // Connect the QP controller
   builder.Connect(plant.get_state_output_port(plant_id),
@@ -83,7 +88,8 @@ int DoMain() {
                   plant.get_applied_spatial_force_input_port());
 
   // To visualize the applied spatial forces.
-  auto converter = builder.AddSystem<ExternalSpatialToSpatialViz>(plant);
+  auto converter =
+      builder.AddSystem<ExternalSpatialToSpatialViz>(plant, FLAGS_force_scale);
   builder.Connect(qp_controller->get_output_port(0),
                   converter->get_input_port(0));
   multibody::ConnectSpatialForcesToDrakeVisualizer(

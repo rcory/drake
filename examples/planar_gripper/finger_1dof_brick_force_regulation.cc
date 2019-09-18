@@ -24,6 +24,12 @@
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/systems/primitives/demultiplexer.h"
 
+#include "drake/examples/planar_gripper/brick_qp.h"
+#include "drake/systems/primitives/trajectory_source.h"
+#include "drake/multibody/plant/spatial_forces_to_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/multibody/tree/revolute_joint.h"
+
 namespace drake {
 namespace examples {
 namespace planar_gripper {
@@ -50,7 +56,7 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 1.7,
+DEFINE_double(simulation_time, 5,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
@@ -60,22 +66,28 @@ DEFINE_double(brick_z, 0, "Location of the brock on z-axis");
 DEFINE_double(fix_input, false, "Fix the actuation inputs to zero?");
 DEFINE_double(penetration_allowance, 0.1, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(j1, -0.63, "j1");
-DEFINE_double(j2, 1.4, "j2");
+DEFINE_double(j1, -0.15, "j1");
+DEFINE_double(j2, 0.728, "j2");
 
 DEFINE_double(fy, .1, "fy");
 DEFINE_double(fz, -0.3, "fz");
 DEFINE_double(Kd, 0.05, "joint damping Kd");
 DEFINE_double(kpz, 0, "z-axis position gain");
 DEFINE_double(kdz, 0, "z-axis derivative gain");
-DEFINE_double(kfy, 20, "y-axis force gain");
-DEFINE_double(kfz, 25, "z-axis force gain");
+DEFINE_double(kfy, 20*0, "y-axis force gain");
+DEFINE_double(kfz, 25*0, "z-axis force gain");
 DEFINE_double(finger_x_offset, 0,
               "x-coordinate offset for welding the finger base.");
-DEFINE_double(brick_theta0, 0, "initial brick angle");
-DEFINE_double(K_compliance, 20, "Impedance control stiffness.");
-DEFINE_double(D_damping, 1.0, "Impedance control damping.");
+DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
+DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(force_direct_control, false, "Force direct force control?");
+
+DEFINE_double(yc, 0, "y contact point");
+DEFINE_double(zc, 0.046, "z contact point");
+DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
+DEFINE_double(thetaf, M_PI_4, "final theta");
+DEFINE_double(T, 1.0, "time horizon");
+DEFINE_double(force_scale, .05, "force viz scale factor");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -251,7 +263,7 @@ class ForceController : public systems::LeafSystem<double> {
       // Torque due to hybrid position/force control
       torque_calc += J.transpose() * (force_des + fy_command + fz_command);
     } else {  // regulate the fingertip position back to the surface w/ impedance control
-      drake::log()->info("contact == 0!!");
+//      drake::log()->info("contact == 0!!");
       // implement a simple spring law for now (-kx), i.e., just compliance control
       const double target_z_position = 0.1;  // arbitrary
       const double K = FLAGS_K_compliance;  // spring const
@@ -307,16 +319,15 @@ int do_main() {
 //   Adds the object to be manipulated.
  auto object_file_name =
      FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
- Parser(&plant).AddModelFromFile(object_file_name, "object");
+ auto brick_index =
+     Parser(&plant).AddModelFromFile(object_file_name, "object");
 
   // Add gravity
   Vector3<double> gravity(0, 0, -9.81);
   plant.mutable_gravity_field().set_gravity_vector(gravity);
-//  control_plant.mutable_gravity_field().set_gravity_vector(gravity);
 
   // Now the model is complete.
   plant.Finalize();
-//  control_plant.Finalize();
 
   // Set the penetration allowance for the simulation plant only
   plant.set_penetration_allowance(FLAGS_penetration_allowance);
@@ -328,9 +339,10 @@ int do_main() {
   // Connect the force controler
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
   1e-3, Value<ContactResults<double>>());
-  Vector2<double> constfv(FLAGS_fy, FLAGS_fz);  // {fy, fz}
+  Vector2<double> const_force_vec(FLAGS_fy, FLAGS_fz);  // {fy, fz}
   auto force_controller = builder.AddSystem<ForceController>(plant);
-  auto const_force_src = builder.AddSystem<systems::ConstantVectorSource>(constfv);
+  auto const_force_src =
+      builder.AddSystem<systems::ConstantVectorSource>(const_force_vec);
   builder.Connect(const_force_src->get_output_port(),
                   force_controller->get_force_desired_input_port());
 
@@ -351,10 +363,12 @@ int do_main() {
 
   // size 4 because we take in {y, ydot, z, zdot}. The position gain on y will
   // be zero (since y is force controlled).
-  Vector4<double> constpv;  // regulate z position to the starting tip position
-  constpv.setZero();
-  constpv << -0.0248002 , 0.0590716;
-  auto const_pos_src = builder.AddSystem<systems::ConstantVectorSource>(constpv);
+
+  // regulate z position to the starting tip position
+  Vector4<double> const_position_vec;
+  const_position_vec << -0.0248002 , 0.0590716, 0, 0;
+  auto const_pos_src =
+      builder.AddSystem<systems::ConstantVectorSource>(const_position_vec);
   builder.Connect(const_pos_src->get_output_port(),
                   force_controller->get_state_desired_input_port());
 
@@ -370,6 +384,68 @@ int do_main() {
 
   // Publish contact results for visualization.
   ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
+
+  // ================ QP controller =======================================
+  // ======================================================================
+  // QP controller
+  double Kp = 3;
+  double Kd = 3;
+  double weight_thetaddot_error = 1;
+  double weight_f_Cb_B = 1;
+  double mu = 0.5;
+  double damping =
+      plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+          .damping();
+  auto qp_controller = builder.AddSystem<BrickInstantaneousQPController>(
+      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping);
+
+  // Connect the QP controller
+  builder.Connect(plant.get_state_output_port(brick_index),
+                  qp_controller->get_input_port_estimated_state());
+  builder.Connect(qp_controller->get_output_port_control(),
+                  plant.get_applied_spatial_force_input_port());
+
+  // To visualize the applied spatial forces.
+  auto viz_converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
+      plant, brick_index, FLAGS_force_scale);
+  builder.Connect(qp_controller->get_output_port_control(),
+                  viz_converter->get_input_port(0));
+  multibody::ConnectSpatialForcesToDrakeVisualizer(
+      &builder, plant, viz_converter->get_output_port(0), &lcm);
+  builder.Connect(plant.get_state_output_port(brick_index),
+                  viz_converter->get_input_port(1));
+
+  // Always get in contact with the +z face.
+  auto contact_face_source =
+      builder.AddSystem<systems::ConstantValueSource<double>>(
+          Value<BrickFace>(BrickFace::kPosZ));
+  builder.Connect(contact_face_source->get_output_port(0),
+                  qp_controller->get_input_port_contact_face());
+
+  // Always make contact at position (-0.01, 0.023).
+  auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
+      Eigen::Vector2d(FLAGS_yc, FLAGS_zc));
+  builder.Connect(p_BCb_source->get_output_port(),
+                  qp_controller->get_input_port_p_BCb());
+
+  // thetaddot_planned is 0. Use a constant source.
+  auto thetaddot_planned_source =
+      builder.AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
+  builder.Connect(thetaddot_planned_source->get_output_port(),
+                  qp_controller->get_input_port_desired_acceleration());
+
+  // The planned theta trajectory is from 0 to 90 degree in 1 second.
+  const trajectories::PiecewisePolynomial<double> theta_planned_traj =
+      trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+          {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
+
+  auto theta_traj_source = builder.AddSystem<systems::TrajectorySource<double>>(
+      theta_planned_traj, 1 /* take 1st derivatives */);
+  builder.Connect(theta_traj_source->get_output_port(),
+                  qp_controller->get_input_port_desired_state());
+
+  // ======================================================================
+  // ======================================================================
 
   auto diagram = builder.Build();
 
@@ -398,9 +474,7 @@ int do_main() {
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
 
  // Set the brick's initial condition.
- const RevoluteJoint<double>& brick_pin =
-     plant.GetJointByName<RevoluteJoint>("brick_pin_joint");
- brick_pin.set_angle(&plant_context, FLAGS_brick_theta0);
+ plant.SetPositions(&plant_context, brick_index, Vector1d(FLAGS_theta0));
 
   PrintJointOrdering(plant);
 

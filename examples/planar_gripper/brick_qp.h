@@ -47,7 +47,7 @@ class PlanarBrickInstantaneousQP {
                              double weight_thetaddot_error, double weight_f_Cb,
                              BrickFace contact_face,
                              const Eigen::Ref<const Eigen::Vector2d>& p_BCb,
-                             double mu, double I_B);
+                             double mu, double I_B, double damping);
 
   const solvers::MathematicalProgram& prog() const { return *prog_; }
 
@@ -73,7 +73,7 @@ class BrickInstantaneousQPController
 
   BrickInstantaneousQPController(const multibody::MultibodyPlant<double>* plant,
                                  double Kp, double Kd, double weight_thetaddot,
-                                 double weight_f_Cb_B, double mu);
+                                 double weight_f_Cb_B, double mu, double damping);
 
   const systems::InputPort<double>& get_input_port_estimated_state()
       const final {
@@ -114,6 +114,7 @@ class BrickInstantaneousQPController
   double Kd_;
   double weight_thetaddot_;
   double weight_f_Cb_B_;
+  double damping_;
 
   int input_index_state_{-1};
   int input_index_desired_state_{-1};

@@ -15,7 +15,7 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
     double theta, double thetadot,
     const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
     double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
-    double mu, double I_B, double finger_tip_radius)
+    double mu, double I_B, double finger_tip_radius, double damping)
     : plant_{finger_brick},
       prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
@@ -47,7 +47,7 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
   Vector2<symbolic::Expression> f_Cb_B = friction_cone_edges_ * f_Cb_B_edges_;
   // Now compute thetaddot
   const symbolic::Expression thetaddot =
-      (p_BCb_(0) * f_Cb_B(1) - p_BCb_(1) * f_Cb_B(0)) / I_B;
+      (p_BCb_(0) * f_Cb_B(1) - p_BCb_(1) * f_Cb_B(0) - damping * thetadot) / I_B;
 
   const double thetaddot_des = Kp * (theta_planned - theta) +
                                Kd * (thetadot_planned - thetadot) +
@@ -65,14 +65,15 @@ const Eigen::Vector2d PlanarFingerInstantaneousQP::GetContactForceResult(
 PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
     const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
     double weight_thetaddot, double weight_f_Cb_B, double mu,
-    double finger_tip_radius)
+    double finger_tip_radius, double damping)
     : plant_{plant},
       mu_{mu},
       Kp_{Kp},
       Kd_{Kd},
       weight_thetaddot_{weight_thetaddot},
       weight_f_Cb_B_{weight_f_Cb_B},
-      finger_tip_radius_{finger_tip_radius} {
+      finger_tip_radius_{finger_tip_radius},
+      damping_(damping) {
   DRAKE_DEMAND(Kp_ >= 0);
   DRAKE_DEMAND(Kd_ >= 0);
   DRAKE_DEMAND(weight_thetaddot_ >= 0);
@@ -129,7 +130,7 @@ void PlanarFingerInstantaneousQPController::CalcControl(
       thetaddot_planned(0), Kp_, Kd_, theta,
       state(plant_->num_positions() + brick_revolute_position_index_),
       p_BFingerTip, weight_thetaddot_, weight_f_Cb_B_, contact_face, mu_, I_B_,
-      finger_tip_radius_);
+      finger_tip_radius_, damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
 

@@ -42,6 +42,7 @@ class PlanarFingerInstantaneousQP {
    * @param mu the friction coefficient between the finger tip and the brick.
    * @param I_B The inertia of the brick.
    * @param finger_tip_radius The radius of the bubble on the finger.
+   * @param damping The damping at the brick's revolute joint.
    */
   PlanarFingerInstantaneousQP(
       const multibody::MultibodyPlant<double>* plant, double theta_planned,
@@ -49,7 +50,7 @@ class PlanarFingerInstantaneousQP {
       double theta, double thetadot,
       const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
       double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
-      double mu, double I_B, double finger_tip_radius);
+      double mu, double I_B, double finger_tip_radius, double damping);
 
   const solvers::MathematicalProgram& prog() const { return *prog_; }
 
@@ -80,7 +81,7 @@ class PlanarFingerInstantaneousQPController
   PlanarFingerInstantaneousQPController(
       const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
       double weight_thetaddot, double weight_f_Cb_B, double mu,
-      double finger_tip_radius);
+      double finger_tip_radius, double damping);
 
   const systems::InputPort<double>& get_input_port_estimated_state()
       const final {
@@ -130,6 +131,8 @@ class PlanarFingerInstantaneousQPController
   double weight_thetaddot_;
   double weight_f_Cb_B_;
   double finger_tip_radius_;
+  double damping_;
+
   int brick_revolute_position_index_;
   multibody::BodyIndex brick_body_index_;
 

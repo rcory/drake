@@ -70,7 +70,9 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
 
-  ExternalSpatialToSpatialViz(multibody::MultibodyPlant<double>& plant);
+  ExternalSpatialToSpatialViz(multibody::MultibodyPlant<double>& plant,
+                              multibody::ModelInstanceIndex instance,
+                              double force_scale_factor = 10);
 
   void CalcOutput(const systems::Context<double>& context,
                   std::vector<multibody::SpatialForceOutput<double>>*
@@ -78,7 +80,9 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
 
  private:
   multibody::MultibodyPlant<double>& plant_;
+  multibody::ModelInstanceIndex instance_;
   std::unique_ptr<systems::Context<double>> plant_context_;
+  double force_scale_factor_;
 };
 
 }  // namespace planar_gripper

@@ -12,7 +12,8 @@ PlanarBrickInstantaneousQP::PlanarBrickInstantaneousQP(
     double thetadot_planned, double thetaddot_planned, double Kp, double Kd,
     double theta, double thetadot, double weight_thetaddot_error,
     double weight_f_Cb, BrickFace contact_face,
-    const Eigen::Ref<const Eigen::Vector2d>& p_BCb, double mu, double I_B)
+    const Eigen::Ref<const Eigen::Vector2d>& p_BCb, double mu, double I_B,
+    double damping)
     : plant_{brick},
       prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
@@ -39,7 +40,7 @@ PlanarBrickInstantaneousQP::PlanarBrickInstantaneousQP(
   Vector2<symbolic::Expression> f_Cb_B = friction_cone_edges_ * f_Cb_B_edges_;
   // Now compute thetaddot
   const symbolic::Expression thetaddot =
-      (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0)) / I_B;
+      (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
 
   const double thetaddot_des = Kp * (theta_planned - theta) +
                                Kd * (thetadot_planned - thetadot) +
@@ -56,14 +57,15 @@ const Eigen::Vector2d PlanarBrickInstantaneousQP::GetContactForceResult(
 
 BrickInstantaneousQPController::BrickInstantaneousQPController(
     const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
-    double weight_thetaddot, double weight_f_Cb_B, double mu)
+    double weight_thetaddot, double weight_f_Cb_B, double mu, double damping)
     : systems::LeafSystem<double>(),
       brick_{plant},
       mu_{mu},
       Kp_{Kp},
       Kd_{Kd},
       weight_thetaddot_{weight_thetaddot},
-      weight_f_Cb_B_{weight_f_Cb_B} {
+      weight_f_Cb_B_{weight_f_Cb_B},
+      damping_(damping) {
   DRAKE_DEMAND(Kp_ >= 0);
   DRAKE_DEMAND(Kd_ >= 0);
   DRAKE_DEMAND(weight_thetaddot_ >= 0);
@@ -114,7 +116,7 @@ void BrickInstantaneousQPController::CalcControl(
   PlanarBrickInstantaneousQP qp(brick_, state_d(0), state_d(1),
                                 thetaddot_planned(0), Kp_, Kd_, state(0),
                                 state(1), weight_thetaddot_, weight_f_Cb_B_,
-                                contact_face, p_BCb, mu_, I_B_);
+                                contact_face, p_BCb, mu_, I_B_, damping_);
   const auto qp_result = solvers::Solve(qp.prog());
   const Vector2<double> f_Cb_B = qp.GetContactForceResult(qp_result);
   const double cos_theta = std::cos(state(0));

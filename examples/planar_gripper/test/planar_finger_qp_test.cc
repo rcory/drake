@@ -9,6 +9,7 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/solvers/solve.h"
 #include "drake/systems/framework/diagram.h"
 
@@ -57,10 +58,26 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
       Eigen::Vector3d(kInf, brick_size(1) / 2,
                       brick_size(2) / 2 + finger_tip_radius));
 
+  // Add the initial brick orientation condition constraint
+  const math::RotationMatrix<double> R_AbarA(Eigen::AngleAxisd(
+      -M_PI_4 + .2, Eigen::Vector3d(1, 0, 0).normalized()));
+  ik.AddOrientationConstraint(plant.world_frame(), R_AbarA,
+                              plant.GetFrameByName("brick_base_link"),
+                              math::RotationMatrixd(), 0);
+
   Eigen::Vector3d q_guess(0.1, 0.2, 0.3);
   const auto ik_result = solvers::Solve(ik.prog(), q_guess);
   EXPECT_TRUE(ik_result.is_success());
   const Eigen::Vector3d q_ik = ik_result.GetSolution(ik.q());
+
+  // print ik results
+  int bindex = plant.GetJointByName("brick_pin_joint").position_start();
+  int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
+  int j2index = plant.GetJointByName("finger_ElbowJoint").position_start();
+
+  drake::log()->info("brick_angle: {}", q_ik(bindex));
+  drake::log()->info("j1_angle: {}", q_ik(j1index));
+  drake::log()->info("j2_angle: {}", q_ik(j2index));
 
   const multibody::CoulombFriction<double>& brick_friction =
       plant.default_coulomb_friction(
@@ -96,11 +113,13 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
       plant.GetJointByName("brick_pin_joint").position_start();
   const double theta = q_ik(brick_revolute_position_index);
   const double thetadot = v(brick_revolute_position_index);
-
+  double damping =
+      plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+          .damping();
   PlanarFingerInstantaneousQP qp(
       &plant, theta_planned, thetadot_planned, thetaddot_planned, Kp, Kd, theta,
       thetadot, p_BFingerTip.tail<2>(), weight_thetaddot_error, weight_f_Cb,
-      contact_face, mu, I_B, finger_tip_radius);
+      contact_face, mu, I_B, finger_tip_radius, damping);
 
   const auto qp_result = solvers::Solve(qp.prog());
   EXPECT_TRUE(qp_result.is_success());
@@ -113,14 +132,15 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   // Now check the cost. First compute the angular acceleration.
   Eigen::Vector2d p_BCb(p_BFingerTip(1), p_BFingerTip(2) - finger_tip_radius);
-  const double thetaddot = (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0)) / I_B;
+  const double thetaddot =
+      (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
   const double thetaddot_des = Kp * (theta_planned - theta) +
                                Kd * (thetadot_planned - thetadot) +
                                thetaddot_planned;
   const double cost_expected =
       weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
       weight_f_Cb * f_Cb_B.squaredNorm();
-  EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-10);
+  EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-9);
 }
 
 }  // namespace planar_gripper
