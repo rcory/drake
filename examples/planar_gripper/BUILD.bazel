@@ -259,6 +259,8 @@ drake_cc_binary(
     ],
     deps = [
         ":brick_qp",
+        ":planar_finger_qp",
+        ":finger_brick",
         "//common:find_resource",
         "//common:text_logging_gflags",
         "//examples/planar_gripper:planar_gripper_common",

@@ -25,10 +25,12 @@
 #include "drake/systems/primitives/demultiplexer.h"
 
 #include "drake/examples/planar_gripper/brick_qp.h"
+#include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/systems/primitives/trajectory_source.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/tree/revolute_joint.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
 
 namespace drake {
 namespace examples {
@@ -81,13 +83,14 @@ DEFINE_double(finger_x_offset, 0,
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(force_direct_control, false, "Force direct force control?");
+DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
-DEFINE_double(yc, 0, "y contact point");
-DEFINE_double(zc, 0.046, "z contact point");
+DEFINE_double(yc, 0, "y contact point, for brick only qp");
+DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
 DEFINE_double(T, 1.0, "time horizon");
-DEFINE_double(force_scale, .05, "force viz scale factor");
+DEFINE_double(force_scale, .05, "spatial force viz scale factor");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -112,7 +115,7 @@ void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
 class ForceController : public systems::LeafSystem<double> {
  public:
   ForceController(MultibodyPlant<double>& plant)
-      : plant_(plant), finger_index_(plant.GetModelInstanceByName("finger")) {
+      : plant_(plant), finger_index_(plant.GetModelInstanceByName("planar_gripper")) {
     // Make context with default parameters.
     plant_context_ = plant.CreateDefaultContext();
 
@@ -313,14 +316,14 @@ int do_main() {
   MultibodyPlant<double>& plant =
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
   auto finger_index =
-      Parser(&plant, &scene_graph).AddModelFromFile(full_name, "finger");
+      Parser(&plant, &scene_graph).AddModelFromFile(full_name);
   WeldFingerFrame<double>(&plant);
 
 //   Adds the object to be manipulated.
  auto object_file_name =
      FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
  auto brick_index =
-     Parser(&plant).AddModelFromFile(object_file_name, "object");
+     Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
 
   // Add gravity
   Vector3<double> gravity(0, 0, -9.81);
@@ -385,7 +388,9 @@ int do_main() {
   // Publish contact results for visualization.
   ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
 
-  // ================ QP controller =======================================
+if (FLAGS_brick_only) {
+  // ================ Brick QP controller =================================
+  // This implements the QP controller for brick only.
   // ======================================================================
   // QP controller
   double Kp = 3;
@@ -447,6 +452,105 @@ int do_main() {
   // ======================================================================
   // ======================================================================
 
+} else {
+  // ================ Planar Finger QP controller =========================
+  // This implements the QP controller for brick AND planar-finger.
+  // ======================================================================
+  // QP controller
+  double Kp = 3;
+  double Kd = 3;
+  double weight_thetaddot_error = 1;
+  double weight_f_Cb_B = 1;
+  double mu = 0.5;
+  double damping =
+      plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+          .damping();
+  double fingertip_radius = 0.015;
+  auto qp_controller = builder.AddSystem<PlanarFingerInstantaneousQPController>(
+      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu,
+      fingertip_radius, damping);
+
+  // Connect the QP controller
+  builder.Connect(plant.get_state_output_port(),
+                  qp_controller->get_input_port_estimated_state());
+
+  // TODO(rcory) Connect this to the force controller.                
+  builder.Connect(qp_controller->get_output_port_control(),
+                  plant.get_applied_spatial_force_input_port());
+
+  // To visualize the applied spatial forces.
+  auto viz_converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
+      plant, brick_index, FLAGS_force_scale);
+  builder.Connect(qp_controller->get_output_port_control(),
+                  viz_converter->get_input_port(0));
+  multibody::ConnectSpatialForcesToDrakeVisualizer(
+      &builder, plant, viz_converter->get_output_port(0), &lcm);
+  builder.Connect(plant.get_state_output_port(brick_index),
+                  viz_converter->get_input_port(1));
+
+  // Always get in contact with the +z face.
+  auto contact_face_source =
+      builder.AddSystem<systems::ConstantValueSource<double>>(
+          Value<BrickFace>(BrickFace::kPosZ));
+  builder.Connect(contact_face_source->get_output_port(0),
+                  qp_controller->get_input_port_contact_face());
+
+  // Compute the contact point in the brick frame, based on the initial
+  // finger joint positions. Assume it remains fixed...for now.
+  // TODO(rcory) update the estimate of the contact point based on the
+  // finger state.
+  auto plant_context_local = plant.CreateDefaultContext();
+  int bindex = plant.GetJointByName("brick_pin_joint").position_start();
+  int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
+  int j2index = plant.GetJointByName("finger_ElbowJoint").position_start();
+  Eigen::Vector3d init_positions;
+  init_positions(bindex) = FLAGS_theta0;
+  init_positions(j1index) = FLAGS_j1;
+  init_positions(j2index) = FLAGS_j2;
+
+  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
+      GetFingerTipSpherePositionInFingerTip(plant, scene_graph);
+  const multibody::Frame<double>& brick_frame =
+      plant.GetFrameByName("brick_base_link");
+
+  plant.SetPositions(plant_context_local.get(), init_positions);
+  plant.SetVelocities(plant_context_local.get(), Eigen::Vector3d::Zero());
+  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
+  plant.CalcPointsPositions(*plant_context_local,
+                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
+                            brick_frame, &p_BFingerTip);
+  // The contact point in brick frame. Note the input port that this value is
+  // feed into expects the sphere center, so we don't need to compensate for
+  // the sphere radius here.
+  Eigen::Vector2d p_BCb = p_BFingerTip.tail<2>();
+
+  auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
+      p_BCb);
+  builder.Connect(p_BCb_source->get_output_port(),
+                  qp_controller->get_input_port_p_BFingerTip());
+
+  // thetaddot_planned is 0. Use a constant source.
+  auto thetaddot_planned_source =
+      builder.AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
+  builder.Connect(thetaddot_planned_source->get_output_port(),
+                  qp_controller->get_input_port_desired_thetaddot());
+
+  // The planned theta trajectory is from 0 to 90 degree in 1 second.
+  const trajectories::PiecewisePolynomial<double> theta_planned_traj =
+      trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+          {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
+
+  auto theta_traj_source = builder.AddSystem<systems::TrajectorySource<double>>(
+      theta_planned_traj, 1 /* take 1st derivatives */);
+  builder.Connect(theta_traj_source->get_output_port(),
+                  qp_controller->get_input_port_desired_state());
+
+  // ======================================================================
+  // ======================================================================
+}
+
+
+
   auto diagram = builder.Build();
 
   // Create a context for this system:
@@ -477,6 +581,7 @@ int do_main() {
  plant.SetPositions(&plant_context, brick_index, Vector1d(FLAGS_theta0));
 
   PrintJointOrdering(plant);
+  PublishInitialFrames(plant_context, plant, lcm);
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 

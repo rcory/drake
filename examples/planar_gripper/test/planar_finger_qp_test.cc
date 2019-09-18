@@ -96,6 +96,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
                             plant.GetFrameByName("finger_link2"), p_L2FingerTip,
                             brick_frame, &p_BFingerTip);
 
+  drake::log()->info("p_BFingerTip: \n{}", p_BFingerTip);
+
   const double theta_planned = 0.05;
   const double thetadot_planned = 0.12;
   const double thetaddot_planned = 0.23;
