@@ -254,6 +254,8 @@ ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
   this->DeclareAbstractOutputPort(&ExternalSpatialToSpatialViz::CalcOutput);
 }
 
+// Computes the contact point in the world frame. Incoming spatial
+// forces are already in the world frame.
 void ExternalSpatialToSpatialViz::CalcOutput(
     const systems::Context<double>& context,
     std::vector<multibody::SpatialForceOutput<double>>*
@@ -272,14 +274,14 @@ void ExternalSpatialToSpatialViz::CalcOutput(
     //     drake::log()->info("f: \n{}",
     //     ext_spatial_force.F_Bq_W.translational());
 
-    // Compute the spatial force in the world frame.
+    // Compute the contact point in the world frame.
     auto& body = plant_.get_body(ext_spatial_force.body_index);
     auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);
     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
 
     spatial_forces_viz_output->emplace_back(
         p_BoBq_W,
-        X_WB.rotation() * ext_spatial_force.F_Bq_W * force_scale_factor_);
+        ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
 }
 

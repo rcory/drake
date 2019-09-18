@@ -88,8 +88,8 @@ int DoMain() {
                   plant.get_applied_spatial_force_input_port());
 
   // To visualize the applied spatial forces.
-  auto converter =
-      builder.AddSystem<ExternalSpatialToSpatialViz>(plant, FLAGS_force_scale);
+  auto converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
+      plant, plant_id, FLAGS_force_scale);
   builder.Connect(qp_controller->get_output_port(0),
                   converter->get_input_port(0));
   multibody::ConnectSpatialForcesToDrakeVisualizer(

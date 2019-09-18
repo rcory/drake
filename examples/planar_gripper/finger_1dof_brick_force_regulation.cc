@@ -474,7 +474,9 @@ if (FLAGS_brick_only) {
   builder.Connect(plant.get_state_output_port(),
                   qp_controller->get_input_port_estimated_state());
 
-  // TODO(rcory) Connect this to the force controller.                
+  // TODO(rcory) Connect this to the force controller.     
+  // Note: The spatial forces coming from the output of the QP controller
+  // are already in the world frame (only the contact point is in the brick frame)      
   builder.Connect(qp_controller->get_output_port_control(),
                   plant.get_applied_spatial_force_input_port());
 
