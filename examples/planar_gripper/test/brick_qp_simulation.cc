@@ -121,7 +121,7 @@ int DoMain() {
           {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
 
   auto theta_traj_source = builder.AddSystem<systems::TrajectorySource<double>>(
-      theta_planned_traj, 1 /* take 1st derivatives */);
+      theta_planned_traj, 1.5 /* take 1st derivatives */);
   builder.Connect(theta_traj_source->get_output_port(),
                   qp_controller->get_input_port_desired_state());
 

@@ -58,7 +58,7 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 5,
+DEFINE_double(simulation_time, 2.5,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
@@ -89,8 +89,12 @@ DEFINE_double(yc, 0, "y contact point, for brick only qp");
 DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
-DEFINE_double(T, 1.5, "time horizon");
-DEFINE_double(force_scale, .5, "spatial force viz scale factor");
+DEFINE_double(T, 1.0, "time horizon");
+DEFINE_double(force_scale, -0.05, "spatial force viz scale factor");
+
+DEFINE_double(QP_Kp, 20, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 20, "QP controller Kd gain");
+
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -470,8 +474,8 @@ if (FLAGS_brick_only) {
   // This implements the QP controller for brick AND planar-finger.
   // ======================================================================
   // QP controller
-  double Kp = 3;
-  double Kd = 3;
+  double Kp = FLAGS_QP_Kp;
+  double Kd = FLAGS_QP_Kd;
   double weight_thetaddot_error = 1;
   double weight_f_Cb_B = 1;
   double mu = 0.5;
