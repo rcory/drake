@@ -54,31 +54,71 @@ GTEST_TEST(InstantaneousContactForceQPTest, Test) {
   gripper_brick.plant().SetPositions(plant_context, q_ik);
   gripper_brick.plant().SetVelocities(plant_context, v);
 
+  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>> finger_face;
+  for (const auto& finger_face_pair : finger_face_assignment) {
+    Eigen::Vector3d p_BFingerTip;
+    gripper_brick.plant().CalcPointsPositions(
+        *plant_context,
+        gripper_brick.finger_link2_frame(finger_face_pair.first),
+        gripper_brick.p_L2Fingertip(), gripper_brick.brick_frame(),
+        &p_BFingerTip);
+    Vector2<double> p_BCbi = p_BFingerTip.tail<2>();
+    switch (finger_face_pair.second) {
+      case BrickFace::kNegY: {
+        p_BCbi(0) += gripper_brick.finger_tip_radius();
+        break;
+      }
+      case BrickFace::kPosY: {
+        p_BCbi(0) -= gripper_brick.finger_tip_radius();
+        break;
+      }
+      case BrickFace::kNegZ: {
+        p_BCbi(1) += gripper_brick.finger_tip_radius();
+        break;
+      }
+      case BrickFace::kPosZ: {
+        p_BCbi(1) -= gripper_brick.finger_tip_radius();
+        break;
+      }
+      default: { throw std::runtime_error("Unknown face."); }
+    }
+    finger_face.emplace(finger_face_pair.first,
+                        std::make_pair(finger_face_pair.second, p_BCbi));
+  }
+
   const double weight_a = 2;
   const double weight_thetaddot = 4;
   const double weight_f_Cb = 3;
 
+  Vector6<double> brick_state;
+  brick_state(0) = q_ik(gripper_brick.brick_translate_y_position_index());
+  brick_state(1) = q_ik(gripper_brick.brick_translate_z_position_index());
+  brick_state(2) = q_ik(gripper_brick.brick_revolute_x_position_index());
+  brick_state(3) = v(gripper_brick.brick_translate_y_position_index());
+  brick_state(4) = v(gripper_brick.brick_translate_z_position_index());
+  brick_state(5) = v(gripper_brick.brick_revolute_x_position_index());
+
   InstantaneousContactForceQP qp(
       &gripper_brick, p_WB_planned, v_WB_planned, a_WB_planned, theta_planned,
-      thetadot_planned, thetaddot_planned, Kp1, Kd1, Kp2, Kd2, *plant_context,
-      weight_a, weight_thetaddot, weight_f_Cb, finger_face_assignment);
+      thetadot_planned, thetaddot_planned, Kp1, Kd1, Kp2, Kd2, brick_state,
+      finger_face, weight_a, weight_thetaddot, weight_f_Cb);
 
   const auto qp_result = solvers::Solve(qp.prog());
   EXPECT_TRUE(qp_result.is_success());
 
   // Now test if the friction cone constraint is satisfied.
-  const std::unordered_map<Finger, Eigen::Vector2d> finger_contact_forces =
-      qp.GetFingerContactForceResult(qp_result);
+  const std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
+      finger_contact_forces = qp.GetFingerContactForceResult(qp_result);
   EXPECT_EQ(finger_contact_forces.size(), finger_face_assignment.size());
   // finger 1 is in contact with +z face.
-  Eigen::Vector2d f_Cb1_B = finger_contact_forces.at(Finger::kFinger1);
+  Eigen::Vector2d f_Cb1_B = finger_contact_forces.at(Finger::kFinger1).first;
   const double mu1 =
       gripper_brick.GetFingerTipBrickCoulombFriction(Finger::kFinger1)
           .static_friction();
   EXPECT_LE(f_Cb1_B(1), 0);
   EXPECT_LE(std::abs(f_Cb1_B(0)), mu1 * std::abs(f_Cb1_B(1)));
   // finger 2 is in contact with -z face.
-  Eigen::Vector2d f_Cb2_B = finger_contact_forces.at(Finger::kFinger2);
+  Eigen::Vector2d f_Cb2_B = finger_contact_forces.at(Finger::kFinger2).first;
   const double mu2 =
       gripper_brick.GetFingerTipBrickCoulombFriction(Finger::kFinger2)
           .static_friction();
@@ -137,6 +177,7 @@ GTEST_TEST(InstantaneousContactForceQPTest, Test) {
       weight_f_Cb * (f_Cb1_B.squaredNorm() + f_Cb2_B.squaredNorm());
   EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-9);
 }
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

@@ -3,7 +3,9 @@
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 
@@ -51,8 +53,9 @@ void InitializeDiagramSimulator<double>(
 
 template <typename T>
 std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
-    multibody::MultibodyPlant<T>** plant,
-    geometry::SceneGraph<T>** scene_graph) {
+    multibody::MultibodyPlant<T>** plant, geometry::SceneGraph<T>** scene_graph,
+    int* input_port_index_applied_spatial_force, int* output_port_index_state,
+    int* input_port_index_actuation) {
   systems::DiagramBuilder<T> builder;
   std::tie(*plant, *scene_graph) =
       multibody::AddMultibodyPlantSceneGraph(&builder);
@@ -71,12 +74,31 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
   (*plant)->Finalize();
 
   AddDrakeVisualizer<T>(&builder, **scene_graph);
+
+  *input_port_index_applied_spatial_force =
+      builder.ExportInput((*plant)->get_applied_spatial_force_input_port());
+
+  *input_port_index_actuation =
+      builder.ExportInput((*plant)->get_actuation_input_port());
+
+  *output_port_index_state =
+      builder.ExportOutput((*plant)->get_state_output_port());
+
+  // lcm::DrakeLcm lcm;
+  // geometry::ConnectDrakeVisualizer(&builder, **scene_graph, &lcm);
+
+  //// Publish contact results for visualization.
+  // ConnectContactResultsToDrakeVisualizer(&builder, **plant, &lcm);
+
   return builder.Build();
 }
 
 template <typename T>
 GripperBrickHelper<T>::GripperBrickHelper() {
-  diagram_ = ConstructDiagram<T>(&plant_, &scene_graph_);
+  owned_diagram_ = ConstructDiagram<T>(
+      &plant_, &scene_graph_, &input_port_index_applied_spatial_force_,
+      &output_port_index_state_, &input_port_index_actuation_);
+  diagram_ = owned_diagram_.get();
   InitializeDiagramSimulator(*diagram_);
 
   const geometry::SceneGraphInspector<T>& inspector =

@@ -37,7 +37,7 @@ class GripperBrickHelper {
 
   const systems::Diagram<T>& diagram() const { return *diagram_; }
 
-  systems::Diagram<T>* get_mutable_diagram() { return diagram_.get(); }
+  systems::Diagram<T>* get_mutable_diagram() { return diagram_; }
 
   const multibody::MultibodyPlant<T>& plant() const { return *plant_; }
 
@@ -112,8 +112,25 @@ class GripperBrickHelper {
   multibody::CoulombFriction<T> GetFingerTipBrickCoulombFriction(
       Finger finger) const;
 
+  const systems::InputPort<T>& get_applied_spatial_force_input_port() const {
+    return diagram().get_input_port(input_port_index_applied_spatial_force_);
+  }
+
+  const systems::OutputPort<T>& get_state_output_port() const {
+    return diagram().get_output_port(output_port_index_state_);
+  }
+
+  const systems::InputPort<T>& get_actuation_input_port() const {
+    return diagram().get_input_port(input_port_index_actuation_);
+  }
+
+  std::unique_ptr<systems::Diagram<T>> owned_diagram() {
+    return std::move(owned_diagram_);
+  }
+
  private:
-  std::unique_ptr<systems::Diagram<T>> diagram_;
+  std::unique_ptr<systems::Diagram<T>> owned_diagram_;
+  systems::Diagram<T>* diagram_;
   multibody::MultibodyPlant<T>* plant_;
   geometry::SceneGraph<T>* scene_graph_;
   static constexpr int kNumFingers{3};
@@ -123,14 +140,16 @@ class GripperBrickHelper {
   int brick_translate_z_position_index_;
   int brick_revolute_x_position_index_;
   const multibody::Frame<double>* brick_frame_;
-  std::array<const multibody::Frame<double>*, kNumFingers>
-      finger_link2_frames_;
-  std::array<geometry::GeometryId, kNumFingers>
-      finger_tip_sphere_geometry_ids_;
+  std::array<const multibody::Frame<double>*, kNumFingers> finger_link2_frames_;
+  std::array<geometry::GeometryId, kNumFingers> finger_tip_sphere_geometry_ids_;
 
   Eigen::Vector3d p_L2Fingertip_;
   double finger_tip_radius_;
   Eigen::Vector3d brick_size_;
+
+  int input_port_index_applied_spatial_force_;
+  int input_port_index_actuation_;
+  int output_port_index_state_;
 };
 }  // namespace planar_gripper
 }  // namespace examples
