@@ -35,6 +35,9 @@ class PlanarFingerInstantaneousQP {
    * @param thetadot The current brick angular velocity.
    * @param p_BFingerTip The position of the finger tip bubble center measured
    * in the brick frame.
+   * Note: This assumes that regardless of the position of the fingertip center,
+   *  the fingertip surface is in contact with the brick and can apply a force at
+   *  that point (in reality this may not be true).
    * @param weight_thetaddot_error The weight of the thetaddot error in the
    * cost.
    * @param weight_f_Cb The weight of the contact force in the cost.

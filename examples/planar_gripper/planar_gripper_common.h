@@ -60,8 +60,8 @@ void PublishFramesToLcm(
     const std::vector<std::string> &frame_names,
     drake::lcm::DrakeLcmInterface *lcm);
 
-/// Publishes frames once.
-void PublishFrames(systems::Context<double>& plant_context,
+/// Publishes pre-defined body frames once.
+void PublishBodyFrames(systems::Context<double>& plant_context,
                           multibody::MultibodyPlant<double>& plant,
                           lcm::DrakeLcm &lcm);
 
@@ -71,7 +71,7 @@ void PublishFrames(systems::Context<double>& plant_context,
    DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
 
    FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
-            double period);
+            double period, bool frames_input = false);
 
   private:
    systems::EventStatus PublishFramePose(
@@ -80,6 +80,7 @@ void PublishFrames(systems::Context<double>& plant_context,
    multibody::MultibodyPlant<double>& plant_;
    std::unique_ptr<systems::Context<double>> plant_context_;
    lcm::DrakeLcm& lcm_;
+   bool frames_input_{false};
  };
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
@@ -102,21 +103,11 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
   double force_scale_factor_;
 };
 
-/// A system that computes the fingertip-sphere contact location in brick frame.
-class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
-  ContactPointInBrickFrame(multibody::MultibodyPlant<double>& plant,
-                           geometry::SceneGraph<double>& sg);
+// This system takes in a vector of spatial force outputs, and converts them
+// to a set of transforms, which can produce a set of frame visualization.
+class SpatialForceOutputToFrame final : public systems::LeafSystem<double> {
 
-  void CalcOutput(const systems::Context<double>& context,
-                  systems::BasicVector<double> *output) const;
-
- private:
-  multibody::MultibodyPlant<double>& plant_;
-  geometry::SceneGraph<double>& sg_;
-  std::unique_ptr<systems::Context<double>> plant_context_;
 };
 
 }  // namespace planar_gripper

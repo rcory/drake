@@ -9,24 +9,9 @@ namespace examples {
 namespace planar_gripper {
 
 template <typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
-  // The finger base link is welded a fixed distance from the world
-  // origin, on the Y-Z plane.
-  const double kOriginToBaseDistance = 0.19;
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double x_offset = 0);
 
-  // Before welding, the finger base link sits at the world origin with the
-  // finger pointing along the -Z axis, with all joint angles being zero.
-
-  // Weld the finger. Frame F1 corresponds to the base link finger frame.
-  math::RigidTransformd X_WF(Eigen::Vector3d::Zero());
-  X_WF = X_WF *
-         math::RigidTransformd(Eigen::Vector3d(0, 0, kOriginToBaseDistance));
-  const multibody::Frame<T>& finger_base_frame =
-      plant->GetFrameByName("finger_base");
-  plant->WeldFrames(plant->world_frame(), finger_base_frame, X_WF);
-}
-
-Eigen::Vector3d GetFingerTipSpherePositionInFingerTip(
+Eigen::Vector3d GetFingerTipSpherePositionInL2(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
 
@@ -40,6 +25,39 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
+
+///// A system that computes the fingertip-sphere contact location in brick frame.
+//class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
+// public:
+//  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
+//
+//  ContactPointInBrickFrame(multibody::MultibodyPlant<double>& plant,
+//                           geometry::SceneGraph<double>& sg);
+//
+//  void CalcOutput(const systems::Context<double>& context,
+//                  systems::BasicVector<double> *output) const;
+//
+// private:
+//  multibody::MultibodyPlant<double>& plant_;
+//  geometry::SceneGraph<double>& sg_;
+//  std::unique_ptr<systems::Context<double>> plant_context_;
+//};
+
+/// A system that computes the fingertip-sphere contact location in brick frame.
+class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
+
+  ContactPointInBrickFrame(multibody::MultibodyPlant<double>& plant);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  systems::BasicVector<double> *output) const;
+
+ private:
+  multibody::MultibodyPlant<double>& plant_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
+};
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

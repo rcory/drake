@@ -13,6 +13,7 @@ They can be toggled by supplying `--use_builtin_scripts=...` to
 
 Examples:
 
+
 ```sh
 bazel build //tools:drake_visualizer
 

@@ -24,7 +24,6 @@ drake_cc_library(
     srcs = ["planar_gripper_common.cc"],
     hdrs = ["planar_gripper_common.h"],
     deps = [
-        ":finger_brick",
         "//common:find_resource",
         "//lcm:interface",
         "//lcmtypes:viewer",

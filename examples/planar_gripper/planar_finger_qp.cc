@@ -24,26 +24,27 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
   switch (contact_face) {
     case BrickFace::kPosZ: {
       friction_cone_edges_ << -mu, mu, -1, -1;
-      p_BCb_(1) -= finger_tip_radius;
+//      p_BCb_(1) -= finger_tip_radius;
       break;
     }
     case BrickFace::kNegZ: {
       friction_cone_edges_ << -mu, mu, 1, 1;
-      p_BCb_(1) += finger_tip_radius;
+//      p_BCb_(1) += finger_tip_radius;
       break;
     }
     case BrickFace::kPosY: {
       friction_cone_edges_ << -1, -1, -mu, mu;
-      p_BCb_(0) -= finger_tip_radius;
+//      p_BCb_(0) -= finger_tip_radius;
       break;
     }
     case BrickFace::kNegY: {
       friction_cone_edges_ << 1, 1, -mu, mu;
-      p_BCb_(0) += finger_tip_radius;
+//      p_BCb_(0) += finger_tip_radius;
       break;
     }
     default: { throw std::runtime_error("Unknown face."); }
   }
+  unused(finger_tip_radius);
   Vector2<symbolic::Expression> f_Cb_B = friction_cone_edges_ * f_Cb_B_edges_;
   // Now compute thetaddot
   const symbolic::Expression thetaddot =

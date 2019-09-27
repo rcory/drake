@@ -64,57 +64,47 @@ DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
-DEFINE_double(brick_z, 0, "Location of the brock on z-axis");
-DEFINE_double(fix_input, false, "Fix the actuation inputs to zero?");
+
 DEFINE_double(penetration_allowance, 0.1, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(j1, -0.15, "j1");
-DEFINE_double(j2, 0.728, "j2");
 
-DEFINE_double(fy, .1, "fy");
-DEFINE_double(fz, -0.3, "fz");
+// Initial finger joint angles.
+DEFINE_double(j1, -0.15, "j1");  // shoulder joint
+DEFINE_double(j2, 0.728, "j2");  // elbow joint
+
+// Hybrid position/force control paramters.
 DEFINE_double(Kd, 0.05, "joint damping Kd");
 DEFINE_double(kpz, 0, "z-axis position gain");
 DEFINE_double(kdz, 0, "z-axis derivative gain");
 DEFINE_double(kfy, 20*0, "y-axis force gain");
 DEFINE_double(kfz, 25*0, "z-axis force gain");
-DEFINE_double(finger_x_offset, 0,
-              "x-coordinate offset for welding the finger base.");
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
-DEFINE_bool(force_direct_control, true, "Force direct force control?");
+DEFINE_bool(always_direct_force_control, true,
+            "Always use direct force control (i.e., no impedance control for "
+            "regulating fingertip back to contact)?");
+DEFINE_double(viz_force_scale, -0.05,
+              "scale factor for visualizing spatial force arrow");
+
+DEFINE_double(finger_weld_x_offset, 0,
+              "x-coordinate offset for welding the finger base (in case we "
+              "want to decouple brick and finger.");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
+// These two (yc, zc) only affect the brick-only simulation.
 DEFINE_double(yc, 0, "y contact point, for brick only qp");
 DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
+
+// QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
 DEFINE_double(T, 1.0, "time horizon");
-DEFINE_double(force_scale, -0.05, "spatial force viz scale factor");
 
 DEFINE_double(QP_Kp, 20, "QP controller Kp gain");
 DEFINE_double(QP_Kd, 20, "QP controller Kd gain");
 
 DEFINE_bool(set_zero_brick_damping, false, "Override brick joint damping with zero.");
 
-
-template<typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
-  // This function is copied and adapted from planar_gripper_simulation.py
-  const double outer_radius = 0.19;
-  const double f1_angle = 0;
-  const math::RigidTransformd XT(math::RollPitchYaw<double>(0, 0, 0),
-                                 Eigen::Vector3d(0, 0, outer_radius));
-
-  // Weld the first finger.
-  Eigen::Vector3d p_offset(FLAGS_finger_x_offset, 0, 0);
-  math::RigidTransformd X_PC1(math::RollPitchYaw<double>(f1_angle, 0, 0),
-                              p_offset);
-  X_PC1 = X_PC1 * XT;
-  const multibody::Frame<T> &finger1_base_frame =
-      plant->GetFrameByName("finger_base");
-  plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_PC1);
-}
 
 // Force controller with pure gravity compensation (no dynamics compensation
 // yet). Regulates position in z, and force in y.
@@ -125,10 +115,6 @@ class ForceController : public systems::LeafSystem<double> {
     // Make context with default parameters.
     plant_context_ = plant.CreateDefaultContext();
 
-    // force_desired_input_port_ =
-    //     this->DeclareVectorInputPort(
-    //             "f_d", systems::BasicVector<double>(2 /* num forces */))
-    //         .get_index();
     force_desired_input_port_ =
         this->DeclareAbstractInputPort(
                 "f_d", Value<std::vector<
@@ -275,7 +261,7 @@ class ForceController : public systems::LeafSystem<double> {
     Kd_pos << 0, 0, 0, FLAGS_kdz;
     auto position_z_error_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
-    if (FLAGS_force_direct_control || contact_results.num_point_pair_contacts() > 0) {
+    if (FLAGS_always_direct_force_control || contact_results.num_point_pair_contacts() > 0) {
     //   drake::log()->info("contact > 0");
       // Adds Joint damping.
       Eigen::Matrix2d Kd;
@@ -338,7 +324,11 @@ int do_main() {
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
   auto finger_index =
       Parser(&plant, &scene_graph).AddModelFromFile(full_name);
-  WeldFingerFrame<double>(&plant);
+  if (FLAGS_brick_only) {
+    WeldFingerFrame<double>(&plant, -0.1);
+  } else {
+    WeldFingerFrame<double>(&plant);
+  }
 
 //   Adds the object to be manipulated.
  auto object_file_name =
@@ -362,13 +352,9 @@ int do_main() {
 
   // Connect the force controler
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
-  1e-3, Value<ContactResults<double>>());
-//   Vector2<double> const_force_vec(FLAGS_fy, FLAGS_fz);  // {fy, fz}
+      1e-3, Value<ContactResults<double>>());
+
   auto force_controller = builder.AddSystem<ForceController>(plant);
-//   auto const_force_src =
-//       builder.AddSystem<systems::ConstantVectorSource>(const_force_vec);
-//   builder.Connect(const_force_src->get_output_port(),
-//                   force_controller->get_force_desired_input_port());
 
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_state_actual_input_port());
@@ -433,13 +419,13 @@ if (FLAGS_brick_only) {
 
   // To visualize the applied spatial forces.
   auto viz_converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
-      plant, brick_index, FLAGS_force_scale);
+      plant, brick_index, -FLAGS_viz_force_scale);
   builder.Connect(qp_controller->get_output_port_control(),
                   viz_converter->get_input_port(0));
-  multibody::ConnectSpatialForcesToDrakeVisualizer(
-      &builder, plant, viz_converter->get_output_port(0), &lcm);
   builder.Connect(plant.get_state_output_port(brick_index),
                   viz_converter->get_input_port(1));
+  multibody::ConnectSpatialForcesToDrakeVisualizer(
+      &builder, plant, viz_converter->get_output_port(0), &lcm);
 
   // Always get in contact with the +z face.
   auto contact_face_source =
@@ -448,7 +434,7 @@ if (FLAGS_brick_only) {
   builder.Connect(contact_face_source->get_output_port(0),
                   qp_controller->get_input_port_contact_face());
 
-  // Always make contact at position (-0.01, 0.023).
+  // Always make contact with sphere center at position (yc, zc).
   auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
       Eigen::Vector2d(FLAGS_yc, FLAGS_zc));
   builder.Connect(p_BCb_source->get_output_port(),
@@ -513,7 +499,7 @@ if (FLAGS_brick_only) {
 
   // To visualize the applied spatial forces.
   auto viz_converter = builder.AddSystem<ExternalSpatialToSpatialViz>(
-      plant, brick_index, FLAGS_force_scale);
+      plant, brick_index, FLAGS_viz_force_scale);
   builder.Connect(qp_controller->get_output_port_control(),
                   viz_converter->get_input_port(0));
   multibody::ConnectSpatialForcesToDrakeVisualizer(
@@ -528,47 +514,49 @@ if (FLAGS_brick_only) {
   builder.Connect(contact_face_source->get_output_port(0),
                   qp_controller->get_input_port_contact_face());
 
-  // Compute the contact point in the brick frame, based on the initial
-  // finger joint positions. Assume it remains fixed...for now.
-  // TODO(rcory) update the estimate of the contact point based on the
-  //  finger state. update: Turns out, this is important.
-  auto plant_context_local = plant.CreateDefaultContext();
-  int bindex = plant.GetJointByName("brick_pin_joint").position_start();
-  int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
-  int j2index = plant.GetJointByName("finger_ElbowJoint").position_start();
-  Eigen::Vector3d init_positions;
-  init_positions(bindex) = FLAGS_theta0;
-  init_positions(j1index) = FLAGS_j1;
-  init_positions(j2index) = FLAGS_j2;
+//  // Compute the contact point in the brick frame, based on the initial
+//  // finger joint positions. Assume it remains fixed...for now.
+//  // TODO(rcory) update the estimate of the contact point based on the
+//  //  finger state. update: Turns out, this is important.
+//  auto plant_context_local = plant.CreateDefaultContext();
+//  int bindex = plant.GetJointByName("brick_pin_joint").position_start();
+//  int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
+//  int j2index = plant.GetJointByName("finger_ElbowJoint").position_start();
+//  Eigen::Vector3d init_positions;
+//  init_positions(bindex) = FLAGS_theta0;
+//  init_positions(j1index) = FLAGS_j1;
+//  init_positions(j2index) = FLAGS_j2;
+//
+//  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
+//      GetFingerTipSpherePositionInL2(plant, scene_graph);
+//  const multibody::Frame<double>& brick_frame =
+//      plant.GetFrameByName("brick_base_link");
+//
+//  plant.SetPositions(plant_context_local.get(), init_positions);
+//  plant.SetVelocities(plant_context_local.get(), Eigen::Vector3d::Zero());
+//  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
+//  plant.CalcPointsPositions(*plant_context_local,
+//                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
+//                            brick_frame, &p_BFingerTip);
+//  // The contact point in brick frame. Note the input port that this value is
+//  // fed into expects the sphere center, so we don't need to compensate for
+//  // the sphere radius here.
+//  Eigen::Vector2d p_BCb = p_BFingerTip.tail<2>();
+//
+//  auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
+//      p_BCb);
+//  builder.Connect(p_BCb_source->get_output_port(),
+//                  qp_controller->get_input_port_p_BFingerTip());
 
-  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
-      GetFingerTipSpherePositionInFingerTip(plant, scene_graph);
-  const multibody::Frame<double>& brick_frame =
-      plant.GetFrameByName("brick_base_link");
-
-  plant.SetPositions(plant_context_local.get(), init_positions);
-  plant.SetVelocities(plant_context_local.get(), Eigen::Vector3d::Zero());
-  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
-  plant.CalcPointsPositions(*plant_context_local,
-                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
-                            brick_frame, &p_BFingerTip);
-  // The contact point in brick frame. Note the input port that this value is
-  // feed into expects the sphere center, so we don't need to compensate for
-  // the sphere radius here.
-  Eigen::Vector2d p_BCb = p_BFingerTip.tail<2>();
-
-  auto p_BCb_source = builder.AddSystem<systems::ConstantVectorSource<double>>(
-      p_BCb);
-  builder.Connect(p_BCb_source->get_output_port(),
-                  qp_controller->get_input_port_p_BFingerTip());
-
-//  // Adds system to calculate fingertip contact.
-//  auto contact_point_calc_sys =
-//      builder.AddSystem<ContactPointInBrickFrame>(plant, scene_graph);
-//  builder.Connect(plant.get_state_output_port(),
-//                  contact_point_calc_sys->get_input_port(0));
-//  builder.Connect(contact_point_calc_sys->get_output_port(0),
-//      qp_controller->get_input_port_p_BFingerTip());
+  // Adds system to calculate fingertip contact.
+  auto contact_point_calc_sys =
+      builder.AddSystem<ContactPointInBrickFrame>(plant);
+  builder.Connect(zoh->get_output_port(),
+                  contact_point_calc_sys->get_input_port(0));
+  builder.Connect(plant.get_state_output_port(),
+                  contact_point_calc_sys->get_input_port(1));
+  builder.Connect(contact_point_calc_sys->get_output_port(0),
+      qp_controller->get_input_port_p_BFingerTip());
 
   // thetaddot_planned is 0. Use a constant source.
   auto thetaddot_planned_source =
@@ -590,9 +578,8 @@ if (FLAGS_brick_only) {
   // ======================================================================
 }
 
-
   // publish body frames.
-  auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0);
+  auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);
   builder.Connect(plant.get_state_output_port(), frame_viz->get_input_port(0));
 
   auto diagram = builder.Build();
@@ -604,7 +591,7 @@ if (FLAGS_brick_only) {
   systems::Context<double>& plant_context =
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
-  if (FLAGS_fix_input) {
+  if (FLAGS_brick_only) {
     VectorX<double> tau_d(2);
     tau_d << 0, 0;
     plant_context.FixInputPort(

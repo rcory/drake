@@ -13,7 +13,6 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/lcmt_viewer_draw.hpp"
-#include "drake/examples/planar_gripper/finger_brick.h"
 
 namespace drake {
 namespace examples {
@@ -219,14 +218,14 @@ void PublishFramesToLcm(const std::string& channel_name,
       "DRAKE_DRAW_FRAMES_" + channel_name, bytes.data(), num_bytes, {});
 }
 
-/// Publishes frames once.
-void PublishFrames(systems::Context<double>& plant_context,
+/// Publishes pre-defined body frames once.
+void PublishBodyFrames(systems::Context<double>& plant_context,
                           multibody::MultibodyPlant<double>& plant,
                           lcm::DrakeLcm &lcm) {
   std::vector<std::string> body_names;
   std::vector<RigidTransformd> poses;
 
-  // list the body names.
+  // list the body names that we want to visualize.
   body_names.push_back("brick_base_link");
 
   for (size_t i = 0; i < body_names.size(); i++) {
@@ -240,10 +239,16 @@ void PublishFrames(systems::Context<double>& plant_context,
 }
 
 /// A system that publishes frames at a specified period.
-FrameViz::FrameViz(multibody::MultibodyPlant<double>& plant,
-                   lcm::DrakeLcm& lcm, double period) : plant_(plant), lcm_(lcm) {
+FrameViz::FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
+                   double period, bool frames_input)
+    : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
   this->DeclareVectorInputPort("x",
                                systems::BasicVector<double>(6 /* mbp state*/));
+  // if true, then we create an additional input port which takes arbitrary
+  // frames to visualize (a vector of type RigidTransform).
+  if (frames_input_) {
+    this->DeclareAbstractInputPort(Value<std::vector<math::RigidTransformd>>());
+  }
   this->DeclarePeriodicPublishEvent(period, 0.,
                                     &FrameViz::PublishFramePose);
   plant_context_ = plant.CreateDefaultContext();
@@ -253,7 +258,7 @@ systems::EventStatus FrameViz::PublishFramePose(
     const drake::systems::Context<double>& context) const {
   auto state = this->EvalVectorInput(context, 0)->get_value();
   plant_.SetPositionsAndVelocities(plant_context_.get(), state);
-  PublishFrames(*plant_context_, plant_, lcm_);
+  PublishBodyFrames(*plant_context_, plant_, lcm_);
   return systems::EventStatus::Succeeded();
 }
 
@@ -270,6 +275,9 @@ ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
   this->DeclareVectorInputPort("x",
                                systems::BasicVector<double>(2 /* state */));
+
+  // This output port produces a SpatialForceOutput, which feeds the spatial
+  // forces visualization plugin of DrakeVisualizer.
   this->DeclareAbstractOutputPort(&ExternalSpatialToSpatialViz::CalcOutput);
 }
 
@@ -287,13 +295,12 @@ void ExternalSpatialToSpatialViz::CalcOutput(
   plant_.SetPositionsAndVelocities(plant_context_.get(), instance_, state);
   spatial_forces_viz_output->clear();
   for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
-    // convert contact point from brick frame to world frame
+    // Convert contact point from brick frame to world frame
     auto ext_spatial_force = external_spatial_forces_vec[i];
     //     drake::log()->info("p: \n{}", ext_spatial_force.p_BoBq_B);
     //     drake::log()->info("f: \n{}",
     //     ext_spatial_force.F_Bq_W.translational());
 
-    // Compute the contact point in the world frame.
     auto& body = plant_.get_body(ext_spatial_force.body_index);
     auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);
     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
@@ -302,43 +309,6 @@ void ExternalSpatialToSpatialViz::CalcOutput(
         p_BoBq_W,
         ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
-}
-
-
-/// A utility system for the planar-finger/1-dof brick that computes the
-/// fingertip-sphere contact location in brick frame given the current state.
-ContactPointInBrickFrame::ContactPointInBrickFrame(
-    MultibodyPlant<double>& plant, geometry::SceneGraph<double>& sg)
-    : plant_(plant), sg_(sg), plant_context_(plant.CreateDefaultContext()) {
-  this->DeclareVectorInputPort("x",
-                               systems::BasicVector<double>(6 /* state */));
-  this->DeclareVectorOutputPort("p_BCb",
-                                systems::BasicVector<double>(2 /* {y,z} */),
-                                &ContactPointInBrickFrame::CalcOutput);
-}
-
-void ContactPointInBrickFrame::CalcOutput(
-    const drake::systems::Context<double>& context,
-    systems::BasicVector<double>* output) const {
-
-  auto state = this->EvalVectorInput(context, 0)->get_value();
-  auto p_BCb = output->get_mutable_value();
-
-  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
-      GetFingerTipSpherePositionInFingerTip(plant_, sg_);
-  const multibody::Frame<double>& brick_frame =
-      plant_.GetFrameByName("brick_base_link");
-
-  plant_.SetPositions(plant_context_.get(), state.head(3));
-  plant_.SetVelocities(plant_context_.get(), state.tail(3));
-  Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
-  plant_.CalcPointsPositions(*plant_context_,
-                            plant_.GetFrameByName("finger_link2"), p_L2FingerTip,
-                            brick_frame, &p_BFingerTip);
-  // The contact point in brick frame. Note the input port that this value is
-  // feed into expects the sphere center, so we don't need to compensate for
-  // the sphere radius here.
-  p_BCb = p_BFingerTip.tail<2>();
 }
 
 }  // namespace planar_gripper

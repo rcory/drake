@@ -75,7 +75,7 @@ class SpatialForceVisualizer(object):
 
             # Create an arrow starting from p_W and pointing to p_W + force_W.
             d.addArrow(start=p_W, end=p_W + force_W,
-                       tubeRadius=0.005, headRadius=0.01)
+                       tubeRadius=0.001, headRadius=0)
 
         # Draw the data.
         vis.showPolyData(
@@ -95,6 +95,7 @@ class SpatialForceVisualizer(object):
             # Create an arrow starting from p_W and pointing to p_W + torque_W.
             d.addArrow(start=p_W, end=p_W + torque_W,
                        tubeRadius=0.005, headRadius=0.01)
+            d.addSphere(center=p_W, radius=.001)
 
         # Draw the data.
         vis.showPolyData(
