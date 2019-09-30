@@ -58,14 +58,14 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 2.5,
+DEFINE_double(simulation_time, 1.5,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
 
-DEFINE_double(penetration_allowance, 0.1, "Penetration allowance.");
+DEFINE_double(penetration_allowance, 0.2, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 
 // Initial finger joint angles.
@@ -73,17 +73,17 @@ DEFINE_double(j1, -0.15, "j1");  // shoulder joint
 DEFINE_double(j2, 0.728, "j2");  // elbow joint
 
 // Hybrid position/force control paramters.
-DEFINE_double(Kd, 0.05, "joint damping Kd");
+DEFINE_double(Kd, 0.01, "joint damping Kd");
 DEFINE_double(kpz, 0, "z-axis position gain");
 DEFINE_double(kdz, 0, "z-axis derivative gain");
-DEFINE_double(kfy, 20*0, "y-axis force gain");
-DEFINE_double(kfz, 25*0, "z-axis force gain");
+DEFINE_double(kfy, 120, "y-axis force gain");
+DEFINE_double(kfz, 120, "z-axis force gain");
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, true,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
-DEFINE_double(viz_force_scale, -0.05,
+DEFINE_double(viz_force_scale, -5,
               "scale factor for visualizing spatial force arrow");
 
 DEFINE_double(finger_weld_x_offset, 0,
@@ -98,7 +98,7 @@ DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta");
 DEFINE_double(thetaf, M_PI_4, "final theta");
-DEFINE_double(T, 1.0, "time horizon");
+DEFINE_double(T, 1.5, "time horizon");
 
 DEFINE_double(QP_Kp, 20, "QP controller Kp gain");
 DEFINE_double(QP_Kd, 20, "QP controller Kd gain");
@@ -110,8 +110,11 @@ DEFINE_bool(set_zero_brick_damping, false, "Override brick joint damping with ze
 // yet). Regulates position in z, and force in y.
 class ForceController : public systems::LeafSystem<double> {
  public:
-  ForceController(MultibodyPlant<double>& plant)
-      : plant_(plant), finger_index_(plant.GetModelInstanceByName("planar_gripper")) {
+  ForceController(MultibodyPlant<double>& plant,
+                  SceneGraph<double>& scene_graph)
+      : plant_(plant),
+        scene_graph_(scene_graph),
+        finger_index_(plant.GetModelInstanceByName("planar_gripper")) {
     // Make context with default parameters.
     plant_context_ = plant.CreateDefaultContext();
 
@@ -179,6 +182,8 @@ class ForceController : public systems::LeafSystem<double> {
     DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
     auto force_des =
         external_spatial_forces_vec[0].F_Bq_W.translational().tail<2>();
+    
+    // drake::log()->info("fdes: \n{}", force_des);
 
     auto state =
         this->EvalVectorInput(context, state_actual_input_port_)->get_value();
@@ -195,6 +200,9 @@ class ForceController : public systems::LeafSystem<double> {
       auto contact_info = contact_results.point_pair_contact_info(0);
       force_sim = contact_info.contact_force();
     }
+
+    // drake::log()->info("fsim: \n{}", force_sim);
+    
     // Keep only the last two components of the force. Negative because this
     // force returns as the force felt by the fingertip.
     Eigen::Vector2d force_act = -force_sim.tail<2>();
@@ -219,7 +227,8 @@ class ForceController : public systems::LeafSystem<double> {
         plant_.GetBodyByName("finger_link2").body_frame();
     const multibody::Frame<double>& base_frame =
         plant_.GetBodyByName("finger_base").body_frame();
-    const Vector3<double> p_L2Ftip(0, 0, -0.086);
+    const Vector3<double> p_L2Ftip =
+        GetFingerTipSpherePositionInL2(plant_, scene_graph_);
     plant_.CalcJacobianSpatialVelocity(
         *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2Ftip,
         base_frame, base_frame, &Jv_V_WFtip);
@@ -238,8 +247,6 @@ class ForceController : public systems::LeafSystem<double> {
     Eigen::Vector3d p_WFtip(0, 0, 0);
     plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
                                plant_.world_frame(), &p_WFtip);
-
-    // drake::log()->info("p_tip: \n{}", p_WFtip);                           
 
     // Force control gains.
     Eigen::Matrix<double, 2, 2> Kf(2,2);
@@ -293,6 +300,7 @@ class ForceController : public systems::LeafSystem<double> {
 
  private:
   MultibodyPlant<double>& plant_;
+  SceneGraph<double>& scene_graph_;
   // This context is used solely for setting generalized positions and
   // velocities in plant_.
   std::unique_ptr<systems::Context<double>> plant_context_;
@@ -354,7 +362,8 @@ int do_main() {
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
-  auto force_controller = builder.AddSystem<ForceController>(plant);
+  auto force_controller =
+      builder.AddSystem<ForceController>(plant, scene_graph);
 
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_state_actual_input_port());
@@ -446,7 +455,7 @@ if (FLAGS_brick_only) {
   builder.Connect(thetaddot_planned_source->get_output_port(),
                   qp_controller->get_input_port_desired_acceleration());
 
-  // The planned theta trajectory is from 0 to 90 degree in 1 second.
+  // The planned theta trajectory is from 0 to 90 degree in T seconds.
   const trajectories::PiecewisePolynomial<double> theta_planned_traj =
       trajectories::PiecewisePolynomial<double>::FirstOrderHold(
           {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
@@ -477,7 +486,7 @@ if (FLAGS_brick_only) {
         plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
             .damping();
   } else {
-    damping = 0;
+    damping = 0.01;
   }
 
   double fingertip_radius = 0.015;
@@ -492,8 +501,7 @@ if (FLAGS_brick_only) {
   // TODO(rcory) Connect this to the force controller.     
   // Note: The spatial forces coming from the output of the QP controller
   // are already in the world frame (only the contact point is in the brick frame)      
-//   builder.Connect(qp_controller->get_output_port_control(),
-//                   plant.get_applied_spatial_force_input_port());
+
   builder.Connect(qp_controller->get_output_port_control(),
                   force_controller->get_force_desired_input_port());
 
@@ -564,7 +572,7 @@ if (FLAGS_brick_only) {
   builder.Connect(thetaddot_planned_source->get_output_port(),
                   qp_controller->get_input_port_desired_thetaddot());
 
-  // The planned theta trajectory is from 0 to 90 degree in 1 second.
+  // The planned theta trajectory is from 0 to 90 degree in T seconds.
   const trajectories::PiecewisePolynomial<double> theta_planned_traj =
       trajectories::PiecewisePolynomial<double>::FirstOrderHold(
           {0, FLAGS_T}, {Vector1d(FLAGS_theta0), Vector1d(FLAGS_thetaf)});
@@ -608,11 +616,14 @@ if (FLAGS_brick_only) {
   sh_pin1.set_angle(&plant_context, finger_initial_conditions(0));
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
 
- // Set the brick's initial condition.
- plant.SetPositions(&plant_context, brick_index, Vector1d(FLAGS_theta0));
+  // Set the brick's initial condition.
+  plant.SetPositions(&plant_context, brick_index, Vector1d(FLAGS_theta0));
 
   PrintJointOrdering(plant);
-//  PublishFrames(plant_context, plant, lcm);
+
+  math::RigidTransformd goal_frame;
+  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &lcm);
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 
