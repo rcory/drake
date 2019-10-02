@@ -152,7 +152,7 @@ class ForceController : public systems::LeafSystem<double> {
         get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
     Eigen::Vector3d force_sim(0, 0, 0);
-    if (contact_results.num_contacts() > 0) {
+    if (contact_results.num_point_pair_contacts() > 0) {
       auto contact_info = contact_results.point_pair_contact_info(0);
       force_sim = contact_info.contact_force();
     }

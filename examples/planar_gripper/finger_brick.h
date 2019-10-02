@@ -26,35 +26,18 @@ geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
 
-///// A system that computes the fingertip-sphere contact location in brick frame.
-//class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
-// public:
-//  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
-//
-//  ContactPointInBrickFrame(multibody::MultibodyPlant<double>& plant,
-//                           geometry::SceneGraph<double>& sg);
-//
-//  void CalcOutput(const systems::Context<double>& context,
-//                  systems::BasicVector<double> *output) const;
-//
-// private:
-//  multibody::MultibodyPlant<double>& plant_;
-//  geometry::SceneGraph<double>& sg_;
-//  std::unique_ptr<systems::Context<double>> plant_context_;
-//};
-
 /// A system that computes the fingertip-sphere contact location in brick frame.
 class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
-  ContactPointInBrickFrame(multibody::MultibodyPlant<double>& plant);
+  ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant);
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
 
  private:
-  multibody::MultibodyPlant<double>& plant_;
+  const multibody::MultibodyPlant<double>& plant_;
   std::unique_ptr<systems::Context<double>> plant_context_;
 };
 

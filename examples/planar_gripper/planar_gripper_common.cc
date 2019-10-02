@@ -227,6 +227,7 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
 
   // list the body names that we want to visualize.
   body_names.push_back("brick_base_link");
+  body_names.push_back("finger_base");
 
   for (size_t i = 0; i < body_names.size(); i++) {
     auto& body = plant.GetBodyByName(body_names[i]);
@@ -264,7 +265,7 @@ systems::EventStatus FrameViz::PublishFramePose(
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
 ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
-    MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
+    const MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
     double force_scale_factor)
     : plant_(plant),
       instance_(instance),

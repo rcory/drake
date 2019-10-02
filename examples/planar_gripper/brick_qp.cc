@@ -124,6 +124,9 @@ void BrickInstantaneousQPController::CalcControl(
   Eigen::Matrix2d R_WB;
   R_WB << cos_theta, -sin_theta, sin_theta, cos_theta;
   Eigen::Vector2d f_Cb_W = R_WB * f_Cb_B;
+
+//  drake::log()->info("r x f: {}", p_BCb(0)*f_Cb_B(1) - p_BCb(1)*f_Cb_B(0));
+
   control->resize(1);
   (*control)[0].body_index = brick_->GetBodyByName("brick_base_link").index();
   (*control)[0].p_BoBq_B = Eigen::Vector3d(0, p_BCb(0), p_BCb(1));

@@ -33,8 +33,8 @@ class PlanarBrickInstantaneousQP {
    * @param theta The current orientation of the brick.
    * @param thetadot The current angular velocity of the brick.
    * @param weight_thetaddot_error The weight of the thetaddot error in the
-   * cost.
-   * @param weight_f_Cb The weight of the contact force in the cost.
+   * cost (w1).
+   * @param weight_f_Cb The weight of the contact force in the cost (w2).
    * @param contact_face The brick face that is in contact with the finger.
    * @param mu the friction coefficient between the finger tip and the brick.
    * bubble on the tip of the finger), expressed in the finger link 2 frame.

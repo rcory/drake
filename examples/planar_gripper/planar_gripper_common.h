@@ -88,7 +88,7 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
 
-  ExternalSpatialToSpatialViz(multibody::MultibodyPlant<double>& plant,
+  ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
                               multibody::ModelInstanceIndex instance,
                               double force_scale_factor = 10);
 
@@ -97,7 +97,7 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
                   spatial_forces_viz_output) const;
 
  private:
-  multibody::MultibodyPlant<double>& plant_;
+  const multibody::MultibodyPlant<double>& plant_;
   multibody::ModelInstanceIndex instance_;
   std::unique_ptr<systems::Context<double>> plant_context_;
   double force_scale_factor_;
