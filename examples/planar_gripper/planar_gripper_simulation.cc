@@ -60,6 +60,7 @@ DEFINE_double(
     "Defines the time step to take between keyframes. Note that keyframe "
     "data in postures.txt contains static equilibrium poses and we "
     "play these back at an arbitrary speed for this simulation.");
+DEFINE_double(penetration_allowance, 0.1, "penetration allowance");
 
 /// Converts the generalized force output of the ID controller (internally using
 /// a control plant with only the gripper) to the generalized force input for
@@ -124,6 +125,13 @@ int DoMain() {
   plant.Finalize();
   control_plant.Finalize();
 
+  plant.set_penetration_allowance(FLAGS_penetration_allowance);
+
+  // Add gravity
+  Vector3<double> gravity(0, 0, -9.81);
+  plant.mutable_gravity_field().set_gravity_vector(gravity);
+  control_plant.mutable_gravity_field().set_gravity_vector(gravity);
+
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
 
@@ -144,7 +152,7 @@ int DoMain() {
   // Parse the keyframes from a file and also return initial brick pose. The
   // brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/postures.txt";
+      "drake/examples/planar_gripper/finger_brick_postures2.txt";
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_col_index_map;
   Vector3<double> brick_initial_pose;

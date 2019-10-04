@@ -25,7 +25,7 @@ template <typename T>
 void WeldGripperFrames(MultibodyPlant<T>* plant) {
   // The finger base links are all welded a fixed distance from the world
   // origin, on the Y-Z plane.
-  const double kOriginToBaseDistance = 0.19;
+  const double kOriginToBaseDistance = 0.201;
 
   // Before welding, all finger base links sit at the world origin with the
   // finger pointing along the -Z axis, with all joint angles being zero.
@@ -43,7 +43,7 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
   // finger (i.e., the arc from finger 1's base to finger 2's base is 120
   // degrees).
   const RigidTransformd X_WF2 =
-      RigidTransformd(RollPitchYawd(2 * M_PI / 3, 0, 0), Vector3d::Zero()) *
+      RigidTransformd(RollPitchYawd(-2 * M_PI / 3, 0, 0), Vector3d::Zero()) *
       X_WF1;
   const multibody::Frame<T>& finger2_base_frame =
       plant->GetFrameByName("finger2_base");
@@ -52,7 +52,7 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
   // Weld the 3rd finger. The third finger is 120 degrees from the second
   // finger.
   const RigidTransformd X_WF3 =
-      RigidTransformd(RollPitchYawd(2 * M_PI / 3, 0, 0), Vector3d::Zero()) *
+      RigidTransformd(RollPitchYawd(-2 * M_PI / 3, 0, 0), Vector3d::Zero()) *
       X_WF2;
   const multibody::Frame<T>& finger3_base_frame =
       plant->GetFrameByName("finger3_base");
@@ -76,8 +76,10 @@ MatrixX<double> MakeKeyframes(MatrixX<double> all_keyframes,
   // joint_ordering.
   std::map<std::string, int> joint_name_to_col_index_map;
   for (const auto& header_name : joint_ordering) {
+    drake::log()->info("Looking for: {}", header_name);
     auto match_it = std::find(headers.begin(), headers.end(), header_name);
     DRAKE_DEMAND(match_it != headers.end());
+    drake::log()->info("found!");
     joint_name_to_col_index_map[header_name] = match_it - headers.begin();
   }
   // Now create the keyframe matrix.
