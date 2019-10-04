@@ -30,6 +30,8 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/trajectory_source.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -45,22 +47,31 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
+using drake::multibody::ConnectContactResultsToDrakeVisualizer;
+using lcm::DrakeLcm;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 4.5,
+DEFINE_double(simulation_time, 6,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
 DEFINE_double(
-    keyframe_dt, 0.1,
+    keyframe_dt, 0.125,
     "Defines the time step to take between keyframes. Note that keyframe "
     "data in postures.txt contains static equilibrium poses and we "
     "play these back at an arbitrary speed for this simulation.");
-DEFINE_double(penetration_allowance, 0.1, "penetration allowance");
+DEFINE_double(penetration_allowance, 1e-4, "penetration allowance");
+DEFINE_double(plane_coef_static_friction, 0.3,
+              "Inclined plane's coefficient of static friction (no units).");
+DEFINE_double(plane_coef_kinetic_friction, 0.3,
+              "Inclined plane's coefficient of kinetic friction (no units).  "
+              "When time_step > 0, this value is ignored.  Only the "
+              "coefficient of static friction is used in fixed-time step.");
+DEFINE_double(plane_x_offset, -0.035, "plane_x_offset");
 
 /// Converts the generalized force output of the ID controller (internally using
 /// a control plant with only the gripper) to the generalized force input for
@@ -111,16 +122,33 @@ int DoMain() {
   // Adds the object to be manipulated.
   const std::string brick_file_name =
       FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
-  const ModelInstanceIndex brick_index =
+//  const ModelInstanceIndex brick_index =
+//      Parser(&plant).AddModelFromFile(brick_file_name, "object");
       Parser(&plant).AddModelFromFile(brick_file_name, "object");
-  const multibody::Frame<double>& brick_base_frame =
-      plant.GetFrameByName("brick_base", brick_index);
-  plant.WeldFrames(plant.world_frame(), brick_base_frame);
 
   // Create the controlled plant. Contains only the fingers (no objects).
   MultibodyPlant<double> control_plant(FLAGS_time_step);
   Parser(&control_plant).AddModelFromFile(full_name);
   WeldGripperFrames<double>(&control_plant);
+
+  // Adds a floor
+  const drake::multibody::CoulombFriction<double> coef_friction_inclined_plane(
+      FLAGS_plane_coef_static_friction,
+      FLAGS_plane_coef_kinetic_friction);
+  const Vector4<double> green(0.8, 0.8, 0.8, 1.0);
+  const Vector3<double> p_WoAo_W(FLAGS_plane_x_offset, 0, 0);
+  const math::RotationMatrix<double> R_WA =
+      math::RotationMatrix<double>::MakeYRotation(M_PI_2);
+  const RigidTransform<double> X_WA(R_WA, p_WoAo_W);
+  plant.RegisterVisualGeometry(plant.world_body(), X_WA,
+                                geometry::HalfSpace(),
+                                "InclinedPlaneVisualGeometry",
+                                green);
+  plant.RegisterCollisionGeometry(plant.world_body(), X_WA,
+                                  geometry::HalfSpace(),
+                                  "InclinedPlaneCollisionGeometry",
+                                  coef_friction_inclined_plane);
+
 
   plant.Finalize();
   control_plant.Finalize();
@@ -128,7 +156,7 @@ int DoMain() {
   plant.set_penetration_allowance(FLAGS_penetration_allowance);
 
   // Add gravity
-  Vector3<double> gravity(0, 0, -9.81);
+  Vector3<double> gravity(-9.81, 0, 0);
   plant.mutable_gravity_field().set_gravity_vector(gravity);
   control_plant.mutable_gravity_field().set_gravity_vector(gravity);
 
@@ -152,7 +180,7 @@ int DoMain() {
   // Parse the keyframes from a file and also return initial brick pose. The
   // brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/finger_brick_postures2.txt";
+      "drake/examples/planar_gripper/finger_brick_postures3.txt";
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_col_index_map;
   Vector3<double> brick_initial_pose;
@@ -196,7 +224,11 @@ int DoMain() {
   builder.Connect(scene_graph.get_query_output_port(),
                   plant.get_geometry_query_input_port());
 
-  geometry::ConnectDrakeVisualizer(&builder, scene_graph);
+  DrakeLcm lcm;
+  geometry::ConnectDrakeVisualizer(&builder, scene_graph, &lcm);
+  ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
+
+//  geometry::ConnectDrakeVisualizer(&builder, scene_graph);
   auto diagram = builder.Build();
 
   // Create a context for this system:

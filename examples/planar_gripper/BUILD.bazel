@@ -72,6 +72,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         "//examples/planar_gripper:finger_brick_postures2.txt",
+        "//examples/planar_gripper:finger_brick_postures3.txt",
         "//examples/planar_gripper:planar_brick.sdf",
         "//examples/planar_gripper:planar_gripper.sdf",
         "//examples/planar_gripper:postures.txt",
@@ -88,6 +89,7 @@ drake_cc_binary(
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/controllers:inverse_dynamics_controller",
         "//systems/framework:diagram",
