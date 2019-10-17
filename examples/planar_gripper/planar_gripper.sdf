@@ -144,7 +144,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>1 1 1 1</diffuse>
+          <diffuse>1 1 1 0.3</diffuse>
         </material>
       </visual>
     </link>
@@ -305,7 +305,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>1 1 1 1</diffuse>
+          <diffuse>1 1 1 0.3</diffuse>
         </material>
       </visual>
     </link>
@@ -466,7 +466,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>1 1 1 1</diffuse>
+          <diffuse>1 1 1 0.3</diffuse>
         </material>
       </visual>
     </link>

@@ -30,7 +30,21 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
 
   if (scene_graph != nullptr) {
     plant->RegisterAsSourceForSceneGraph(scene_graph);
+#if 1
+    const double size = 5;
+    // If the box is positioned at (0, 0, z), the face's dividing edge passes
+    // through the contact patch. Swap definitions of X_WG to move the point of
+    // contact closer and farther from the dividing edge.
+//    RigidTransformd X_WG{Vector3<double>(size / 4, -size / 4, -size / 2)};
+    RigidTransformd X_WG{Vector3<double>(0, 0, -size / 2)};
+    plant->RegisterCollisionGeometry(plant->world_body(), X_WG,
+                                     geometry::Box(size, size, size),
+                                     "collision", surface_friction);
 
+    // Add visual for the ground.
+    plant->RegisterVisualGeometry(plant->world_body(), X_WG,
+                                  geometry::Box(size, size, size), "visual");
+#else
     Vector3<double> normal_W(0, 0, 1);
     Vector3<double> point_W(0, 0, 0);
 
@@ -42,6 +56,7 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
     // Add visual for the ground.
     plant->RegisterVisualGeometry(plant->world_body(), X_WG, HalfSpace(),
                                   "visual");
+#endif
 
     // Add sphere geometry for the ball.
     // Pose of sphere geometry S in body frame B.

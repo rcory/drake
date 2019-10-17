@@ -135,6 +135,10 @@ double HydroelasticEngine<T>::CalcCombinedDissipation(
 template <typename T>
 std::vector<ContactSurface<T>> HydroelasticEngine<T>::ComputeContactSurfaces(
     const geometry::QueryObject<T>& query_object) const {
+#if 1
+  std::vector<ContactSurface<T>> all_contact_surfaces =
+      query_object.ComputeContactSurfaces();
+#else
   const std::vector<SortedPair<GeometryId>>& geometry_pairs =
       query_object.FindCollisionCandidates();
 
@@ -180,6 +184,8 @@ std::vector<ContactSurface<T>> HydroelasticEngine<T>::ComputeContactSurfaces(
         CalcContactSurface(id_S, model_S, X_WS, id_R, model_R, X_WR);
     if (surface) all_contact_surfaces.emplace_back(std::move(*surface));
   }
+
+#endif
 
   return all_contact_surfaces;
 }
@@ -284,10 +290,30 @@ void HydroelasticEngine<T>::ImplementGeometry(const Cylinder&, void*) {
 }
 
 template <typename T>
-void HydroelasticEngine<T>::ImplementGeometry(const Box&, void*) {
+#if 1
+void HydroelasticEngine<T>::ImplementGeometry(const Box&, void* user_data) {
+  const GeometryImplementationData& specs =
+      *reinterpret_cast<GeometryImplementationData*>(user_data);
+  const double elastic_modulus = specs.elastic_modulus;
+  if (elastic_modulus != std::numeric_limits<double>::infinity()) {
+    drake::log()->warn(
+        "HydroelasticEngine. The current hydroelastic model implementation "
+        "does not support soft boxes. Geometry ignored.");
+  }
+  // Note: This is just to make sure the hydroelastic engine has *some* geometry
+  // for the box so it can handle the dissipation rules. It won't actually do
+  // contact surface computation with this representation.
+  auto level_set = std::make_unique<LevelSetField<T>>(
+      [](const Vector3<T>& p) { return p[2]; },
+      [](const Vector3<T>&) { return Vector3<double>::UnitZ(); });
+  model_data_.geometry_id_to_model_[specs.id] =
+      std::make_unique<HydroelasticGeometry<T>>(std::move(level_set));
+#else
+  void HydroelasticEngine<T>::ImplementGeometry(const Box&, void*) {
   drake::log()->warn(
       "HydroelasticEngine. The current hydroelastic model implementation "
       "does not support box geometries. Geometry ignored.");
+#endif
 }
 
 template <typename T>

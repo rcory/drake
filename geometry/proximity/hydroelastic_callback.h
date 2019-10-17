@@ -106,7 +106,8 @@ SoftGeometry MakeSphereFromFcl(
   for (const auto& v : geometry.mesh->vertices()) {
     const Eigen::Vector3d& p_MV = v.r_MV();
     const double p_MV_len = p_MV.norm();
-    p0_values.push_back(1e8 * (1.0 - p_MV_len / r));
+    // medium rubber (pencil eraser) is approx 1e-8
+    p0_values.push_back(5.0e4 * (1.0 - p_MV_len / r));
   }
   geometry.p0 = std::make_unique<VolumeMeshFieldLinear<double, double>>(
       "p0", move(p0_values), geometry.mesh.get());
@@ -147,11 +148,17 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
     const bool valid =(a_type == fcl::GEOM_BOX && b_type == fcl::GEOM_SPHERE) ||
         (a_type == fcl::GEOM_SPHERE && b_type == fcl::GEOM_BOX);
     if (!valid) {
+#if 1
+      // NOTE: For current expediency, we're simply ignoring geometry pairs we
+      // can't handle. Do not accidentally merge this into master.
+      return false;
+#else
       throw std::logic_error(fmt::format(
           "Can't compute a contact surface between geometries {} ({}) and "
           "{} ({})",
           to_string(encoding_a.id()), GetGeometryName(*object_A_ptr),
           to_string(encoding_b.id()), GetGeometryName(*object_B_ptr)));
+#endif
     }
 
     fcl::CollisionObjectd* object_box_ptr{};
