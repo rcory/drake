@@ -4,7 +4,6 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
-#include "drake/common/text_logging_gflags.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
@@ -71,7 +70,7 @@ DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, true,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
-DEFINE_double(viz_force_scale, -5,
+DEFINE_double(viz_force_scale, 5,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
@@ -271,6 +270,5 @@ int main(int argc, char* argv[]) {
   gflags::SetUsageMessage(
       "A simple planar gripper example.");
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  drake::logging::HandleSpdlogGflags();
   return drake::examples::planar_gripper::do_main();
 }

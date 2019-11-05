@@ -4,7 +4,6 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
-#include "drake/common/text_logging_gflags.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
@@ -60,8 +59,11 @@ DEFINE_bool(use_brick, false,
             "should use the 1dof surface.");
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(fz, -10.0, "Desired end effector force");
+DEFINE_double(fz, -5.0, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
+
+DEFINE_double(j1, -0.8112, "Joint 1 initial angle.");
+DEFINE_double(j2, 0.8667, "Joint 2 initial angle.");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -156,9 +158,9 @@ class ForceController : public systems::LeafSystem<double> {
       auto contact_info = contact_results.point_pair_contact_info(0);
       force_sim = contact_info.contact_force();
     }
-    // Keep only the last two components of the force. Negative because this
-    // force returns as the force felt by the fingertip.
-    Eigen::Vector2d force_act = -force_sim.tail<2>();
+    // Keep only the last two components of the force. This force returns
+    // as the force felt by the brick.
+    Eigen::Vector2d force_act = force_sim.tail<2>();
 
     // Set the plant's position and velocity within the context.
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);
@@ -216,13 +218,13 @@ class ForceController : public systems::LeafSystem<double> {
     auto fy_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
     // Torque due to hybrid position/force control
-    torque_calc += J.transpose() * (force_des + fz_command + fy_command);
+    torque_calc += J.transpose() * (fz_command + fy_command);
 
     // The output for calculated torques.
     output_calc.head<2>() = torque_calc;
 
     // These are just auxiliary debugging outputs.
-    output_calc.segment<2>(2) = force_des + fz_command + fy_command;
+    output_calc.segment<2>(2) = force_act;
     output_calc(4) = delta_pos(0);
   }
 
@@ -361,7 +363,7 @@ int do_main() {
   VectorX<double> finger_initial_conditions = VectorX<double>::Zero(4);
 //  finger_initial_conditions << -0.65, 1.7, 0, 0;
 //  finger_initial_conditions << -0.681, 1.066, 0, 0;
-  finger_initial_conditions << -0.8112, 0.8667, 0, 0;
+  finger_initial_conditions << FLAGS_j1, FLAGS_j2, 0, 0;
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
@@ -399,6 +401,5 @@ int main(int argc, char* argv[]) {
   gflags::SetUsageMessage(
       "A simple planar gripper example.");
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  drake::logging::HandleSpdlogGflags();
   return drake::examples::planar_gripper::do_main();
 }

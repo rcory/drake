@@ -121,7 +121,7 @@ drake_cc_library(
     deps = [
         ":gripper_brick",
         "//multibody/plant",
-        "//solvers:mathematical_program_lite",
+        "//solvers:mathematical_program",
         "//solvers:solve",
         "//systems/controllers:state_feedback_controller_interface",
         "//systems/framework:leaf_system",
@@ -135,7 +135,7 @@ drake_cc_library(
     deps = [
         ":gripper_brick",
         "//multibody/plant",
-        "//solvers:mathematical_program_lite",
+        "//solvers:mathematical_program",
         "//solvers:solve",
         "//systems/controllers:state_feedback_controller_interface",
         "//systems/framework:leaf_system",
@@ -281,8 +281,8 @@ drake_cc_binary(
         "--target_realtime_rate=0",
     ],
     deps = [
+        "//common:add_text_logging_gflags",
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
@@ -315,8 +315,8 @@ drake_cc_binary(
         ":brick_qp",
         ":finger_brick",
         ":planar_finger_qp",
+        "//common:add_text_logging_gflags",
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//examples/planar_gripper:finger_brick_control",
         "//examples/planar_gripper:planar_gripper_common",
         "//geometry:geometry_visualization",

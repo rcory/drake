@@ -110,9 +110,9 @@ void ForceController::CalcTauOutput(
   }
 
   // Keep only the last two components of the force (since we only care about
-  // forces in the y-z plane, i.e., in the plane of motion). Negative because
-  // this force returns as the force felt by the fingertip.
-  Eigen::Vector2d force_act = -force_sim.tail<2>();
+  // forces in the y-z plane, i.e., in the plane of motion). This force returns
+  // as the force felt by the brick.
+  Eigen::Vector2d force_act = force_sim.tail<2>();
 
   // Set the plant's position and velocity within the context.
   plant_.SetPositionsAndVelocities(plant_context_.get(), finger_index_,
