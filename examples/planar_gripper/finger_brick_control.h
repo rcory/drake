@@ -16,10 +16,10 @@ using systems::OutputPortIndex;
 using systems::OutputPort;
 
 struct ForceControlOptions{
-  double kfy_{0};  // y-axis force gain
-  double kfz_{0};  // z-axis force gain
-  double kpz_{0};  // z-axis position gain
-  double kdz_{0};  // z-axis derivative gain
+  double kfy_{0};  // y-axis force gain (in brick frame)
+  double kfz_{0};  // z-axis force gain (in brick frame)
+  double kpz_{0};  // z-axis position gain (in brick frame)
+  double kdz_{0};  // z-axis derivative gain (in brick frame)
   double Kd_{0};  // joint damping
   double K_compliance_{0};  // impedance control stiffness
   double D_damping_{0};  // impedance control damping
@@ -39,6 +39,10 @@ class ForceController : public systems::LeafSystem<double> {
 
   const InputPort<double>& get_finger_state_actual_input_port() const {
     return this->get_input_port(finger_state_actual_input_port_);
+  }
+
+  const InputPort<double>& get_brick_state_actual_input_port() const {
+    return this->get_input_port(brick_state_actual_input_port_);
   }
 
   const InputPort<double>& get_tip_state_desired_input_port() const {
@@ -64,10 +68,12 @@ class ForceController : public systems::LeafSystem<double> {
   std::unique_ptr<systems::Context<double>> plant_context_;
   InputPortIndex force_desired_input_port_{};
   InputPortIndex finger_state_actual_input_port_{};
+  InputPortIndex brick_state_actual_input_port_{};
   InputPortIndex tip_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   OutputPortIndex torque_output_port_{};
   ModelInstanceIndex finger_index_{};
+  ModelInstanceIndex brick_index_{};
   ForceControlOptions options_;
 };
 

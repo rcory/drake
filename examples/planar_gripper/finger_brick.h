@@ -31,7 +31,8 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
-  ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant);
+  ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
+                           double yc, double zc);
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -39,6 +40,8 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  private:
   const multibody::MultibodyPlant<double>& plant_;
   std::unique_ptr<systems::Context<double>> plant_context_;
+  double yc_;
+  double zc_;
 };
 
 }  // namespace planar_gripper

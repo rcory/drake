@@ -61,10 +61,10 @@ DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Hybrid position/force control paramters.
 DEFINE_double(Kd, 0.05, "joint damping Kd");
-DEFINE_double(kpz, 0, "z-axis position gain");
-DEFINE_double(kdz, 0, "z-axis derivative gain");
-DEFINE_double(kfy, 200, "y-axis force gain");
-DEFINE_double(kfz, 200, "z-axis force gain");
+DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
+DEFINE_double(kdz, 50, "z-axis derivative gain (in brick frame).");
+DEFINE_double(kfy, 150, "y-axis force gain (in brick frame).");
+DEFINE_double(kfz, 200, "z-axis force gain (in brick frame).");
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, true,
@@ -74,20 +74,26 @@ DEFINE_double(viz_force_scale, 5,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
-// These two (yc, zc) only affect the brick-only simulation.
-DEFINE_double(yc, 0, "y contact point, for brick only qp");
-DEFINE_double(zc, 0.046, "z contact point, for brick only qp");
+// (yc, zc) indicate the location of the contact point either in:
+// 1) The brick only simulation, or
+// 2) The finger/brick simulation *when* there is no finger/brick contact
+// occuring.
+DEFINE_double(yc, 0,
+              "y contact point location.");
+DEFINE_double(zc, 0.046,
+              "z contact point location.");
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 80, "QP controller Kp gain");
+DEFINE_double(QP_Kp, 120, "QP controller Kp gain");
 DEFINE_double(QP_Kd, 25, "QP controller Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
+// TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
 
 DEFINE_bool(assume_zero_brick_damping, false, "Override brick joint damping with zero.");
 
@@ -157,6 +163,8 @@ int do_main() {
       builder.AddSystem<ForceController>(plant, scene_graph, foptions);
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_finger_state_actual_input_port());
+  builder.Connect(plant.get_state_output_port(brick_index),
+                  force_controller->get_brick_state_actual_input_port());
   builder.Connect(plant.get_contact_results_output_port(),
                   zoh->get_input_port());
   builder.Connect(zoh->get_output_port(),
@@ -173,9 +181,10 @@ int do_main() {
   // size 4 because we take in {y, ydot, z, zdot}. The position gain on y will
   // be zero (since y is force controlled).
 
-  // regulate z position to the starting tip position.
-  // TODO(rcory) compute the initial tip state explicity.
-  const Vector4<double> tip_state_des_vec(-0.0248002 , 0.0590716, 0, 0);
+  // We don't regulate position for now (set these to zero).
+  // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
+  // ignores the x-components.
+  const Vector6<double> tip_state_des_vec = Vector6<double>::Zero();
   auto const_pos_src =
       builder.AddSystem<systems::ConstantVectorSource>(tip_state_des_vec);
   builder.Connect(const_pos_src->get_output_port(),
