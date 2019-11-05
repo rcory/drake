@@ -49,6 +49,7 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
   const double thetaddot_des = Kp * (theta_planned - theta) +
                                Kd * (thetadot_planned - thetadot) +
                                thetaddot_planned;
+
   prog_->AddQuadraticCost(weight_thetaddot_error * (thetaddot - thetaddot_des) *
                               (thetaddot - thetaddot_des) +
                           weight_f_Cb * f_Cb_B.squaredNorm());
@@ -121,13 +122,14 @@ void PlanarFingerInstantaneousQPController::CalcControl(
   const BrickFace contact_face =
       get_input_port_contact_face().Eval<BrickFace>(context);
   const double theta = state(brick_revolute_position_index_);
+  const double thetadot =
+      state(plant_->num_positions() + brick_revolute_position_index_);
 
-  PlanarFingerInstantaneousQP qp(
-      plant_, brick_state_desired(0), brick_state_desired(1),
-      thetaddot_planned(0), Kp_, Kd_, theta,
-      state(plant_->num_positions() + brick_revolute_position_index_),
-      p_BFingerTip, weight_thetaddot_, weight_f_Cb_B_, contact_face, mu_, I_B_,
-      finger_tip_radius_, damping_);
+          PlanarFingerInstantaneousQP qp(
+              plant_, brick_state_desired(0), brick_state_desired(1),
+              thetaddot_planned(0), Kp_, Kd_, theta, thetadot, p_BFingerTip,
+              weight_thetaddot_, weight_f_Cb_B_, contact_face, mu_, I_B_,
+              finger_tip_radius_, damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
 

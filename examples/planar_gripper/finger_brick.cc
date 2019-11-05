@@ -86,8 +86,11 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 /// Note: This contact point doesn't necessarily coincide with the sphere
 /// center.
 ContactPointInBrickFrame::ContactPointInBrickFrame(
-    const multibody::MultibodyPlant<double>& plant) :
-    plant_(plant), plant_context_(plant.CreateDefaultContext()) {
+    const multibody::MultibodyPlant<double>& plant, double yc, double zc)
+    : plant_(plant),
+      plant_context_(plant.CreateDefaultContext()),
+      yc_(yc),
+      zc_(zc) {
   this->DeclareAbstractInputPort("contact_results",
                                  Value<ContactResults<double>>{});
   this->DeclareVectorInputPort("x",
@@ -131,7 +134,7 @@ void ContactPointInBrickFrame::CalcOutput(
                                p_WCb, brick_frame, &result);
     p_BCb = result.tail<2>();
   } else {
-    p_BCb = Eigen::Vector2d(0, .046);
+    p_BCb = Eigen::Vector2d(yc_, zc_);
   }
 
 

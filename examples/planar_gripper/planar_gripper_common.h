@@ -160,11 +160,6 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
   double force_scale_factor_;
 };
 
-
-// This system takes in a vector of spatial force outputs, and converts them
-// to a set of transforms, which can produce a set of frame visualization.
-class SpatialForceOutputToFrame final : public systems::LeafSystem<double> {};
-
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake
