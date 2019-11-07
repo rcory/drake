@@ -39,7 +39,7 @@ ForceController::ForceController(MultibodyPlant<double>& plant,
                                  ForceControlOptions options)
     : plant_(plant),
       scene_graph_(scene_graph),
-      finger_index_(plant.GetModelInstanceByName("planar_gripper")),
+      finger_index_(plant.GetModelInstanceByName("planar_finger")),
       brick_index_(plant.GetModelInstanceByName("object")),
       options_(options) {
   // Make context with default parameters.
@@ -156,10 +156,10 @@ void ForceController::CalcTauOutput(
   // this reference is the actual contact point (lying inside the
   // contact intersection). When not in contact this reference is the
   // fingertip sphere center.
-  Eigen::Vector3d p_L2FTip = Eigen::Vector3d::Zero();
+  Eigen::Vector3d p_LtFTip = Eigen::Vector3d::Zero();  /* ftip in tip link */
   Eigen::Vector3d p_WC = Eigen::Vector3d::Zero();
-  const multibody::Frame<double>& l2_frame =
-      plant_.GetBodyByName("finger_link2").body_frame();
+  const multibody::Frame<double>& tip_link_frame =
+      plant_.GetBodyByName("finger_tip_link").body_frame();
 
   const multibody::Frame<double>& base_frame =
       plant_.GetBodyByName("finger_base").body_frame();
@@ -189,17 +189,17 @@ void ForceController::CalcTauOutput(
   if (contact_results.num_point_pair_contacts() > 0) {
     p_WC = contact_results.point_pair_contact_info(0).contact_point();
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
-                               l2_frame, &p_L2FTip);
+                               tip_link_frame, &p_LtFTip);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
-    p_L2FTip = GetFingerTipSpherePositionInL2(plant_, scene_graph_);
-    plant_.CalcPointsPositions(*plant_context_, l2_frame, p_L2FTip,
+    p_LtFTip = GetFingerTipSpherePositionInLt(plant_, scene_graph_);
+    plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtFTip,
                                plant_.world_frame(), &p_WC);
   }
 
   plant_.CalcJacobianSpatialVelocity(
-      *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2FTip,
-      base_frame, base_frame, &Jv_V_BaseFtip);
+      *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
+      p_LtFTip, base_frame, base_frame, &Jv_V_BaseFtip);
 
   // Extract the translational part of the Jacobian.
   // The last two three of Jv_V_WFtip correspond to x-y-z.

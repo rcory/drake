@@ -11,7 +11,7 @@ namespace planar_gripper {
 template <typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double x_offset = 0);
 
-Eigen::Vector3d GetFingerTipSpherePositionInL2(
+Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
 

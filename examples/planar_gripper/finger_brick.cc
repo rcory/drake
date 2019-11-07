@@ -35,21 +35,21 @@ geometry::GeometryId GetFingerTipGeometryId(
   const geometry::GeometryId finger_tip_geometry_id =
       inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("finger_link2").index()),
-          geometry::Role::kProximity, "planar_gripper::link2_pad_collision");
+              plant.GetBodyByName("finger_tip_link").index()),
+          geometry::Role::kProximity, "planar_finger::tip_sphere_collision");
   return finger_tip_geometry_id;
 }
 
-Eigen::Vector3d GetFingerTipSpherePositionInL2(
+Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph) {
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
       GetFingerTipGeometryId(plant, scene_graph);
-  Eigen::Vector3d p_L2Tip =  // position of sphere center in L2 frame
+  Eigen::Vector3d p_LtTip =  // position of sphere center in tip-link frame
       inspector.GetPoseInFrame(finger_tip_geometry_id).translation();
-  return p_L2Tip;
+  return p_LtTip;
 }
 
 double GetFingerTipSphereRadius(

@@ -40,8 +40,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   plant.Finalize();
 
-  const Eigen::Vector3d p_L2FingerTip =  // position of sphere center in L2
-      GetFingerTipSpherePositionInFingerTip(plant, scene_graph);
+  const Eigen::Vector3d p_LtFingerTip =  // position of sphere center in tip link
+      GetFingerTipSpherePositionInLt(plant, scene_graph);
   const double finger_tip_radius = GetFingerTipSphereRadius(plant, scene_graph);
   const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
   const multibody::Frame<double>& brick_frame =
@@ -52,7 +52,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   multibody::InverseKinematics ik(plant);
   // Finger in contact with +z face.
   ik.AddPositionConstraint(
-      plant.GetFrameByName("finger_link2"), p_L2FingerTip, brick_frame,
+      plant.GetFrameByName("finger_tip_link"), p_LtFingerTip, brick_frame,
       Eigen::Vector3d(-kInf, -brick_size(1) / 2,
                       brick_size(2) / 2 + finger_tip_radius),
       Eigen::Vector3d(kInf, brick_size(1) / 2,
@@ -72,8 +72,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   // print ik results
   int bindex = plant.GetJointByName("brick_pin_joint").position_start();
-  int j1index = plant.GetJointByName("finger_ShoulderJoint").position_start();
-  int j2index = plant.GetJointByName("finger_ElbowJoint").position_start();
+  int j1index = plant.GetJointByName("finger_BaseJoint").position_start();
+  int j2index = plant.GetJointByName("finger_MidJoint").position_start();
 
   drake::log()->info("brick_angle: {}", q_ik(bindex));
   drake::log()->info("j1_angle: {}", q_ik(j1index));
@@ -93,8 +93,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   plant.SetVelocities(plant_context.get(), v);
   Eigen::Vector3d p_BFingerTip;  // fingertip sphere center in brick frame
   plant.CalcPointsPositions(*plant_context,
-                            plant.GetFrameByName("finger_link2"), p_L2FingerTip,
-                            brick_frame, &p_BFingerTip);
+                            plant.GetFrameByName("finger_tip_link"),
+                            p_LtFingerTip, brick_frame, &p_BFingerTip);
 
   drake::log()->info("p_BFingerTip: \n{}", p_BFingerTip);
 

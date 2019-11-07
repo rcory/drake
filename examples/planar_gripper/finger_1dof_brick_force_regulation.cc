@@ -56,7 +56,7 @@ DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_double(j1, -0.15, "j1");  // shoulder joint
-DEFINE_double(j2, 0.728, "j2");  // elbow joint
+DEFINE_double(j2, 0.82, "j2");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Hybrid position/force control paramters.
@@ -243,9 +243,9 @@ int do_main() {
   VectorX<double> finger_initial_conditions = VectorX<double>::Zero(4);
   finger_initial_conditions << FLAGS_j1, FLAGS_j2, 0, 0;
   const RevoluteJoint<double>& sh_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_ShoulderJoint");
+      plant.GetJointByName<RevoluteJoint>("finger_BaseJoint");
   const RevoluteJoint<double>& el_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_ElbowJoint");
+      plant.GetJointByName<RevoluteJoint>("finger_MidJoint");
   sh_pin1.set_angle(&plant_context, finger_initial_conditions(0));
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
 
