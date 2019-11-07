@@ -62,7 +62,7 @@ DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(fz, -5.0, "Desired end effector force");
 DEFINE_double(Kd, 0.3, "joint damping Kd");
 
-DEFINE_double(j1, -0.8112, "Joint 1 initial angle.");
+DEFINE_double(j1, -0.7, "Joint 1 initial angle.");
 DEFINE_double(j2, 0.8667, "Joint 2 initial angle.");
 
 template<typename T>
@@ -367,9 +367,9 @@ int do_main() {
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_ShoulderJoint");
+      plant.GetJointByName<RevoluteJoint>("finger_BaseJoint");
   const RevoluteJoint<double>& el_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_ElbowJoint");
+      plant.GetJointByName<RevoluteJoint>("finger_MidJoint");
   sh_pin1.set_angle(&plant_context, finger_initial_conditions(0));
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
   sh_pin1.set_angular_rate(&plant_context, finger_initial_conditions(2));
