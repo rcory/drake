@@ -56,15 +56,18 @@ DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_double(j1, -0.15, "j1");  // shoulder joint
-DEFINE_double(j2, 0.82, "j2");  // elbow joint
+DEFINE_double(j2, 0.84, "j2");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Hybrid position/force control paramters.
-DEFINE_double(Kd, 0.05, "joint damping Kd");
+DEFINE_double(kd_j1, 0.2, "joint damping for joint 1.");
+DEFINE_double(kd_j2, 0.2, "joint damping for joint 2.");
+DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
+DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
 DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
-DEFINE_double(kdz, 50, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kfy, 150, "y-axis force gain (in brick frame).");
-DEFINE_double(kfz, 200, "z-axis force gain (in brick frame).");
+DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
+DEFINE_double(kfy, 25e3, "y-axis force gain (in brick frame).");
+DEFINE_double(kfz, 20e3, "z-axis force gain (in brick frame).");
 DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, true,
@@ -88,8 +91,8 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 120, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 25, "QP controller Kd gain");
+DEFINE_double(QP_Kp, 50, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 5, "QP controller Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -148,13 +151,17 @@ int do_main() {
   auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
+
+
   // Setup the force controller.
   ForceControlOptions foptions;
   foptions.kfy_ = FLAGS_kfy;
   foptions.kfz_ = FLAGS_kfz;
+  foptions.kpy_ = FLAGS_kpy;
+  foptions.kdy_ = FLAGS_kdy;
   foptions.kpz_ = FLAGS_kpz;
   foptions.kdz_ = FLAGS_kdz;
-  foptions.Kd_ = FLAGS_Kd;
+  foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
   foptions.K_compliance_ = FLAGS_K_compliance;
   foptions.D_damping_ = FLAGS_D_damping;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
