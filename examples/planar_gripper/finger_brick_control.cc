@@ -239,7 +239,7 @@ void ForceController::CalcTauOutput(
       contact_ref_state_desired_Br.tail<3>() - v_Ftip_Br.head<3>();
   Eigen::Matrix<double, 3, 3> Kp_pos(3, 3), Kd_pos(3, 3);
   Kp_pos.Zero();  // don't regulate position.
-  Kd_pos << 0, 0, 0, 0, 0, 0, 0, 0, options_.kdz_;  // regulate velocity in z (brick frame)
+  Kd_pos << 0, 0, 0, 0, options_.kdy_, 0, 0, 0, options_.kdz_;  // regulate velocity in z (brick frame)
   Vector3d position_error_command_Br = Kp_pos * delta_pos_Br + Kd_pos * delta_vel_Br;
 
   // Extract the planar only (y-z) translational jacobian from the 3D (x,y,z)
@@ -249,9 +249,7 @@ void ForceController::CalcTauOutput(
   if (options_.always_direct_force_control_ ||
       contact_results.num_point_pair_contacts() > 0) {
     // Adds Joint damping.
-    Eigen::Matrix2d Kd;
-    Kd << options_.Kd_, 0, 0, options_.Kd_;
-    torque_calc += -Kd * finger_state.segment<2>(2);
+    torque_calc += -options_.Kd_ * finger_state.segment<2>(2);
 
     // Torque due to hybrid position/force control
     /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */

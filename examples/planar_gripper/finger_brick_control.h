@@ -18,9 +18,11 @@ using systems::OutputPort;
 struct ForceControlOptions{
   double kfy_{0};  // y-axis force gain (in brick frame)
   double kfz_{0};  // z-axis force gain (in brick frame)
+  double kpy_{0};  // y-axis position gain (in brick frame)
+  double kdy_{0};  // y-axis derivative gain (in brick frame)
   double kpz_{0};  // z-axis position gain (in brick frame)
   double kdz_{0};  // z-axis derivative gain (in brick frame)
-  double Kd_{0};  // joint damping
+  Eigen::Matrix2d Kd_{Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
   double K_compliance_{0};  // impedance control stiffness
   double D_damping_{0};  // impedance control damping
   bool always_direct_force_control_{true};  // false for impedance control during non-contact
