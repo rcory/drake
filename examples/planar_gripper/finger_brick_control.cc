@@ -261,16 +261,16 @@ void ForceController::CalcTauOutput(
     torque_calc += J_planar_Ba.transpose() * force_command_Ba.tail<2>();
   } else {
     // TODO(rcory) remove. for debugging.
-    throw std::logic_error("impedance control not tested yet.");
+//    throw std::logic_error("impedance control not tested yet.");
     // regulate the fingertip position back to the surface w/ impedance control
     // implement a simple spring law for now (-kx), i.e., just compliance
     // control
-    const double target_z_position = 0.1;  // arbitrary
-    const double K = options_.K_compliance_;   // spring const
-    const double D = options_.D_damping_;
-    double z_force_desired =
-        -K * (target_z_position - p_WC(2)) - D * v_Ftip_Ba(1);
-    Vector2<double> imp_force_desired(0, z_force_desired);
+    const double target_z_position_Br = 0.056 - .001;  // arbitrary, in brick frame
+    const double K = options_.K_compliance_; // spring const
+    const double D = options_.D_damping_; // damper
+    double z_force_desired_Br =
+        K * (target_z_position_Br - p_BrC(2)) - D * v_Ftip_Br(2);
+    Vector2<double> imp_force_desired(0, z_force_desired_Br);
     torque_calc += J_planar_Ba.transpose() * imp_force_desired;
   }
 

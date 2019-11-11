@@ -68,8 +68,8 @@ DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
 DEFINE_double(kfy, 25e3, "y-axis force gain (in brick frame).");
 DEFINE_double(kfz, 20e3, "z-axis force gain (in brick frame).");
-DEFINE_double(K_compliance, 20*0, "Impedance control stiffness.");
-DEFINE_double(D_damping, 1.0*0, "Impedance control damping.");
+DEFINE_double(K_compliance, 20e3, "Impedance control stiffness.");
+DEFINE_double(D_damping, 1.0, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, true,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
