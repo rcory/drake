@@ -27,6 +27,19 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double z_offset) {
 template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant,
                               double x_offset);
 
+geometry::GeometryId GetBrickGeometryId(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph) {
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::GeometryId brick_geometry_id =
+      inspector.GetGeometryIdByName(
+          plant.GetBodyFrameIdOrThrow(
+              plant.GetBodyByName("brick_base_link").index()),
+          geometry::Role::kProximity, "object::box_collision");
+  return brick_geometry_id;
+}
+
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph) {
@@ -127,6 +140,7 @@ void ContactPointInBrickFrame::CalcOutput(
   // results gives the contact location in world frame, which we need to convert
   // to brick frame.
   if (contact_results.num_point_pair_contacts() > 0) {
+    DRAKE_DEMAND(contact_results.num_point_pair_contacts() == 1);
     Eigen::Vector3d result;
     auto p_WCb =
         contact_results.point_pair_contact_info(0).contact_point();
@@ -134,6 +148,7 @@ void ContactPointInBrickFrame::CalcOutput(
                                p_WCb, brick_frame, &result);
     p_BCb = result.tail<2>();
   } else {
+    // TODO(rcory) Use the closest point (distance-wise) to the brick instead.
     p_BCb = Eigen::Vector2d(yc_, zc_);
   }
 

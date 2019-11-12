@@ -51,12 +51,13 @@ DEFINE_double(time_step, 1e-4,
 
 DEFINE_double(penetration_allowance, 0.2, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
+DEFINE_double(gravity_accel, -9.81, "The acceleration due to gravity.");
 
 // Initial finger joint angles.
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_double(j1, -0.15, "j1");  // shoulder joint
-DEFINE_double(j2, 0.84, "j2");  // elbow joint
+DEFINE_double(j2, 1.2 /* 0.84 */, "j2");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Hybrid position/force control paramters.
@@ -68,9 +69,9 @@ DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
 DEFINE_double(kfy, 25e3, "y-axis force gain (in brick frame).");
 DEFINE_double(kfz, 20e3, "z-axis force gain (in brick frame).");
-DEFINE_double(K_compliance, 20e3, "Impedance control stiffness.");
-DEFINE_double(D_damping, 1.0, "Impedance control damping.");
-DEFINE_bool(always_direct_force_control, true,
+DEFINE_double(K_compliance, 10e3, "Impedance control stiffness.");
+DEFINE_double(D_damping, 1e3, "Impedance control damping.");
+DEFINE_bool(always_direct_force_control, false,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
 DEFINE_double(viz_force_scale, 5,
@@ -91,8 +92,8 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 50, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 5, "QP controller Kd gain");
+DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -134,7 +135,7 @@ int do_main() {
       Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
 
   // Add gravity
-  Vector3<double> gravity(0, 0, -9.81);
+  Vector3<double> gravity(0, 0, FLAGS_gravity_accel);
   plant.mutable_gravity_field().set_gravity_vector(gravity);
 
   // Now the model is complete.
@@ -147,11 +148,12 @@ int do_main() {
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
 
-  // Connect the force controler
-  auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
+  // Connect the force controller
+  auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
-
+  auto zoh_joint_accels = builder.AddSystem<systems::ZeroOrderHold<double>>(
+      1e-3, plant.num_velocities());
 
   // Setup the force controller.
   ForceControlOptions foptions;
@@ -173,9 +175,15 @@ int do_main() {
   builder.Connect(plant.get_state_output_port(brick_index),
                   force_controller->get_brick_state_actual_input_port());
   builder.Connect(plant.get_contact_results_output_port(),
-                  zoh->get_input_port());
-  builder.Connect(zoh->get_output_port(),
+                  zoh_contact_results->get_input_port());
+  builder.Connect(zoh_contact_results->get_output_port(),
                   force_controller->get_contact_results_input_port());
+  builder.Connect(plant.get_joint_accelerations_output_port(),
+                  zoh_joint_accels->get_input_port());
+  builder.Connect(zoh_joint_accels->get_output_port(),
+                  force_controller->get_accelerations_actual_input_port());
+  builder.Connect(scene_graph.get_query_output_port(),
+                  force_controller->get_geometry_query_input_port());
 
   // aux debugging info
   std::vector<int> sizes = {2, 2, 1}; // tau_des, f_des, ytip
