@@ -2272,6 +2272,14 @@ void MultibodyPlant<T>::DeclareStateCacheAndPorts() {
                                   &MultibodyPlant<T>::CopyContactResultsOutput,
                                   {contact_results_cache_entry.ticket()})
                               .get_index();
+
+  joint_accelerations_output_port_ =
+      this->DeclareVectorOutputPort(
+              "vdot", BasicVector<T>(num_velocities()),
+              &MultibodyPlant::CopyGeneralizedAccelerationsOut,
+              {this->cache_entry_ticket(
+                  cache_indexes_.generalized_accelerations)})
+          .get_index();
 }
 
 template <typename T>
@@ -2547,6 +2555,16 @@ void MultibodyPlant<T>::CopyGeneralizedContactForcesOut(
 }
 
 template <typename T>
+void MultibodyPlant<T>::CopyGeneralizedAccelerationsOut(
+    const Context<T>& context, BasicVector<T>* accel_vector) const {
+  DRAKE_MBP_THROW_IF_NOT_FINALIZED();
+
+  VectorX<T> calc_accel_vector(num_velocities());
+  CalcGeneralizedAccelerations(context, &calc_accel_vector);
+  accel_vector->SetFromVector(calc_accel_vector);
+}
+
+template <typename T>
 const systems::InputPort<T>&
 MultibodyPlant<T>::get_actuation_input_port() const {
   DRAKE_MBP_THROW_IF_NOT_FINALIZED();
@@ -2637,6 +2655,13 @@ const systems::OutputPort<T>&
 MultibodyPlant<T>::get_reaction_forces_output_port() const {
   DRAKE_MBP_THROW_IF_NOT_FINALIZED();
   return this->get_output_port(reaction_forces_port_);
+}
+
+template <typename T>
+const systems::OutputPort<T>&
+MultibodyPlant<T>::get_joint_accelerations_output_port() const {
+  DRAKE_MBP_THROW_IF_NOT_FINALIZED();
+  return this->get_output_port(joint_accelerations_output_port_);
 }
 
 namespace {

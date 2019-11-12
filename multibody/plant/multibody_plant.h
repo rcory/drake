@@ -429,6 +429,8 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// @throws std::exception if called pre-finalize.
   const systems::OutputPort<T>& get_reaction_forces_output_port() const;
 
+  const systems::OutputPort<T>& get_joint_accelerations_output_port() const;
+
   /// Returns a constant reference to the port that outputs ContactResults.
   /// @throws std::exception if called pre-finalize, see Finalize().
   const systems::OutputPort<T>& get_contact_results_output_port() const;
@@ -3586,6 +3588,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void CopyContinuousStateOut(
       const systems::Context<T>& context, systems::BasicVector<T>* state) const;
 
+  void CopyGeneralizedAccelerationsOut(
+      const systems::Context<T>& context,
+      systems::BasicVector<T>* accel_vector) const;
+
   // Calc method for the per-model-instance continuous state vector output
   // port.
   void CopyContinuousStateOut(
@@ -3966,6 +3972,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   // Joint reactions forces port index.
   systems::OutputPortIndex reaction_forces_port_;
+
+  // Joint accelerations output port
+  systems::OutputPortIndex joint_accelerations_output_port_;
 
   // A vector containing the index for the generalized contact forces port for
   // each model instance. This vector is indexed by ModelInstanceIndex. An
