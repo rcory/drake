@@ -55,6 +55,10 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(contact_results_input_port_);
   }
 
+  const InputPort<double>& get_accelerations_actual_input_port() const {
+    return this->get_input_port(accelerations_actual_input_port_);
+  }
+
   const OutputPort<double>& get_torque_output_port() const {
     return this->get_output_port(torque_output_port_);
   }
@@ -73,6 +77,7 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex brick_state_actual_input_port_{};
   InputPortIndex tip_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
+  InputPortIndex accelerations_actual_input_port_{};
   OutputPortIndex torque_output_port_{};
   ModelInstanceIndex finger_index_{};
   ModelInstanceIndex brick_index_{};

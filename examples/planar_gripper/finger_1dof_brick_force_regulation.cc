@@ -51,6 +51,7 @@ DEFINE_double(time_step, 1e-4,
 
 DEFINE_double(penetration_allowance, 0.2, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
+DEFINE_double(gravity_accel, -9.81, "The acceleration due to gravity.");
 
 // Initial finger joint angles.
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
@@ -134,7 +135,7 @@ int do_main() {
       Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
 
   // Add gravity
-  Vector3<double> gravity(0, 0, -9.81);
+  Vector3<double> gravity(0, 0, FLAGS_gravity_accel);
   plant.mutable_gravity_field().set_gravity_vector(gravity);
 
   // Now the model is complete.
@@ -147,11 +148,12 @@ int do_main() {
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
 
-  // Connect the force controler
-  auto zoh = builder.AddSystem<systems::ZeroOrderHold<double>>(
+  // Connect the force controller
+  auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
-
+  auto zoh_joint_accels = builder.AddSystem<systems::ZeroOrderHold<double>>(
+      1e-3, plant.num_velocities());
 
   // Setup the force controller.
   ForceControlOptions foptions;
@@ -173,9 +175,13 @@ int do_main() {
   builder.Connect(plant.get_state_output_port(brick_index),
                   force_controller->get_brick_state_actual_input_port());
   builder.Connect(plant.get_contact_results_output_port(),
-                  zoh->get_input_port());
-  builder.Connect(zoh->get_output_port(),
+                  zoh_contact_results->get_input_port());
+  builder.Connect(zoh_contact_results->get_output_port(),
                   force_controller->get_contact_results_input_port());
+  builder.Connect(plant.get_joint_accelerations_output_port(),
+                  zoh_joint_accels->get_input_port());
+  builder.Connect(zoh_joint_accels->get_output_port(),
+                  force_controller->get_accelerations_actual_input_port());
 
   // aux debugging info
   std::vector<int> sizes = {2, 2, 1}; // tau_des, f_des, ytip

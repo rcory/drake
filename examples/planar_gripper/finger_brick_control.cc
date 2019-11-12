@@ -71,6 +71,11 @@ ForceController::ForceController(MultibodyPlant<double>& plant,
                                      Value<ContactResults<double>>{})
           .get_index();
 
+  accelerations_actual_input_port_ =  // actual accelerations of the MBP (7 x 1)
+      this->DeclareVectorInputPort("plant_vdot", systems::BasicVector<double>(
+                                                     plant_.num_velocities()))
+          .get_index();
+
   const int kDebuggingOutputs = 3;
   torque_output_port_ = this->DeclareVectorOutputPort(
                                 "tau",
@@ -142,6 +147,19 @@ void ForceController::CalcTauOutput(
   //  the case...
   torque_calc =
       -plant_.CalcGravityGeneralizedForces(*plant_context_).segment<2>(1);
+  multibody::MultibodyForces<double> external_forces(plant_);
+
+//  multibody::MultibodyForces<double> external_forces(plant_);
+//  plant_.CalcForceElementsContribution(
+//      *plant_context_, &external_forces);
+//  auto plant_vdot =
+//      this->EvalVectorInput(context, accelerations_actual_input_port_)
+//          ->get_value();
+//  //drake::log()->info("vdot: \n{}", plant_vdot);
+//  //Eigen::Vector3d plant_vdot(0, 0, 0);
+//
+//  torque_calc = plant_.CalcInverseDynamics(
+//      *plant_context_, plant_vdot, external_forces);
 
   // Compute the Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -221,7 +239,9 @@ void ForceController::CalcTauOutput(
   Eigen::Vector3d delta_f_Br = force_des_Br - force_act_Br;
   // auto fy_command = Kf * delta_f + force_des;  //TODO(rcory) bug?
   Eigen::Vector3d force_error_command_Br = Kf * delta_f_Br;
+
   // auto fy_command = Kf Δf + Ki ∫ Δf dt - Kp p_e + f_d  // More general.
+//  Eigen::Vector3d force_integral_command_Br = ;
 
   // Regulate position (in brick frame). First, rotate the contact point
   // reference into the brick frame.
@@ -262,6 +282,7 @@ void ForceController::CalcTauOutput(
   } else {
     // TODO(rcory) remove. for debugging.
 //    throw std::logic_error("impedance control not tested yet.");
+
     // regulate the fingertip position back to the surface w/ impedance control
     // implement a simple spring law for now (-kx), i.e., just compliance
     // control
