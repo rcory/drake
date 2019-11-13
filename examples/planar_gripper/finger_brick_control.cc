@@ -140,6 +140,7 @@ void ForceController::CalcTauOutput(
 
   // The geometry query object to be used for impedance control (determines
   // closest points between fingertip and brick).
+  // TODO(rcory) Consider moving this to ContactPointInBrickFrame system.
   geometry::QueryObject<double> geometry_query_obj =
       get_geometry_query_input_port().Eval<geometry::QueryObject<double>>(
           context);
@@ -352,6 +353,7 @@ void ForceController::CalcTauOutput(
 /// Creates the QP controller (type depending on whether we are simulating a
 /// single brick or finger/brick), and connects it to the force controller.
 void ConnectControllers(const MultibodyPlant<double>& plant,
+                        const geometry::SceneGraph<double>& scene_graph,
                         lcm::DrakeLcm& lcm,
                         const ForceController& force_controller,
                         const ModelInstanceIndex& brick_index,
@@ -487,13 +489,15 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
 
     // Adds system to calculate fingertip contact.
     auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
-        plant, options.yc_, options.zc_);
+        plant, scene_graph, options.yc_, options.zc_);
     builder->Connect(zoh->get_output_port(),
                      contact_point_calc_sys->get_input_port(0));
     builder->Connect(plant.get_state_output_port(),
                      contact_point_calc_sys->get_input_port(1));
     builder->Connect(contact_point_calc_sys->get_output_port(0),
                      qp_controller->get_input_port_p_BFingerTip());
+    builder->Connect(scene_graph.get_query_output_port(),
+                    contact_point_calc_sys->get_geometry_query_input_port());
 
     // Provides contact point ref accelerations to the force controller (for
     // inverse dynamics).

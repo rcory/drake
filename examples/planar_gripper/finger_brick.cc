@@ -99,8 +99,10 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 /// Note: This contact point doesn't necessarily coincide with the sphere
 /// center.
 ContactPointInBrickFrame::ContactPointInBrickFrame(
-    const multibody::MultibodyPlant<double>& plant, double yc, double zc)
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, double yc, double zc)
     : plant_(plant),
+      scene_graph_(scene_graph),
       plant_context_(plant.CreateDefaultContext()),
       yc_(yc),
       zc_(zc) {
@@ -111,6 +113,12 @@ ContactPointInBrickFrame::ContactPointInBrickFrame(
   this->DeclareVectorOutputPort("p_BCb",
                                 systems::BasicVector<double>(2 /* {y,z} */),
                                 &ContactPointInBrickFrame::CalcOutput);
+
+  // This provides the geometry query object, which can compute the witness
+  // points between fingertip and box (used in impedance control).
+  geometry_query_input_port_ = this->DeclareAbstractInputPort(
+      "geometry_query", Value<geometry::QueryObject<double>>{}).get_index();
+
 }
 
 void ContactPointInBrickFrame::CalcOutput(
@@ -124,6 +132,12 @@ void ContactPointInBrickFrame::CalcOutput(
   auto state = this->EvalVectorInput(context, 1)->get_value();
   plant_.SetPositions(plant_context_.get(), state.head(3));
   plant_.SetVelocities(plant_context_.get(), state.tail(3));
+
+  // The geometry query object to be used for impedance control (determines
+  // closest points between fingertip and brick).
+  geometry::QueryObject<double> geometry_query_obj =
+      get_geometry_query_input_port().Eval<geometry::QueryObject<double>>(
+          context);
 
   const multibody::Frame<double>& brick_frame =
       plant_.GetFrameByName("brick_base_link");
@@ -149,7 +163,23 @@ void ContactPointInBrickFrame::CalcOutput(
     p_BCb = result.tail<2>();
   } else {
     // TODO(rcory) Use the closest point (distance-wise) to the brick instead.
-    p_BCb = Eigen::Vector2d(yc_, zc_);
+//    p_BCb = Eigen::Vector2d(yc_, zc_);
+
+    // First, obtain the closest point on the brick from the fingertip sphere.
+    auto pairs_vec = geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
+    DRAKE_DEMAND(pairs_vec.size() == 1);
+
+    geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
+    geometry::GeometryId ftip_id =
+        GetFingerTipGeometryId(plant_, scene_graph_);
+
+    if (pairs_vec[0].id_A == ftip_id) {
+      DRAKE_DEMAND(brick_id == pairs_vec[0].id_B);
+      p_BCb = pairs_vec[0].p_BCb.tail<2>();
+    } else {
+      DRAKE_DEMAND(brick_id == pairs_vec[0].id_A);
+      p_BCb = pairs_vec[0].p_ACa.tail<2>();
+    }
   }
 
 
