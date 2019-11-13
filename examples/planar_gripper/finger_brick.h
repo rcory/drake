@@ -26,6 +26,10 @@ geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
 
+geometry::GeometryId GetBrickGeometryId(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph);
+
 /// A system that computes the fingertip-sphere contact location in brick frame.
 class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:

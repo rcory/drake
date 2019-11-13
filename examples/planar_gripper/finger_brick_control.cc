@@ -15,6 +15,7 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
 #include "drake/systems/primitives/zero_order_hold.h"
+#include "drake/systems/primitives/discrete_derivative.h"
 
 
 namespace drake {
@@ -66,6 +67,11 @@ ForceController::ForceController(MultibodyPlant<double>& plant,
       this->DeclareVectorInputPort(
               "tip_xd", systems::BasicVector<double>(6))
           .get_index();
+
+  // Contact point reference acceleration (for ID control).
+  contact_point_ref_accel_input_port_ = this->DeclareVectorInputPort(
+      "contact point ref accel", systems::BasicVector<double>(2)).get_index();
+
   contact_results_input_port_ =
       this->DeclareAbstractInputPort("contact_results",
                                      Value<ContactResults<double>>{})
@@ -83,6 +89,11 @@ ForceController::ForceController(MultibodyPlant<double>& plant,
                                     plant.num_actuators() + kDebuggingOutputs),
                                 &ForceController::CalcTauOutput)
                             .get_index();
+
+  // This provides the geometry query object, which can compute the witness
+  // points between fingertip and box (used in impedance control).
+  geometry_query_input_port_ = this->DeclareAbstractInputPort(
+      "geometry_query", Value<geometry::QueryObject<double>>{}).get_index();
 }
 
 void ForceController::CalcTauOutput(
@@ -116,9 +127,22 @@ void ForceController::CalcTauOutput(
       this->EvalVectorInput(context, tip_state_desired_input_port_)
           ->get_value();
 
+  // Get the contact point reference translational accelerations (yddot, zddot),
+  // for inverse dynamics control.
+  auto a_BrCr = /* 2-element vector of the accels of the contact point ref. */
+      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
+          ->get_value();
+  unused(a_BrCr);
+
   // Get the actual contact force.
   const auto& contact_results =
       get_contact_results_input_port().Eval<ContactResults<double>>(context);
+
+  // The geometry query object to be used for impedance control (determines
+  // closest points between fingertip and brick).
+  geometry::QueryObject<double> geometry_query_obj =
+      get_geometry_query_input_port().Eval<geometry::QueryObject<double>>(
+          context);
 
   Eigen::Vector3d force_sim_W(0, 0, 0);
   // assume only zero or one contact is possible.
@@ -138,16 +162,16 @@ void ForceController::CalcTauOutput(
   plant_.SetPositionsAndVelocities(plant_context_.get(), brick_index_,
                                    brick_state);
 
-  // initialize the vector for calculated torque commands.
+  // Initialize the vector for calculated torque commands.
   Eigen::Vector2d torque_calc(0, 0);
 
   // Gravity compensation.
   // TODO(rcory) why is this not the first two components of
   //  CalcGravityGeneralizedForces? Joint ordering indicates this should be
   //  the case...
-  torque_calc =
-      -plant_.CalcGravityGeneralizedForces(*plant_context_).segment<2>(1);
-  multibody::MultibodyForces<double> external_forces(plant_);
+   torque_calc =
+       -plant_.CalcGravityGeneralizedForces(*plant_context_).segment<2>(1);
+   multibody::MultibodyForces<double> external_forces(plant_);
 
 //  multibody::MultibodyForces<double> external_forces(plant_);
 //  plant_.CalcForceElementsContribution(
@@ -157,9 +181,12 @@ void ForceController::CalcTauOutput(
 //          ->get_value();
 //  //drake::log()->info("vdot: \n{}", plant_vdot);
 //  //Eigen::Vector3d plant_vdot(0, 0, 0);
-//
+//  auto vdot_ref = plant_vdot;
 //  torque_calc = plant_.CalcInverseDynamics(
-//      *plant_context_, plant_vdot, external_forces);
+//      *plant_context_, vdot_ref, external_forces);
+
+// Calculate the reference joint accelerations (based on contact reference accel.)
+
 
   // Compute the Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -196,10 +223,6 @@ void ForceController::CalcTauOutput(
 
   // Rotate the force reported by simulation to brick frame.
   Eigen::Vector3d force_act_Br = R_BrW * force_sim_W;
-
-//  drake::log()->info("force_w: \n{}", force_des_W);
-//  drake::log()->info("force_base: \n{}", force_des_Br);
-//  drake::log()->info("rel rot: \n{}", R_BrW.matrix());
 
   // If we have contact, then the contact point reference is given by the
   // contact results object and it lies inside the intersection of the
@@ -247,8 +270,8 @@ void ForceController::CalcTauOutput(
   // reference into the brick frame.
   Eigen::Vector3d p_BrC = R_BrW * p_WC;
 
-  // v_Ftip_Ba is translational velocity of Ftip sphere center w.r.t.
-  // finger base (Ba)
+  // v_Ftip_Ba is the translational velocity of the fingertip contact reference
+  // w.r.t. the finger base (Ba)
   Eigen::Vector3d v_Ftip_Ba = J_Ba * finger_state.segment<2>(2);
   // Convert fingertip translation velocity to brick frame.
   Eigen::Vector3d v_Ftip_Br = R_BrW * v_Ftip_Ba;
@@ -278,20 +301,43 @@ void ForceController::CalcTauOutput(
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
                                        (R_BaBr * force_error_command_Br) +
                                        (R_BaBr * position_error_command_Br);
-    torque_calc += J_planar_Ba.transpose() * force_command_Ba.tail<2>();
-  } else {
-    // TODO(rcory) remove. for debugging.
-//    throw std::logic_error("impedance control not tested yet.");
 
-    // regulate the fingertip position back to the surface w/ impedance control
+    torque_calc += J_planar_Ba.transpose() * force_command_Ba.tail<2>();
+
+    // TODO(rcory) only for debugging.
+//    unused(force_command_Ba);
+//    torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
+  } else {
+    // First, obtain the closest point on the brick from the fingertip sphere.
+    // TODO(rcory) Consider moving this calculation to the system
+    //  ContactPointInBrickFrame (in finger_brick.cc)
+    auto pairs_vec = geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
+    DRAKE_DEMAND(pairs_vec.size() == 1);
+
+    geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
+    geometry::GeometryId ftip_id =
+        GetFingerTipGeometryId(plant_, scene_graph_);
+
+    Eigen::Vector2d target_position_Br;
+    if (pairs_vec[0].id_A == ftip_id) {
+      DRAKE_DEMAND(brick_id == pairs_vec[0].id_B);
+      target_position_Br = pairs_vec[0].p_BCb.tail<2>();
+    } else {
+      DRAKE_DEMAND(brick_id == pairs_vec[0].id_A);
+      target_position_Br = pairs_vec[0].p_ACa.tail<2>();
+    }
+
+    // Regulate the fingertip position back to the surface w/ impedance control
     // implement a simple spring law for now (-kx), i.e., just compliance
     // control
-    const double target_z_position_Br = 0.056 - .001;  // arbitrary, in brick frame
+    // const double target_z_position_Br = 0.056 - .001;  // arbitrary, in brick frame
     const double K = options_.K_compliance_; // spring const
     const double D = options_.D_damping_; // damper
+    double y_force_desired_Br =
+        K * (target_position_Br[0] - p_BrC(1)) - D * v_Ftip_Br(1);
     double z_force_desired_Br =
-        K * (target_z_position_Br - p_BrC(2)) - D * v_Ftip_Br(2);
-    Vector2<double> imp_force_desired(0, z_force_desired_Br);
+        K * (target_position_Br[1] - p_BrC(2)) - D * v_Ftip_Br(2);
+    Vector2<double> imp_force_desired(y_force_desired_Br, z_force_desired_Br);
     torque_calc += J_planar_Ba.transpose() * imp_force_desired;
   }
 
@@ -448,6 +494,16 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                      contact_point_calc_sys->get_input_port(1));
     builder->Connect(contact_point_calc_sys->get_output_port(0),
                      qp_controller->get_input_port_p_BFingerTip());
+
+    // Provides contact point ref accelerations to the force controller (for
+    // inverse dynamics).
+    auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+    auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+    builder->Connect(contact_point_calc_sys->get_output_port(0),
+                     v_BrCr->get_input_port());
+    builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
+    builder->Connect(a_BrCr->get_output_port(),
+                     force_controller.get_contact_point_ref_accel_input_port());
 
     builder->Connect(thetaddot_planned_source->get_output_port(),
                      qp_controller->get_input_port_desired_thetaddot());

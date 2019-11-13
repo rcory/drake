@@ -102,18 +102,18 @@
       </visual>
       <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-      <collision name="link2_collision">
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <length>0.0598</length>
-            <radius>0.011</radius>
-          </cylinder>
-        </geometry>
-        <material>
-          <diffuse>1 0 1 1</diffuse>
-        </material>
-      </collision>
+<!--      <collision name="link2_collision">-->
+<!--        <pose>0 0 -0.0299 0 0 0</pose>-->
+<!--        <geometry>-->
+<!--          <cylinder>-->
+<!--            <length>0.0598</length>-->
+<!--            <radius>0.011</radius>-->
+<!--          </cylinder>-->
+<!--        </geometry>-->
+<!--        <material>-->
+<!--          <diffuse>1 0 1 1</diffuse>-->
+<!--        </material>-->
+<!--      </collision>-->
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
         <geometry>

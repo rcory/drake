@@ -57,7 +57,7 @@ DEFINE_double(gravity_accel, -9.81, "The acceleration due to gravity.");
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_double(j1, -0.15, "j1");  // shoulder joint
-DEFINE_double(j2, 0.84, "j2");  // elbow joint
+DEFINE_double(j2, 1.2 /* 0.84 */, "j2");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Hybrid position/force control paramters.
@@ -69,9 +69,9 @@ DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
 DEFINE_double(kfy, 25e3, "y-axis force gain (in brick frame).");
 DEFINE_double(kfz, 20e3, "z-axis force gain (in brick frame).");
-DEFINE_double(K_compliance, 20e3, "Impedance control stiffness.");
-DEFINE_double(D_damping, 1.0, "Impedance control damping.");
-DEFINE_bool(always_direct_force_control, true,
+DEFINE_double(K_compliance, 10e3, "Impedance control stiffness.");
+DEFINE_double(D_damping, 1e3, "Impedance control damping.");
+DEFINE_bool(always_direct_force_control, false,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
 DEFINE_double(viz_force_scale, 5,
@@ -92,8 +92,8 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 50, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 5, "QP controller Kd gain");
+DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -182,6 +182,8 @@ int do_main() {
                   zoh_joint_accels->get_input_port());
   builder.Connect(zoh_joint_accels->get_output_port(),
                   force_controller->get_accelerations_actual_input_port());
+  builder.Connect(scene_graph.get_query_output_port(),
+                  force_controller->get_geometry_query_input_port());
 
   // aux debugging info
   std::vector<int> sizes = {2, 2, 1}; // tau_des, f_des, ytip
