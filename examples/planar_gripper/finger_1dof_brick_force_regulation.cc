@@ -233,7 +233,8 @@ int do_main() {
   qpoptions.viz_force_scale_ = FLAGS_viz_force_scale;
   qpoptions.yc_ = FLAGS_yc;
   qpoptions.zc_ = FLAGS_zc;
-  ConnectControllers(plant, lcm, *force_controller, brick_index, qpoptions, &builder);
+  ConnectControllers(plant, scene_graph, lcm, *force_controller, brick_index,
+                     qpoptions, &builder);
 
   // publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);
