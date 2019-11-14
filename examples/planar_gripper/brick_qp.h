@@ -73,7 +73,8 @@ class BrickInstantaneousQPController
 
   BrickInstantaneousQPController(const multibody::MultibodyPlant<double>* plant,
                                  double Kp, double Kd, double weight_thetaddot,
-                                 double weight_f_Cb_B, double mu, double damping);
+                                 double weight_f_Cb_B, double mu,
+                                 double damping, double I_B);
 
   const systems::InputPort<double>& get_input_port_estimated_state()
       const final {
@@ -109,12 +110,12 @@ class BrickInstantaneousQPController
 
   const multibody::MultibodyPlant<double>* brick_;
   double mu_;
-  double I_B_;
   double Kp_;
   double Kd_;
   double weight_thetaddot_;
   double weight_f_Cb_B_;
   double damping_;
+  double I_B_;
 
   int input_index_state_{-1};
   int input_index_desired_state_{-1};

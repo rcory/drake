@@ -36,8 +36,7 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
-                           const geometry::SceneGraph<double>& scene_graph,
-                           double yc, double zc);
+                           const geometry::SceneGraph<double>& scene_graph);
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -51,8 +50,6 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   const geometry::SceneGraph<double>& scene_graph_;
   std::unique_ptr<systems::Context<double>> plant_context_;
   systems::InputPortIndex geometry_query_input_port_{};
-  double yc_;
-  double zc_;
 };
 
 }  // namespace planar_gripper

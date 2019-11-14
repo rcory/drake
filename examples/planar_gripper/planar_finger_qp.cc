@@ -63,7 +63,7 @@ const Eigen::Vector2d PlanarFingerInstantaneousQP::GetContactForceResult(
 PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
     const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
     double weight_thetaddot, double weight_f_Cb_B, double mu,
-    double finger_tip_radius, double damping)
+    double finger_tip_radius, double damping, double I_B)
     : plant_{plant},
       mu_{mu},
       Kp_{Kp},
@@ -71,16 +71,12 @@ PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
       weight_thetaddot_{weight_thetaddot},
       weight_f_Cb_B_{weight_f_Cb_B},
       finger_tip_radius_{finger_tip_radius},
-      damping_(damping) {
+      damping_(damping),
+      I_B_(I_B) {
   DRAKE_DEMAND(Kp_ >= 0);
   DRAKE_DEMAND(Kd_ >= 0);
   DRAKE_DEMAND(weight_thetaddot_ >= 0);
   DRAKE_DEMAND(weight_f_Cb_B_ >= 0);
-
-  I_B_ = dynamic_cast<const multibody::RigidBody<double>&>(
-             plant_->GetFrameByName("brick_base_link").body())
-             .default_rotational_inertia()
-             .get_moments()(0);
 
   output_index_control_ =
       this->DeclareAbstractOutputPort(
@@ -147,7 +143,7 @@ void PlanarFingerInstantaneousQPController::CalcControl(
 //   drake::log()->info("f_Cb_W: \n{}", f_Cb_W);
 //   unused(f_Cb_W);
 //   (*control)[0].F_Bq_W = multibody::SpatialForce<double>(
-//       Eigen::Vector3d::Zero(), Eigen::Vector3d(0, -0.037, -0.029));
+//       Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 0));
 }
 }  // namespace planar_gripper
 }  // namespace examples
