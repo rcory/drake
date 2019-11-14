@@ -78,14 +78,10 @@ DEFINE_double(viz_force_scale, 5,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
-// (yc, zc) indicate the location of the contact point either in:
-// 1) The brick only simulation, or
-// 2) The finger/brick simulation *when* there is no finger/brick contact
-// occuring.
 DEFINE_double(yc, 0,
-              "y contact point location.");
+              "y_Br contact point location for brick only sim.");
 DEFINE_double(zc, 0.046,
-              "z contact point location.");
+              "z_br contact point location for brick only sim.");
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
@@ -148,6 +144,19 @@ int do_main() {
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(plant.geometry_source_is_registered());
 
+  // Extract the joint damping and rotational inertia parameters for the 1-dof
+  // brick (used in QP and force controllers).
+  double brick_damping = 0;
+  if (!FLAGS_assume_zero_brick_damping) {
+    brick_damping =
+        plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+            .damping();
+  }
+  double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
+                             plant.GetFrameByName("brick_base_link").body())
+                             .default_rotational_inertia()
+                             .get_moments()(0);
+
   // Connect the force controller
   auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
@@ -166,6 +175,8 @@ int do_main() {
   foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
   foptions.K_compliance_ = FLAGS_K_compliance;
   foptions.D_damping_ = FLAGS_D_damping;
+  foptions.brick_damping_ = brick_damping;
+  foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
 
   auto force_controller =
@@ -229,10 +240,11 @@ int do_main() {
   qpoptions.QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
   qpoptions.QP_mu_ = FLAGS_QP_mu;
   qpoptions.brick_only_ = FLAGS_brick_only;
-  qpoptions.assume_zero_brick_damping_ = FLAGS_assume_zero_brick_damping;
   qpoptions.viz_force_scale_ = FLAGS_viz_force_scale;
   qpoptions.yc_ = FLAGS_yc;
   qpoptions.zc_ = FLAGS_zc;
+  qpoptions.brick_damping_ = brick_damping;
+  qpoptions.brick_inertia_ = brick_inertia;
   ConnectControllers(plant, scene_graph, lcm, *force_controller, brick_index,
                      qpoptions, &builder);
 

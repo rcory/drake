@@ -25,11 +25,15 @@ struct ForceControlOptions{
   Eigen::Matrix2d Kd_{Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
   double K_compliance_{0};  // impedance control stiffness
   double D_damping_{0};  // impedance control damping
+  double brick_damping_{0};  // brick pin joint damping
+  double brick_inertia_{0};  // brick's rotational inertia
   bool always_direct_force_control_{true};  // false for impedance control during non-contact
 };
 
 // Force controller with pure gravity compensation (no dynamics compensation
 // yet). Regulates position in z, and force in y.
+// TODO(rcory) Should this class inherit from
+//  systems::controllers::StateFeedbackControllerInterface?
 class ForceController : public systems::LeafSystem<double> {
  public:
   ForceController(MultibodyPlant<double>& plant,
@@ -108,12 +112,13 @@ struct QPControlOptions{
   bool brick_only_{false};  // only control brick (no finger)
   double viz_force_scale_{0};  // scale factor for visualizing spatial force arrow.
 
-  // sets the brick damping to zero, instead of taking the .sdf value.
-  bool assume_zero_brick_damping_{false};
-
   // These two (yc, zc) only affect the brick-only simulation.
   double yc_{0};  // y contact point, for brick only QP
   double zc_{0};  // z contact point, for brick only QP
+
+  // Brick specific parameters.
+  double brick_damping_{0};  // brick's pin joint damping.
+  double brick_inertia_{0};  // brick's rotational inertia.
 };
 
 /// A method that connects the finger/brick QP controller to the force

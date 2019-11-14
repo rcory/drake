@@ -100,12 +100,10 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 /// center.
 ContactPointInBrickFrame::ContactPointInBrickFrame(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, double yc, double zc)
+    const geometry::SceneGraph<double>& scene_graph)
     : plant_(plant),
       scene_graph_(scene_graph),
-      plant_context_(plant.CreateDefaultContext()),
-      yc_(yc),
-      zc_(zc) {
+      plant_context_(plant.CreateDefaultContext()) {
   this->DeclareAbstractInputPort("contact_results",
                                  Value<ContactResults<double>>{});
   this->DeclareVectorInputPort("x",
@@ -161,12 +159,10 @@ void ContactPointInBrickFrame::CalcOutput(
     plant_.CalcPointsPositions(*plant_context_, world_frame,
                                p_WCb, brick_frame, &result);
     p_BCb = result.tail<2>();
-  } else {
-    // TODO(rcory) Use the closest point (distance-wise) to the brick instead.
-//    p_BCb = Eigen::Vector2d(yc_, zc_);
-
+  } else { // Use the closest point (distance-wise) to the brick.
     // First, obtain the closest point on the brick from the fingertip sphere.
-    auto pairs_vec = geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
+    auto pairs_vec =
+        geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
     DRAKE_DEMAND(pairs_vec.size() == 1);
 
     geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);

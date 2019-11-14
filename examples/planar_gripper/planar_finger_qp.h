@@ -33,7 +33,7 @@ class PlanarFingerInstantaneousQP {
    * @param Kd The derivative gain.
    * @param theta The current brick orientation.
    * @param thetadot The current brick angular velocity.
-   * @param p_BFingerTip The position of the finger tip bubble center measured
+   * @param p_BFingerTip The position of the fingertip sphere center measured
    * in the brick frame.
    * Note: This assumes that regardless of the position of the fingertip center,
    *  the fingertip surface is in contact with the brick and can apply a force at
@@ -42,10 +42,10 @@ class PlanarFingerInstantaneousQP {
    * cost.
    * @param weight_f_Cb The weight of the contact force in the cost.
    * @param contact_face The brick face that is in contact with the finger.
-   * @param mu the friction coefficient between the finger tip and the brick.
+   * @param mu the friction coefficient between the fingertip and the brick.
    * @param I_B The inertia of the brick.
-   * @param finger_tip_radius The radius of the bubble on the finger.
-   * @param damping The damping at the brick's revolute joint.
+   * @param finger_tip_radius The radius of the fingertip sphere.
+   * @param damping The damping at the pin joint of the one-dof brick.
    */
   PlanarFingerInstantaneousQP(
       const multibody::MultibodyPlant<double>* plant, double theta_planned,
@@ -84,7 +84,7 @@ class PlanarFingerInstantaneousQPController
   PlanarFingerInstantaneousQPController(
       const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
       double weight_thetaddot, double weight_f_Cb_B, double mu,
-      double finger_tip_radius, double damping);
+      double finger_tip_radius, double damping, double I_B);
 
   const systems::InputPort<double>& get_input_port_estimated_state()
       const final {
@@ -128,13 +128,13 @@ class PlanarFingerInstantaneousQPController
 
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;
-  double I_B_;
   double Kp_;
   double Kd_;
   double weight_thetaddot_;
   double weight_f_Cb_B_;
   double finger_tip_radius_;
   double damping_;
+  double I_B_;
 
   int brick_revolute_position_index_;
   multibody::BodyIndex brick_body_index_;
