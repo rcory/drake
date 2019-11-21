@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/plant/spatial_force_output.h"
 #include "drake/lcm/drake_lcm.h"
 
 namespace drake {

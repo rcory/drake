@@ -75,7 +75,7 @@ double GetFingerTipSphereRadius(
   const geometry::Shape& fingertip_shape =
       inspector.GetShape(finger_tip_geometry_id);
   double finger_tip_radius =
-      dynamic_cast<const geometry::Sphere&>(fingertip_shape).get_radius();
+      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
   return finger_tip_radius;
 }
 
