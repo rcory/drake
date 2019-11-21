@@ -24,6 +24,7 @@ drake_cc_library(
         "//lcmtypes:viewer",
         "//multibody/plant",
         "//multibody/plant:externally_applied_spatial_force",
+        "//multibody/plant:spatial_force_output",
         "//systems/lcm:lcm_interface_system",
         "@lcmtypes_robotlocomotion",
     ],
@@ -197,9 +198,9 @@ drake_cc_library(
         "//systems/lcm:connect_lcm_scope",
         "//systems/primitives:constant_value_source",
         "//systems/primitives:constant_vector_source",
+        "//systems/primitives:discrete_derivative",
         "//systems/primitives:trajectory_source",
         "//systems/primitives:zero_order_hold",
-        "//systems/primitives:discrete_derivative",
     ],
 )
 
