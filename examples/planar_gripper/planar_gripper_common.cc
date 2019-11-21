@@ -279,7 +279,7 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
   std::vector<RigidTransformd> poses;
 
   // list the body names that we want to visualize.
-  body_names.push_back("brick_base_link");
+  body_names.push_back("brick_base");
   body_names.push_back("finger_base");
 
   for (size_t i = 0; i < body_names.size(); i++) {

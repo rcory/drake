@@ -163,7 +163,7 @@ void ForceController::CalcTauOutput(
       plant_.GetBodyByName("finger_base").body_frame();
 
   const multibody::Frame<double>& brick_frame =
-      plant_.GetBodyByName("brick_base_link").body_frame();
+      plant_.GetBodyByName("brick_base").body_frame();
 
   /* Rotation of world (W) w.r.t. finger brick (Br) */
   auto R_BrW = plant_.CalcRelativeRotationMatrix(

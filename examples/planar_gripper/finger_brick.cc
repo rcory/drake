@@ -35,7 +35,7 @@ geometry::GeometryId GetBrickGeometryId(
   const geometry::GeometryId brick_geometry_id =
       inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("brick_base_link").index()),
+              plant.GetBodyByName("brick_base").index()),
           geometry::Role::kProximity, "object::box_collision");
   return brick_geometry_id;
 }
@@ -86,7 +86,7 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
   const geometry::Shape& brick_shape =
       inspector.GetShape(inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("brick_base_link").index()),
+              plant.GetBodyByName("brick_base").index()),
           geometry::Role::kProximity, "object::box_collision"));
   const Eigen::Vector3d brick_size =
       dynamic_cast<const geometry::Box&>(brick_shape).size();
@@ -138,7 +138,7 @@ void ContactPointInBrickFrame::CalcOutput(
           context);
 
   const multibody::Frame<double>& brick_frame =
-      plant_.GetFrameByName("brick_base_link");
+      plant_.GetFrameByName("brick_base");
 
   const multibody::Frame<double>& world_frame =
       plant_.world_frame();
