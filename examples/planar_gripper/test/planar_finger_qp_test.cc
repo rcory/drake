@@ -45,7 +45,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   const double finger_tip_radius = GetFingerTipSphereRadius(plant, scene_graph);
   const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
   const multibody::Frame<double>& brick_frame =
-      plant.GetFrameByName("brick_base_link");
+      plant.GetFrameByName("brick_base");
   const geometry::GeometryId finger_tip_geometry_id =
       GetFingerTipGeometryId(plant, scene_graph);  //fingertip sphere id
   // First solve an IK problem that the finger is making contact with the brick.
@@ -62,7 +62,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   const math::RotationMatrix<double> R_AbarA(Eigen::AngleAxisd(
       -M_PI_4 + .2, Eigen::Vector3d(1, 0, 0).normalized()));
   ik.AddOrientationConstraint(plant.world_frame(), R_AbarA,
-                              plant.GetFrameByName("brick_base_link"),
+                              plant.GetFrameByName("brick_base"),
                               math::RotationMatrixd(), 0);
 
   Eigen::Vector3d q_guess(0.1, 0.2, 0.3);

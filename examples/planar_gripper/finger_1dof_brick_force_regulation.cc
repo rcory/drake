@@ -42,7 +42,7 @@ using multibody::ContactResults;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 5,
+DEFINE_double(simulation_time, 1.5,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
@@ -153,7 +153,7 @@ int do_main() {
             .damping();
   }
   double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
-                             plant.GetFrameByName("brick_base_link").body())
+                             plant.GetFrameByName("brick_base").body())
                              .default_rotational_inertia()
                              .get_moments()(0);
 
@@ -203,9 +203,6 @@ int do_main() {
                   demux->get_input_port(0));
   builder.Connect(demux->get_output_port(0),
                   plant.get_actuation_input_port(finger_index));
-
-  // size 4 because we take in {y, ydot, z, zdot}. The position gain on y will
-  // be zero (since y is force controlled).
 
   // We don't regulate position for now (set these to zero).
   // 6-vector represents pos-vel for fingertip contact point x-y-z. The control

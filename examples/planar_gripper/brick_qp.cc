@@ -125,7 +125,7 @@ void BrickInstantaneousQPController::CalcControl(
 //  drake::log()->info("r x f: {}", p_BCb(0)*f_Cb_B(1) - p_BCb(1)*f_Cb_B(0));
 
   control->resize(1);
-  (*control)[0].body_index = brick_->GetBodyByName("brick_base_link").index();
+  (*control)[0].body_index = brick_->GetBodyByName("brick_base").index();
   (*control)[0].p_BoBq_B = Eigen::Vector3d(0, p_BCb(0), p_BCb(1));
   (*control)[0].F_Bq_W = multibody::SpatialForce<double>(
       Eigen::Vector3d::Zero(), Eigen::Vector3d(0, f_Cb_W(0), f_Cb_W(1)));
