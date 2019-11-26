@@ -1,4 +1,5 @@
 #include "drake/examples/planar_gripper/finger_brick.h"
+#include "drake/multibody/tree/weld_joint.h"
 
 namespace drake {
 namespace examples {
@@ -179,6 +180,82 @@ void ContactPointInBrickFrame::CalcOutput(
   }
 
 
+}
+
+ForceDemuxer::ForceDemuxer(
+    const multibody::MultibodyPlant<double>& plant) : plant_(plant) {
+  plant_context_ = plant.CreateDefaultContext();
+
+  contact_results_input_port_ =
+      this->DeclareAbstractInputPort("contact_results",
+                                     Value<ContactResults<double>>{})
+          .get_index();
+
+  reaction_forces_input_port_ =
+      this->DeclareAbstractInputPort(
+              "reaction_forces",
+              Value<std::vector<multibody::SpatialForce<double>>>())
+          .get_index();
+
+  contact_results_vec_output_port_ =
+      this->DeclareVectorOutputPort(
+              "contact_res_forces", systems::BasicVector<double>(3),
+              &ForceDemuxer::SetContactResultsForceOutput)
+          .get_index();
+
+  reaction_forces_vec_output_port_ =
+      this->DeclareVectorOutputPort(
+              "reaction_forces", systems::BasicVector<double>(3),
+              &ForceDemuxer::SetReactionForcesOutput)
+          .get_index();
+
+  state_input_port_ = this->DeclareVectorInputPort(
+      "x", systems::BasicVector<double>(
+               plant_.num_multibody_states() /* plant state */)).get_index();
+}
+
+void ForceDemuxer::SetContactResultsForceOutput(
+    const drake::systems::Context<double>& context,
+    drake::systems::BasicVector<double>* output) const {
+  auto output_value = output->get_mutable_value();
+  output_value.setZero();
+
+  const auto& contact_results =
+      get_contact_results_input_port().Eval<ContactResults<double>>(context);
+
+  // Assume there at most one contact (for now).
+  DRAKE_DEMAND(contact_results.num_point_pair_contacts() <= 1);
+  if (contact_results.num_point_pair_contacts() > 0) {
+    output_value = contact_results.point_pair_contact_info(0).contact_force();
+  }
+
+}
+
+void ForceDemuxer::SetReactionForcesOutput(
+    const drake::systems::Context<double>& context,
+    drake::systems::BasicVector<double>* output) const {
+  auto output_value = output->get_mutable_value();
+  output_value.setZero();
+
+  auto plant_state =
+      this->EvalVectorInput(context, state_input_port_)->get_value();
+  plant_.SetPositionsAndVelocities(plant_context_.get(), plant_state);
+
+  const std::vector<multibody::SpatialForce<double>>& spatial_vec =
+      get_reaction_forces_input_port()
+          .Eval<std::vector<multibody::SpatialForce<double>>>(context);
+
+  const multibody::WeldJoint<double>& sensor_joint =
+      plant_.GetJointByName<multibody::WeldJoint>("finger_sensor_weldjoint");
+  auto sensor_joint_index = sensor_joint.index();
+
+  // Get rotation of child link `tip_link' in the world frame, i.e., R_WC
+  const multibody::Body<double>& child = sensor_joint.child_body();
+  const math::RigidTransform<double>& X_WC =
+      plant_.EvalBodyPoseInWorld(*plant_context_, child);
+
+  output_value =
+      X_WC.rotation() * spatial_vec[sensor_joint_index].translational();
 }
 
 }  // namespace planar_gripper

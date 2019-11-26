@@ -24,6 +24,7 @@
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/examples/planar_gripper/finger_brick_control.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
@@ -201,6 +202,26 @@ int do_main() {
   auto demux = builder.AddSystem<systems::Demultiplexer<double>>(sizes);
   builder.Connect(force_controller->get_torque_output_port(),
                   demux->get_input_port(0));
+
+  DrakeLcm lcm;
+
+  // Here we output the contact results forces as well as the force sensor weld
+  // joint reaction forces to the LCM scope.
+  auto force_demux_sys = builder.AddSystem<ForceDemuxer>(plant);
+  builder.Connect(plant.get_contact_results_output_port(),
+                  force_demux_sys->get_contact_results_input_port());
+  builder.Connect(plant.get_reaction_forces_output_port(),
+                  force_demux_sys->get_reaction_forces_input_port());
+  builder.Connect(plant.get_state_output_port(),
+                  force_demux_sys->get_state_input_port());
+  systems::lcm::ConnectLcmScope(
+      force_demux_sys->get_contact_res_vec_output_port(), "CONTACT_RES_VEC",
+      &builder, &lcm);
+  systems::lcm::ConnectLcmScope(
+      force_demux_sys->get_reaction_vec_output_port(), "REACTION_FORCE_VEC",
+      &builder, &lcm);
+
+  // Set the plant's actuation input.
   builder.Connect(demux->get_output_port(0),
                   plant.get_actuation_input_port(finger_index));
 
@@ -220,7 +241,6 @@ int do_main() {
   builder.Connect(scene_graph.get_query_output_port(),
       plant.get_geometry_query_input_port());
 
-  DrakeLcm lcm;
   geometry::ConnectDrakeVisualizer(&builder, scene_graph, &lcm);
 
   // Publish contact results for visualization.
