@@ -39,6 +39,7 @@ using multibody::RevoluteJoint;
 using multibody::PrismaticJoint;
 using multibody::ConnectContactResultsToDrakeVisualizer;
 using multibody::ContactResults;
+using multibody::SpatialForce;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
@@ -52,7 +53,9 @@ DEFINE_double(time_step, 1e-4,
 
 DEFINE_double(penetration_allowance, 0.2, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(gravity_accel, -9.81, "The acceleration due to gravity.");
+DEFINE_double(gravity_accel, -9.81,
+    "The acceleration due to gravity. Is only applied if is_vertical is true.");
+DEFINE_bool(is_vertical, false, "If true, gravity acts along the z axis.");
 
 // Initial finger joint angles.
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
@@ -132,7 +135,10 @@ int do_main() {
       Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
 
   // Add gravity
-  Vector3<double> gravity(0, 0, FLAGS_gravity_accel);
+  Vector3<double> gravity(0, 0, 0);
+  if (FLAGS_is_vertical) {
+    gravity(2) = FLAGS_gravity_accel;
+  }
   plant.mutable_gravity_field().set_gravity_vector(gravity);
 
   // Now the model is complete.
@@ -161,6 +167,11 @@ int do_main() {
   // Connect the force controller
   auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
+
+  std::vector<SpatialForce<double>> init_spatial_vec{
+      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
+  auto zoh_reaction_forces = builder.AddSystem<systems::ZeroOrderHold<double>>(
+      1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 
   auto zoh_joint_accels = builder.AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, plant.num_velocities());
@@ -194,6 +205,8 @@ int do_main() {
                   zoh_joint_accels->get_input_port());
   builder.Connect(zoh_joint_accels->get_output_port(),
                   force_controller->get_accelerations_actual_input_port());
+  builder.Connect(plant.get_reaction_forces_output_port(),
+                  zoh_reaction_forces->get_input_port());
   builder.Connect(scene_graph.get_query_output_port(),
                   force_controller->get_geometry_query_input_port());
 
@@ -208,9 +221,9 @@ int do_main() {
   // Here we output the contact results forces as well as the force sensor weld
   // joint reaction forces to the LCM scope.
   auto force_demux_sys = builder.AddSystem<ForceDemuxer>(plant);
-  builder.Connect(plant.get_contact_results_output_port(),
+  builder.Connect(zoh_contact_results->get_output_port(),
                   force_demux_sys->get_contact_results_input_port());
-  builder.Connect(plant.get_reaction_forces_output_port(),
+  builder.Connect(zoh_reaction_forces->get_output_port(),
                   force_demux_sys->get_reaction_forces_input_port());
   builder.Connect(plant.get_state_output_port(),
                   force_demux_sys->get_state_input_port());
@@ -220,6 +233,11 @@ int do_main() {
   systems::lcm::ConnectLcmScope(
       force_demux_sys->get_reaction_vec_output_port(), "REACTION_FORCE_VEC",
       &builder, &lcm);
+
+  // Provide the actual force sensor input to the force controller. This
+  // contains the reaction forces (total wrench) at the sensor weld joint.
+  builder.Connect(force_demux_sys->get_reaction_vec_output_port(),
+                  force_controller->get_force_sensor_input_port());
 
   // Set the plant's actuation input.
   builder.Connect(demux->get_output_port(0),
