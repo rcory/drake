@@ -327,8 +327,8 @@ ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
   plant_context_ = plant.CreateDefaultContext();
   this->DeclareAbstractInputPort(
       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
-  this->DeclareVectorInputPort("x",
-                               systems::BasicVector<double>(2 /* state */));
+  this->DeclareVectorInputPort(
+      "x", systems::BasicVector<double>(2 /* brick state */));
 
   // This output port produces a SpatialForceOutput, which feeds the spatial
   // forces visualization plugin of DrakeVisualizer.

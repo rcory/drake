@@ -142,7 +142,7 @@ void ForceController::CalcTauOutput(
   const auto& contact_results =
       get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
-  // Add the inverse dynamics component.
+  // Get the plant vdot for dynamics inverse dynamics.
   // TODO(rcory) I don't need this input anymore(?). Consider removing.
   auto plant_vdot =
       this->EvalVectorInput(context, accelerations_actual_input_port_)
