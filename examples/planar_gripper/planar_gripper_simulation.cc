@@ -63,6 +63,7 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/trajectory_source.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
@@ -183,6 +184,49 @@ class ControlToSimPlantForceConverter : public systems::LeafSystem<double> {
  private:
   const MultibodyPlant<double>* plant_;
   const ModelInstanceIndex gripper_instance_;
+};
+
+/// A system whose input port takes in MBP joint reaction forces and whose
+/// outputs correspond to the (planar-only) forces felt at the force sensor,
+/// for all three fingers (i.e., fy and fz). Because the task is planar, we
+/// ignore any forces/torques not acting in the y-z plane.
+class ForceSensorEvaluator : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceSensorEvaluator);
+  explicit ForceSensorEvaluator(const MultibodyPlant<double>& plant) {
+    const int num_sensors = 3;
+    for (int i = 1; i <= num_sensors; i++) {
+      std::string joint_name =
+          "finger" + std::to_string(i) + "_sensor_weldjoint";
+      sensor_joint_indices_.push_back(
+          plant.GetJointByName<multibody::WeldJoint>(joint_name).index());
+    }
+    this->DeclareAbstractInputPort(
+            "spatial_forces_in",
+            Value<std::vector<multibody::SpatialForce<double>>>())
+        .get_index();
+    this->DeclareVectorOutputPort("force_sensors_out",
+                                  systems::BasicVector<double>(num_sensors * 2),
+                                  &ForceSensorEvaluator::SetOutput)
+        .get_index();
+  }
+  void SetOutput(const drake::systems::Context<double>& context,
+                 drake::systems::BasicVector<double>* output) const {
+    const std::vector<multibody::SpatialForce<double>>& spatial_vec =
+        this->get_input_port(0)
+            .Eval<std::vector<multibody::SpatialForce<double>>>(context);
+    auto output_value = output->get_mutable_value();
+    // Force sensor (fy, fz) values, measured in the "tip_link" frame.
+    output_value.head(2) =
+        spatial_vec[sensor_joint_indices_[0]].translational().tail(2);
+    output_value.segment(2, 2) =
+        spatial_vec[sensor_joint_indices_[1]].translational().tail(2);
+    output_value.tail(2) =
+        spatial_vec[sensor_joint_indices_[2]].translational().tail(2);
+  }
+
+ private:
+  std::vector<multibody::JointIndex> sensor_joint_indices_;
 };
 
 int DoMain() {
@@ -321,6 +365,12 @@ int DoMain() {
   if (FLAGS_visualize_contacts) {
     ConnectContactResultsToDrakeVisualizer(&builder, plant, &lcm);
   }
+
+  auto force_sensor_evaluator = builder.AddSystem<ForceSensorEvaluator>(plant);
+  builder.Connect(plant.get_reaction_forces_output_port(),
+                  force_sensor_evaluator->get_input_port(0));
+  systems::lcm::ConnectLcmScope(force_sensor_evaluator->get_output_port(0),
+                                "FORCE_SENSOR", &builder, &lcm);
 
   auto diagram = builder.Build();
 
