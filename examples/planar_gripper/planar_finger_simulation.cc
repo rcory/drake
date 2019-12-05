@@ -4,7 +4,6 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
-#include "drake/common/text_logging_gflags.h"
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
@@ -243,6 +242,5 @@ int main(int argc, char* argv[]) {
   gflags::SetUsageMessage(
       "A simple planar gripper example.");
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  drake::logging::HandleSpdlogGflags();
   return drake::examples::planar_gripper::do_main();
 }

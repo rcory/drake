@@ -4,7 +4,6 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/common/proto/call_python.h"
-#include "drake/common/text_logging_gflags.h"
 #include "drake/examples/planar_gripper/brick_qp.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
@@ -78,8 +77,13 @@ int DoMain() {
   double damping =
       plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
           .damping();
+  double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
+      plant.GetFrameByName("brick_base").body())
+      .default_rotational_inertia()
+      .get_moments()(0);
   auto qp_controller = builder.AddSystem<BrickInstantaneousQPController>(
-      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping);
+      &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping,
+      brick_inertia);
 
   // Connect the QP controller
   builder.Connect(plant.get_state_output_port(plant_id),
@@ -145,7 +149,7 @@ int DoMain() {
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 
   // Publish the initial frames
-  PublishInitialFrames(plant_context, plant, lcm);
+  PublishBodyFrames(plant_context, plant, lcm);
 
   simulator.set_publish_every_time_step(false);
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
@@ -171,6 +175,5 @@ int DoMain() {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  drake::logging::HandleSpdlogGflags();
   return drake::examples::planar_gripper::DoMain();
 }

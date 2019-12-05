@@ -220,7 +220,6 @@ drake_cc_binary(
     deps = [
         ":finger_brick",
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
@@ -253,7 +252,6 @@ drake_cc_binary(
     deps = [
         ":finger_brick",
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",
@@ -428,7 +426,6 @@ drake_cc_binary(
         ":brick_qp",
         ":finger_brick",
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//common/proto:call_python",
         "//examples/planar_gripper:planar_gripper_common",
         "//geometry:geometry_visualization",
