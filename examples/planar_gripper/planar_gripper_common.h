@@ -103,6 +103,11 @@ MatrixX<double> ReorderKeyframesForPlant(
     const MatrixX<double> keyframes,
     std::map<std::string, int>* finger_joint_name_to_row_index_map);
 
+/// Creates a position vector (in joint position index order) from the
+/// named joints and values in `map_in`.
+VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
+                                   std::map<std::string, double> map_in);
+
 /// Returns the planar gripper frame G's transform w.r.t. the world frame W.
 const math::RigidTransformd X_WGripper();
 

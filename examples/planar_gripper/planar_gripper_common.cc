@@ -221,6 +221,29 @@ MatrixX<double> ReorderKeyframesForPlant(
   return reordered_keyframes;
 }
 
+VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
+                                   std::map<std::string, double> map_in) {
+  if (map_in.size() != kNumJoints) {
+    throw std::runtime_error(
+        "The number of keyframe rows must match the number of planar-gripper "
+        "joints");
+  }
+  if (plant.num_positions() != kNumJoints) {
+    throw std::runtime_error(
+        "The number of plant positions must match exactly the number of "
+        "planar-gripper joints.");
+  }
+
+  VectorX<double> position_vector = VectorX<double>::Zero(kNumJoints);
+  for (auto iter = map_in.begin();
+       iter != map_in.end(); ++iter) {
+    auto joint_pos_start_index =
+        plant.GetJointByName(iter->first).position_start();
+    position_vector(joint_pos_start_index) = iter->second;
+  }
+  return position_vector;
+}
+
 const RigidTransformd X_WGripper() {
   return math::RigidTransformd::Identity();
 }
