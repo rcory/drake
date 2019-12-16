@@ -10,14 +10,12 @@ namespace planar_gripper {
 const double kInf = std::numeric_limits<double>::infinity();
 
 PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
-    const multibody::MultibodyPlant<double>* finger_brick, double theta_planned,
-    double thetadot_planned, double thetaddot_planned, double Kp, double Kd,
-    double theta, double thetadot,
+    double theta_planned, double thetadot_planned, double thetaddot_planned,
+    double Kp, double Kd, double theta, double thetadot,
     const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
     double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
     double mu, double I_B, double finger_tip_radius, double damping)
-    : plant_{finger_brick},
-      prog_{new solvers::MathematicalProgram()},
+    : prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
   prog_->AddBoundingBoxConstraint(0, kInf, f_Cb_B_edges_);
   p_BCb_ = p_BFingerTip;
@@ -121,11 +119,10 @@ void PlanarFingerInstantaneousQPController::CalcControl(
   const double thetadot =
       state(plant_->num_positions() + brick_revolute_position_index_);
 
-          PlanarFingerInstantaneousQP qp(
-              plant_, brick_state_desired(0), brick_state_desired(1),
-              thetaddot_planned(0), Kp_, Kd_, theta, thetadot, p_BFingerTip,
-              weight_thetaddot_, weight_f_Cb_B_, contact_face, mu_, I_B_,
-              finger_tip_radius_, damping_);
+  PlanarFingerInstantaneousQP qp(
+      brick_state_desired(0), brick_state_desired(1), thetaddot_planned(0), Kp_,
+      Kd_, theta, thetadot, p_BFingerTip, weight_thetaddot_, weight_f_Cb_B_,
+      contact_face, mu_, I_B_, finger_tip_radius_, damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
 

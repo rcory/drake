@@ -2,6 +2,8 @@
 
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
 
 namespace drake {
 namespace examples {
@@ -36,8 +38,10 @@ struct ForceControlOptions{
 //  systems::controllers::StateFeedbackControllerInterface?
 class ForceController : public systems::LeafSystem<double> {
  public:
-  ForceController(MultibodyPlant<double>& plant,
-                  SceneGraph<double>& scene_graph, ForceControlOptions options);
+  ForceController(const MultibodyPlant<double>& plant,
+                  const SceneGraph<double>& scene_graph,
+                  ForceControlOptions options, ModelInstanceIndex gripper_index,
+                  ModelInstanceIndex brick_index);
 
   const InputPort<double>& get_force_desired_input_port() const {
     return this->get_input_port(force_desired_input_port_);
@@ -83,8 +87,8 @@ class ForceController : public systems::LeafSystem<double> {
                      systems::BasicVector<double>* output_vector) const;
 
  private:
-  MultibodyPlant<double>& plant_;
-  SceneGraph<double>& scene_graph_;
+  const MultibodyPlant<double>& plant_;
+  const SceneGraph<double>& scene_graph_;
   // This context is used solely for setting generalized positions and
   // velocities in plant_.
   std::unique_ptr<systems::Context<double>> plant_context_;
@@ -98,7 +102,7 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex geometry_query_input_port_{};
   InputPortIndex contact_point_ref_accel_input_port_{};
   OutputPortIndex torque_output_port_{};
-  ModelInstanceIndex finger_index_{};
+  ModelInstanceIndex gripper_index_{};
   ModelInstanceIndex brick_index_{};
   ForceControlOptions options_;
 };
@@ -135,6 +139,51 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                         const ModelInstanceIndex& brick_index,
                         const QPControlOptions options,
                         systems::DiagramBuilder<double>* builder);
+
+/**
+ *
+ */
+
+class PlantStateToFingerStateSelector : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlantStateToFingerStateSelector);
+  PlantStateToFingerStateSelector(const MultibodyPlant<double>& plant);
+
+  void CalcOutput(const drake::systems::Context<double>& context,
+                  drake::systems::BasicVector<double>* output) const;
+
+ private:
+  MatrixX<double> state_selector_matrix_;
+};
+
+/// Has two input ports. The first input is a vector of actuation values
+/// for the planar-gripper (6 x 1, in joint actuator ordering). Typically this
+/// is the output of GeneralizedForceToActuationOrdering(control_plant). The
+/// second input is a vector of actuation values for finger 3 given as:
+/// {f3_base_u, f3_mid_u}.
+/// This system has a single output port, which produces actuation
+/// values for the gripper/brick MBP (in the plant's actuator ordering).
+class FingersToPlantActuationMap : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersToPlantActuationMap);
+  FingersToPlantActuationMap(const MultibodyPlant<double>& plant);
+
+  void CalcOutput(const drake::systems::Context<double>& context,
+                  drake::systems::BasicVector<double>* output) const;
+
+ private:
+  MatrixX<double> actuation_selector_matrix_;
+  MatrixX<double> actuation_selector_matrix_inv_;
+};
+
+/// Creates the QP controller (finger/brick for now), and connects it to the
+/// force controller (this is for the lcm based finger/brick rotate).
+// TODO(rcory) Reconcile this with ConnectControllers in finger_brick_control.cc
+void ConnectAllControllers(PlanarGripper& planar_gripper,
+                           lcm::DrakeLcm& lcm,
+                           const ForceController& force_controller,
+                           const QPControlOptions qpoptions,
+                           systems::DiagramBuilder<double>* builder);
 
 }  // namespace planar_gripper
 }  // namespace examples

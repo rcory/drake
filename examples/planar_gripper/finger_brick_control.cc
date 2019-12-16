@@ -17,6 +17,9 @@
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/systems/primitives/discrete_derivative.h"
 #include "Eigen/src/Core/Matrix.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/lcm/drake_lcm.h"
 
 #include <cmath>
 
@@ -34,16 +37,17 @@ using systems::OutputPortIndex;
 using systems::OutputPort;
 
 // Force controller with pure gravity compensation (no dynamics compensation
-// yet). Regulates position in z, and force in y.
+// yet).
 // TODO(rcory) implement dynamic compensation.
-
-ForceController::ForceController(MultibodyPlant<double>& plant,
-                                 SceneGraph<double>& scene_graph,
-                                 ForceControlOptions options)
+ForceController::ForceController(const MultibodyPlant<double>& plant,
+                                 const SceneGraph<double>& scene_graph,
+                                 ForceControlOptions options,
+                                 ModelInstanceIndex gripper_index,
+                                 ModelInstanceIndex brick_index)
     : plant_(plant),
       scene_graph_(scene_graph),
-      finger_index_(plant.GetModelInstanceByName("planar_finger")),
-      brick_index_(plant.GetModelInstanceByName("object")),
+      gripper_index_(gripper_index),
+      brick_index_(brick_index),
       options_(options) {
   // Make context with default parameters.
   plant_context_ = plant.CreateDefaultContext();
@@ -87,18 +91,17 @@ ForceController::ForceController(MultibodyPlant<double>& plant,
           .get_index();
 
   // TODO(rcory) likely don't need this, consider removing this input port.
-  accelerations_actual_input_port_ =  // actual accelerations of the MBP (3 x 1)
+  accelerations_actual_input_port_ =  // actual accelerations of the MBP (num_vel x 1)
       this->DeclareVectorInputPort("plant_vdot", systems::BasicVector<double>(
                                                      plant_.num_velocities()))
           .get_index();
 
-  const int kDebuggingOutputs = 3;
-  torque_output_port_ = this->DeclareVectorOutputPort(
-                                "tau",
-                                systems::BasicVector<double>(
-                                    plant.num_actuators() + kDebuggingOutputs),
-                                &ForceController::CalcTauOutput)
-                            .get_index();
+  const int kNumTorques = 2; /* This only works for a single finger for now */
+  torque_output_port_ =
+      this->DeclareVectorOutputPort(
+              "tau", systems::BasicVector<double>(kNumTorques),
+              &ForceController::CalcTauOutput)
+          .get_index();
 
   // This provides the geometry query object, which can compute the witness
   // points between fingertip and box (used in impedance control).
@@ -163,7 +166,7 @@ void ForceController::CalcTauOutput(
   unused(plant_vdot);
 
   // Set the plant's position and velocity within the context.
-  plant_.SetPositionsAndVelocities(plant_context_.get(), finger_index_,
+  plant_.SetPositionsAndVelocities(plant_context_.get(), gripper_index_,
                                    finger_state);
   plant_.SetPositionsAndVelocities(plant_context_.get(), brick_index_,
                                    brick_state);
@@ -449,10 +452,6 @@ void ForceController::CalcTauOutput(
 
   // The output for calculated torques.
   output_calc.head<2>() = torque_calc;
-
-  // These are just auxiliary debugging outputs.
-  output_calc.segment<2>(2) = Eigen::Vector2d::Zero();
-  output_calc(4) = 0;
 }
 
 /// Creates the QP controller (type depending on whether we are simulating a
@@ -616,6 +615,211 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
     builder->Connect(theta_traj_source->get_output_port(),
                      qp_controller->get_input_port_desired_state());
   }
+}
+
+/**
+ *  The methods below are temporarily in this file, but are meant to support
+ *  QP/force control for the planar-gripper (3-finger) model, using a single
+ *  finger.
+ */
+
+PlantStateToFingerStateSelector::PlantStateToFingerStateSelector(
+    const MultibodyPlant<double>& plant) {
+  std::vector<multibody::JointIndex> joint_index_vector;
+  joint_index_vector.push_back(
+      plant.GetJointByName("finger3_BaseJoint").index());
+  joint_index_vector.push_back(
+      plant.GetJointByName("finger3_MidJoint").index());
+  state_selector_matrix_ =
+      plant.MakeStateSelectorMatrix(joint_index_vector);
+
+  this->DeclareVectorInputPort(
+      "plant_state",
+      systems::BasicVector<double>(plant.num_positions() +
+                                   plant.num_velocities()));
+  const int kNumFingerJoints = 2;
+  this->DeclareVectorOutputPort(
+      "finger3_state", systems::BasicVector<double>(kNumFingerJoints * 2),
+      &PlantStateToFingerStateSelector::CalcOutput);
+}
+
+void PlantStateToFingerStateSelector::CalcOutput(
+    const drake::systems::Context<double>& context,
+    drake::systems::BasicVector<double>* output) const {
+  VectorX<double> plant_state =
+      this->EvalVectorInput(context, 0)->get_value();
+  output->get_mutable_value() = state_selector_matrix_ * plant_state;
+}
+
+FingersToPlantActuationMap::FingersToPlantActuationMap(
+    const MultibodyPlant<double>& plant) {
+  std::vector<multibody::JointIndex> joint_index_vector;
+
+  // Create the Sᵤ matrix.
+  for (int i = 0; i < kNumFingers; i++) {
+    joint_index_vector.push_back(
+        plant.GetJointByName("finger" + std::to_string(i + 1) + "_BaseJoint")
+            .index());
+    joint_index_vector.push_back(
+        plant.GetJointByName("finger" + std::to_string(i + 1) + "_MidJoint")
+            .index());
+  }
+  actuation_selector_matrix_ =
+      plant.MakeActuatorSelectorMatrix(joint_index_vector);
+  actuation_selector_matrix_inv_ = actuation_selector_matrix_.inverse();
+
+  this->DeclareVectorInputPort(
+      "u_in",  /* in plant actuator ordering */
+      systems::BasicVector<double>(kNumJoints));
+  const int kNumFingerJoints = 2;
+  this->DeclareVectorInputPort(
+      "u_f3", /* override value for f3 actuation {f3_base_u, f3_mid_u} */
+      systems::BasicVector<double>(kNumFingerJoints));
+
+  this->DeclareVectorOutputPort("u_out",
+                                systems::BasicVector<double>(kNumJoints),
+                                &FingersToPlantActuationMap::CalcOutput);
+}
+
+void FingersToPlantActuationMap::CalcOutput(
+    const drake::systems::Context<double>& context,
+    drake::systems::BasicVector<double>* output) const {
+  VectorX<double> u_all_in =
+      this->EvalVectorInput(context, 0)->get_value();
+  Vector2<double> u_f3_in =  /* {f3_base_u, f3_mid_u} */
+      this->EvalVectorInput(context, 0)->get_value();
+
+  // Reorder the gripper actuation to: {f1_base_u, f1_mid_u, ...}
+  VectorX<double> u_s = actuation_selector_matrix_inv_ * u_all_in;
+
+  // Replace finger 3 actuation values with the torque control actuation values.
+  u_s.tail(2) = u_f3_in;
+
+  // Set the output.
+  output->get_mutable_value() = u_s;
+}
+
+/// Creates the QP controller (finger/brick for now), and connects it to the
+/// force controller (this is for the lcm based finger/brick rotate).
+// TODO(rcory) Reconcile this with ConnectControllers in finger_brick_control.cc
+void ConnectAllControllers(PlanarGripper& planar_gripper,
+                           lcm::DrakeLcm& lcm,
+                           const ForceController& force_controller,
+                           const QPControlOptions qpoptions,
+                           systems::DiagramBuilder<double>* builder) {
+  // thetaddot_planned is 0. Use a constant source.
+  auto thetaddot_planned_source =
+      builder->AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
+
+  // The planned theta trajectory is from 0 to 90 degree in T seconds.
+  std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
+  std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(1, 1));
+  Y[0](0, 0) = qpoptions.theta0_;
+  Y[1](0, 0) = qpoptions.theta0_;
+  Y[2](0, 0) = qpoptions.thetaf_;
+  Y[3](0, 0) = qpoptions.thetaf_;
+
+//  const trajectories::PiecewisePolynomial<double> theta_traj =
+//      trajectories::PiecewisePolynomial<double>::Pchip(T, Y);
+
+  // this doesn't work well for disturbed trajectories (since the traj is only
+  // computed at initialization).
+//  auto theta_traj_source =
+//      builder->AddSystem<systems::TrajectorySource<double>>(
+//          theta_traj, 1 /* take 1st derivatives */);
+
+  // so, just use a constant target...
+  auto theta_vec = Eigen::Vector2d(qpoptions.thetaf_, 0);
+  auto theta_traj_source =
+      builder->AddSystem<systems::ConstantVectorSource<double>>(theta_vec);
+
+  // Spit out to scope
+  systems::lcm::ConnectLcmScope(theta_traj_source->get_output_port(),
+                                "THETA_TRAJ", builder, &lcm);
+
+  // QP controller
+  double Kp = qpoptions.QP_Kp_;
+  double Kd = qpoptions.QP_Kd_;
+  double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
+  double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
+  double mu = qpoptions.QP_mu_;
+  double damping = qpoptions.brick_damping_;
+  double I_B = qpoptions.brick_inertia_;
+
+  // Always get in contact with the +z face.
+  auto contact_face_source =
+      builder->AddSystem<systems::ConstantValueSource<double>>(
+          Value<BrickFace>(BrickFace::kPosZ));
+
+  // ================ Planar Finger QP controller =========================
+  // This implements the QP controller for brick AND planar-finger.
+  // ======================================================================
+  double fingertip_radius = 0.015;
+  auto qp_controller =
+      builder->AddSystem<PlanarFingerInstantaneousQPController>(
+          &planar_gripper.get_multibody_plant(), Kp, Kd, weight_thetaddot_error,
+          weight_f_Cb_B, mu, fingertip_radius, damping, I_B);
+
+  // Connect the QP controller
+  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
+                   qp_controller->get_input_port_estimated_state());
+
+  // TODO(rcory) Connect this to the force controller.
+  // Note: The spatial forces coming from the output of the QP controller
+  // are already in the world frame (only the contact point is in the brick
+  // frame)
+
+  builder->Connect(qp_controller->get_output_port_control(),
+                   force_controller.get_force_desired_input_port());
+
+  // To visualize the applied spatial forces.
+  auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
+      planar_gripper.get_multibody_plant(),
+      planar_gripper.get_planar_gripper_index(), qpoptions.viz_force_scale_);
+  builder->Connect(qp_controller->get_output_port_control(),
+                   viz_converter->get_input_port(0));
+  multibody::ConnectSpatialForcesToDrakeVisualizer(
+      builder, planar_gripper.get_multibody_plant(),
+      viz_converter->get_output_port(0), &lcm);
+  builder->Connect(planar_gripper.GetOutputPort("brick_state"),
+                   viz_converter->get_input_port(1));
+
+  builder->Connect(contact_face_source->get_output_port(0),
+                   qp_controller->get_input_port_contact_face());
+
+  // Adds a zero order hold to the contact results.
+  auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
+      1e-3, Value<ContactResults<double>>());
+  builder->Connect(planar_gripper.GetOutputPort("contact_results"),
+                   zoh->get_input_port());
+
+  // Adds system to calculate fingertip contact.
+  auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
+      planar_gripper.get_multibody_plant(), planar_gripper.get_scene_graph());
+  builder->Connect(zoh->get_output_port(),
+                   contact_point_calc_sys->get_input_port(0));
+  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
+                   contact_point_calc_sys->get_input_port(1));
+  builder->Connect(contact_point_calc_sys->get_output_port(0),
+                   qp_controller->get_input_port_p_BFingerTip());
+  builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
+                   contact_point_calc_sys->get_geometry_query_input_port());
+
+  // Provides contact point ref accelerations to the force controller (for
+  // inverse dynamics).
+  // TODO(rcory) likely don't need these accels anymore. Consider removing.
+  auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+  auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+  builder->Connect(contact_point_calc_sys->get_output_port(0),
+                   v_BrCr->get_input_port());
+  builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
+  builder->Connect(a_BrCr->get_output_port(),
+                   force_controller.get_contact_point_ref_accel_input_port());
+
+  builder->Connect(thetaddot_planned_source->get_output_port(),
+                   qp_controller->get_input_port_desired_thetaddot());
+  builder->Connect(theta_traj_source->get_output_port(),
+                   qp_controller->get_input_port_desired_state());
 }
 
 }  // namespace planar_gripper

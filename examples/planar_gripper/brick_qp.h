@@ -24,7 +24,6 @@ namespace planar_gripper {
 class PlanarBrickInstantaneousQP {
  public:
   /**
-   * @param plant The plant containing only the brick.
    * @param theta_planned The planned orientation of the brick.
    * @param thetadot_planned The planned angular velocity of the brick.
    * @param thetaddot_planned The planned angular acceleration of the brick.
@@ -40,8 +39,7 @@ class PlanarBrickInstantaneousQP {
    * bubble on the tip of the finger), expressed in the finger link 2 frame.
    * @param I_B The inertia of the brick.
    */
-  PlanarBrickInstantaneousQP(const multibody::MultibodyPlant<double>* plant,
-                             double theta_planned, double thetadot_planned,
+  PlanarBrickInstantaneousQP(double theta_planned, double thetadot_planned,
                              double thetaddot_planned, double Kp, double Kd,
                              double theta, double thetadot,
                              double weight_thetaddot_error, double weight_f_Cb,
@@ -59,7 +57,6 @@ class PlanarBrickInstantaneousQP {
       const solvers::MathematicalProgramResult& result) const;
 
  private:
-  const multibody::MultibodyPlant<double>* plant_;
   std::unique_ptr<solvers::MathematicalProgram> prog_;
   Eigen::Matrix2d friction_cone_edges_;
   Vector2<symbolic::Variable> f_Cb_B_edges_;

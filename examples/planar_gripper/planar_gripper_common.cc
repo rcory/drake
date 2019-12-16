@@ -296,8 +296,8 @@ void PublishFramesToLcm(const std::string& channel_name,
 
 /// Publishes pre-defined body frames once.
 void PublishBodyFrames(systems::Context<double>& plant_context,
-                          multibody::MultibodyPlant<double>& plant,
-                          lcm::DrakeLcm &lcm) {
+                       const multibody::MultibodyPlant<double>& plant,
+                       lcm::DrakeLcm& lcm) {
   std::vector<std::string> body_names;
   std::vector<RigidTransformd> poses;
 
@@ -316,8 +316,8 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
 }
 
 /// A system that publishes frames at a specified period.
-FrameViz::FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
-                   double period, bool frames_input)
+FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
+                   lcm::DrakeLcm& lcm, double period, bool frames_input)
     : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
   this->DeclareVectorInputPort("x",
                                systems::BasicVector<double>(6 /* mbp state*/));

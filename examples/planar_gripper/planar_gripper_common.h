@@ -125,22 +125,22 @@ void PublishFramesToLcm(
 
 /// Publishes pre-defined body frames once.
 void PublishBodyFrames(systems::Context<double>& plant_context,
-                          multibody::MultibodyPlant<double>& plant,
-                          lcm::DrakeLcm &lcm);
+                       const multibody::MultibodyPlant<double>& plant,
+                       lcm::DrakeLcm& lcm);
 
 /// A system that publishes frames at a specified period.
  class FrameViz final : public systems::LeafSystem<double> {
   public:
    DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
 
-   FrameViz(multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
+   FrameViz(const multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
             double period, bool frames_input = false);
 
   private:
    systems::EventStatus PublishFramePose(
        const systems::Context<double>& context) const;
 
-   multibody::MultibodyPlant<double>& plant_;
+   const multibody::MultibodyPlant<double>& plant_;
    std::unique_ptr<systems::Context<double>> plant_context_;
    lcm::DrakeLcm& lcm_;
    bool frames_input_{false};

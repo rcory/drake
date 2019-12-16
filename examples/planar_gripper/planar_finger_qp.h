@@ -25,7 +25,6 @@ namespace planar_gripper {
 class PlanarFingerInstantaneousQP {
  public:
   /**
-   * @param plant The plant containing both the finger and the brick.
    * @param theta_planned The planned orientation of the brick.
    * @param thetadot_planned The planned angular velocity of the brick.
    * @param thetaddot_planned The planned angular acceleration of the brick.
@@ -48,9 +47,8 @@ class PlanarFingerInstantaneousQP {
    * @param damping The damping at the pin joint of the one-dof brick.
    */
   PlanarFingerInstantaneousQP(
-      const multibody::MultibodyPlant<double>* plant, double theta_planned,
-      double thetadot_planned, double thetaddot_planned, double Kp, double Kd,
-      double theta, double thetadot,
+      double theta_planned, double thetadot_planned, double thetaddot_planned,
+      double Kp, double Kd, double theta, double thetadot,
       const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
       double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
       double mu, double I_B, double finger_tip_radius, double damping);
@@ -68,7 +66,6 @@ class PlanarFingerInstantaneousQP {
       const solvers::MathematicalProgramResult& result) const;
 
  private:
-  const multibody::MultibodyPlant<double>* plant_;
   std::unique_ptr<solvers::MathematicalProgram> prog_;
   Eigen::Matrix2d friction_cone_edges_;
   Vector2<symbolic::Variable> f_Cb_B_edges_;

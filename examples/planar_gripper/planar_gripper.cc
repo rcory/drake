@@ -60,10 +60,11 @@ void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
       Eigen::AngleAxisd(M_PI_2, Vector3d::UnitY()),
       Vector3d(kSphereTipXOffset - (kFloorHeight / 2.0) +
           brick_floor_penetration_, 0, 0));
-  const Vector4<double> black(0.2, 0.2, 0.2, 1.0);
+//  const Vector4<double> black(0.2, 0.2, 0.2, 1.0);
+  const Vector4<double> white(0.8, 0.8, 0.8, 0.6);
   plant->RegisterVisualGeometry(plant->world_body(), X_WF,
                                 geometry::Cylinder(.125, kFloorHeight),
-                                "FloorVisualGeometry", black);
+                                "FloorVisualGeometry", white);
   plant->RegisterCollisionGeometry(
       plant->world_body(), X_WF, geometry::Cylinder(.125, kFloorHeight),
       "FloorCollisionGeometry", coef_friction_floor);
@@ -189,7 +190,17 @@ PlanarGripper::PlanarGripper(double time_step, bool use_position_control)
 }
 
 void PlanarGripper::SetupPlanarBrick(std::string orientation) {
-  Vector3d gravity;
+  SetupPlant(orientation, "drake/examples/planar_gripper/planar_brick.sdf");
+}
+
+void PlanarGripper::SetupPinBrick(std::string orientation) {
+  SetupPlant(orientation,
+             "drake/examples/planar_gripper/1dof_brick_updated.sdf");
+}
+
+void PlanarGripper::SetupPlant(std::string orientation,
+                               std::string brick_file_name) {
+  Vector3d gravity = Vector3d::Zero();
 
   // Make and add the planar_gripper model.
   const std::string full_name =
@@ -199,9 +210,9 @@ void PlanarGripper::SetupPlanarBrick(std::string orientation) {
   WeldGripperFrames<double>(plant_);
 
   // Adds the brick to be manipulated.
-  const std::string brick_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
-  brick_index_ = Parser(plant_).AddModelFromFile(brick_file_name, "brick");
+  const std::string brick_full_file_name =
+      FindResourceOrThrow(brick_file_name);
+  brick_index_ = Parser(plant_).AddModelFromFile(brick_full_file_name, "brick");
 
   // When the planar-gripper is welded via WeldGripperFrames(), motion always
   // lies in the world Y-Z plane (because the planar-gripper frame is aligned
@@ -239,8 +250,14 @@ void PlanarGripper::SetupPlanarBrick(std::string orientation) {
   is_plant_finalized_ = true;
 
   // Set the gravity field.
-  plant_->mutable_gravity_field().set_gravity_vector(gravity);
-  control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
+  if (zero_gravity_) {
+    plant_->mutable_gravity_field().set_gravity_vector(Vector3d::Zero());
+    control_plant_->mutable_gravity_field().set_gravity_vector(
+        Vector3d::Zero());
+  } else {
+    plant_->mutable_gravity_field().set_gravity_vector(gravity);
+    control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
+  }
 }
 
 void PlanarGripper::Finalize() {
@@ -280,6 +297,8 @@ void PlanarGripper::Finalize() {
     builder.ExportInput(plant_->get_actuation_input_port(), "actuation");
   }
 
+  builder.ExportOutput(plant_->get_state_output_port(),
+                       "plant_state");
   builder.ExportOutput(plant_->get_state_output_port(gripper_index_),
                        "gripper_state");
   builder.ExportOutput(plant_->get_state_output_port(brick_index_),
@@ -297,17 +316,21 @@ void PlanarGripper::Finalize() {
       builder.AddSystem<ForceSensorEvaluator>(*plant_);
   builder.Connect(plant_->get_reaction_forces_output_port(),
                   force_sensor_evaluator->get_input_port(0));
+
   builder.ExportOutput(force_sensor_evaluator->get_output_port(0),
                        "force_sensor");
-
   builder.ExportOutput(scene_graph_->get_pose_bundle_output_port(),
                        "pose_bundle");
-
   builder.ExportOutput(plant_->get_contact_results_output_port(),
                        "contact_results");
-
   builder.ExportOutput(plant_->get_geometry_poses_output_port(),
                        "geometry_poses");
+  // TODO(rcory) Remove this after controller uses force_sensor output, instead
+  //  of ForceDemuxer.
+  builder.ExportOutput(plant_->get_reaction_forces_output_port(),
+                       "reaction_forces");
+  builder.ExportOutput(scene_graph_->get_query_output_port(),
+                       "scene_graph_query");
 
   builder.BuildInto(this);
   is_diagram_finalized_ = true;
@@ -332,16 +355,24 @@ void PlanarGripper::SetBrickPosition(
   auto& plant_context =
       this->GetMutableSubsystemContext(*plant_, &diagram_context);
 
-  // Set the brick's initial conditions.
-  const PrismaticJoint<double>& y_translate =
-      plant_->GetJointByName<PrismaticJoint>("brick_translate_y_joint");
-  const PrismaticJoint<double>& z_translate =
-      plant_->GetJointByName<PrismaticJoint>("brick_translate_z_joint");
-  const RevoluteJoint<double>& x_revolute =
-      plant_->GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
-  y_translate.set_translation(&plant_context, q(0));
-  z_translate.set_translation(&plant_context, q(1));
-  x_revolute.set_angle(&plant_context, q(2));
+  if (q.size() == 3) {
+    // Set the planar brick's initial conditions.
+    const PrismaticJoint<double>& y_translate =
+        plant_->GetJointByName<PrismaticJoint>("brick_translate_y_joint");
+    const PrismaticJoint<double>& z_translate =
+        plant_->GetJointByName<PrismaticJoint>("brick_translate_z_joint");
+    const RevoluteJoint<double>& x_revolute =
+        plant_->GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
+    y_translate.set_translation(&plant_context, q(0));
+    z_translate.set_translation(&plant_context, q(1));
+    x_revolute.set_angle(&plant_context, q(2));
+  } else if (q.size() == 1) {
+    plant_->GetJointByName<RevoluteJoint>("brick_revolute_x_joint")
+        .set_angle(&plant_context, q(0));
+  } else {
+    throw std::logic_error("Brick can have either 3 or 1 positions.");
+  }
+
 }
 
 }  // namespace planar_gripper

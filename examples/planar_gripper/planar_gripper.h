@@ -15,6 +15,8 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
+using multibody::ModelInstanceIndex;
+
  class PlanarGripper : public systems::Diagram<double> {
   public:
    explicit PlanarGripper(double time_step = 1e-3,
@@ -24,6 +26,9 @@ namespace planar_gripper {
    // TODO(rcory) Rename this to something like
    //   SetupPlanarBrickPlantAndFinalize()
    void SetupPlanarBrick(std::string orientation);
+
+   // Sets up the 1-dof pin brick.
+   void SetupPinBrick(std::string orientation);
 
    // TODO(rcory) Rename this to something like FinalizeAndBuild()
    void Finalize();
@@ -102,7 +107,8 @@ namespace planar_gripper {
    /// @v must have size num_iiwa_joints().
    void SetGripperVelocity(systems::Context<double>* diagram_context,
                         const Eigen::Ref<const VectorX<double>>& v) const {
-     SetGripperVelocity(*diagram_context, &diagram_context->get_mutable_state(), v);
+     SetGripperVelocity(*diagram_context, &diagram_context->get_mutable_state(),
+                        v);
    }
 
    /// Convenience method for setting all of the joint angles of the brick.
@@ -118,7 +124,7 @@ namespace planar_gripper {
      if (is_plant_finalized_) {
        throw std::logic_error(
            "set_brick_floor_penetration must be called before "
-           "SetupPlanarBrick().");
+           "SetupPlanarBrick() or SetupPinBrick().");
      }
      brick_floor_penetration_ = value;
    }
@@ -127,7 +133,7 @@ namespace planar_gripper {
      if (is_plant_finalized_) {
        throw std::logic_error(
            "set_floor_ceof_static_friction must be called before "
-           "SetupPlanarBrick().");
+           "SetupPlanarBrick() or SetupPinBrick().");
      }
      floor_coef_static_friction_ = value;
    }
@@ -136,7 +142,7 @@ namespace planar_gripper {
      if (is_plant_finalized_) {
        throw std::logic_error(
            "set_floor_coef_kinetic_friction must be called before "
-           "SetupPlanarBrick().");
+           "SetupPlanarBrick() or SetupPinBrick().");
      }
      floor_coef_kinetic_friction_ = value;
    }
@@ -145,12 +151,40 @@ namespace planar_gripper {
      if (!is_plant_finalized_) {
        throw std::logic_error(
            "set_penetration_allowance must be called after "
-           "SetupPlanarBrick().");
+           "SetupPlanarBrick() or SetupPinBrick().");
      }
      plant_->set_penetration_allowance(value);
    }
 
+   void set_stiction_tolerance(double value) {
+     if (!is_plant_finalized_) {
+       throw std::logic_error(
+           "set_stiction_tolerance must be called after "
+           "SetupPlanarBrick() or SetupPinBrick().");
+     }
+     plant_->set_stiction_tolerance(value);
+   }
+
+   // Zero gravity always?
+   void zero_gravity(bool value) {
+     if (is_diagram_finalized_) {
+       throw std::logic_error(
+           "zero_gravity() must be called before Finalize().");
+     }
+     zero_gravity_ = value;
+   }
+
+   ModelInstanceIndex get_brick_index() {
+     return brick_index_;
+   }
+
+   ModelInstanceIndex get_planar_gripper_index() {
+     return gripper_index_;
+   }
+
   private:
+   void SetupPlant(std::string orientation, std::string brick_file_name);
+
    // These are only valid until Finalize() is called.
    std::unique_ptr<multibody::MultibodyPlant<double>> owned_plant_;
    std::unique_ptr<geometry::SceneGraph<double>> owned_scene_graph_;
@@ -163,13 +197,14 @@ namespace planar_gripper {
    bool is_plant_finalized_{false};
    bool is_diagram_finalized_{false};
 
-   multibody::ModelInstanceIndex gripper_index_;
-   multibody::ModelInstanceIndex brick_index_;
+   ModelInstanceIndex gripper_index_;
+   ModelInstanceIndex brick_index_;
 
    bool use_position_control_{true};
    double brick_floor_penetration_{0};  // For the vertical case.
    double floor_coef_static_friction_{0};
    double floor_coef_kinetic_friction_{0};
+   bool zero_gravity_{false};
  };
 
 

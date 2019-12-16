@@ -191,8 +191,8 @@ int do_main() {
   foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
 
-  auto force_controller =
-      builder.AddSystem<ForceController>(plant, scene_graph, foptions);
+  auto force_controller = builder.AddSystem<ForceController>(
+      plant, scene_graph, foptions, finger_index, brick_index);
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_finger_state_actual_input_port());
   builder.Connect(plant.get_state_output_port(brick_index),
@@ -209,12 +209,6 @@ int do_main() {
                   zoh_reaction_forces->get_input_port());
   builder.Connect(scene_graph.get_query_output_port(),
                   force_controller->get_geometry_query_input_port());
-
-  // aux debugging info
-  std::vector<int> sizes = {2, 2, 1}; // tau_des, f_des, ytip
-  auto demux = builder.AddSystem<systems::Demultiplexer<double>>(sizes);
-  builder.Connect(force_controller->get_torque_output_port(),
-                  demux->get_input_port(0));
 
   DrakeLcm lcm;
 
@@ -240,7 +234,7 @@ int do_main() {
                   force_controller->get_force_sensor_input_port());
 
   // Set the plant's actuation input.
-  builder.Connect(demux->get_output_port(0),
+  builder.Connect(force_controller->get_torque_output_port(),
                   plant.get_actuation_input_port(finger_index));
 
   // We don't regulate position for now (set these to zero).

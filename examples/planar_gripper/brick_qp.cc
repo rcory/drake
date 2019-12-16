@@ -8,14 +8,12 @@ namespace planar_gripper {
 const double kInf = std::numeric_limits<double>::infinity();
 
 PlanarBrickInstantaneousQP::PlanarBrickInstantaneousQP(
-    const multibody::MultibodyPlant<double>* brick, double theta_planned,
-    double thetadot_planned, double thetaddot_planned, double Kp, double Kd,
-    double theta, double thetadot, double weight_thetaddot_error,
-    double weight_f_Cb, BrickFace contact_face,
+    double theta_planned, double thetadot_planned, double thetaddot_planned,
+    double Kp, double Kd, double theta, double thetadot,
+    double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
     const Eigen::Ref<const Eigen::Vector2d>& p_BCb, double mu, double I_B,
     double damping)
-    : plant_{brick},
-      prog_{new solvers::MathematicalProgram()},
+    : prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
   prog_->AddBoundingBoxConstraint(0, kInf, f_Cb_B_edges_);
   switch (contact_face) {
@@ -110,10 +108,10 @@ void BrickInstantaneousQPController::CalcControl(
   const BrickFace contact_face =
       get_input_port_contact_face().Eval<BrickFace>(context);
 
-  PlanarBrickInstantaneousQP qp(brick_, state_d(0), state_d(1),
-                                thetaddot_planned(0), Kp_, Kd_, state(0),
-                                state(1), weight_thetaddot_, weight_f_Cb_B_,
-                                contact_face, p_BCb, mu_, I_B_, damping_);
+  PlanarBrickInstantaneousQP qp(state_d(0), state_d(1), thetaddot_planned(0),
+                                Kp_, Kd_, state(0), state(1), weight_thetaddot_,
+                                weight_f_Cb_B_, contact_face, p_BCb, mu_, I_B_,
+                                damping_);
   const auto qp_result = solvers::Solve(qp.prog());
   const Vector2<double> f_Cb_B = qp.GetContactForceResult(qp_result);
   const double cos_theta = std::cos(state(0));
