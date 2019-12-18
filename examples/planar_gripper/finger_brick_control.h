@@ -84,6 +84,10 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(contact_point_ref_accel_input_port_);
   }
 
+  const InputPort<double>& get_is_contact_input_port() const {
+    return this->get_input_port(is_contact_input_port_);
+  }
+
   /**
    * This port takes in the current finger tip sphere center (y, z) position in
    * the brick frame. Notice that we ignore the x position since it is a planar
@@ -108,6 +112,7 @@ class ForceController : public systems::LeafSystem<double> {
   std::unique_ptr<systems::Context<double>> plant_context_;
   InputPortIndex force_desired_input_port_{};
   InputPortIndex finger_state_actual_input_port_{};
+  InputPortIndex gripper_state_actual_input_port_{};
   InputPortIndex brick_state_actual_input_port_{};
   InputPortIndex tip_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
@@ -116,6 +121,7 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex geometry_query_input_port_{};
   InputPortIndex contact_point_ref_accel_input_port_{};
   InputPortIndex p_BrFingerTip_input_port_{};
+  InputPortIndex is_contact_input_port_{};
   OutputPortIndex torque_output_port_{};
   ModelInstanceIndex gripper_index_{};
   ModelInstanceIndex brick_index_{};
@@ -162,7 +168,8 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
 class PlantStateToFingerStateSelector : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlantStateToFingerStateSelector);
-  PlantStateToFingerStateSelector(const MultibodyPlant<double>& plant);
+  PlantStateToFingerStateSelector(const MultibodyPlant<double>& plant,
+                                  const int finger);
 
   void CalcOutput(const drake::systems::Context<double>& context,
                   drake::systems::BasicVector<double>* output) const;
@@ -176,12 +183,14 @@ class PlantStateToFingerStateSelector : public systems::LeafSystem<double> {
 /// is the output of GeneralizedForceToActuationOrdering(control_plant). The
 /// second input is a vector of actuation values for finger 3 given as:
 /// {f3_base_u, f3_mid_u}.
+// TODO(rcory) I should generalize this beyond just finger 3.
 /// This system has a single output port, which produces actuation
 /// values for the gripper/brick MBP (in the plant's actuator ordering).
 class FingersToPlantActuationMap : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersToPlantActuationMap);
-  FingersToPlantActuationMap(const MultibodyPlant<double>& plant);
+  FingersToPlantActuationMap(const MultibodyPlant<double>& plant,
+                             const int finger);
 
   void CalcOutput(const drake::systems::Context<double>& context,
                   drake::systems::BasicVector<double>* output) const;
@@ -189,6 +198,7 @@ class FingersToPlantActuationMap : public systems::LeafSystem<double> {
  private:
   MatrixX<double> actuation_selector_matrix_;
   MatrixX<double> actuation_selector_matrix_inv_;
+  const int finger_;
 };
 
 /// Creates the QP controller (finger/brick for now), and connects it to the

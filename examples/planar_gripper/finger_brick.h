@@ -30,6 +30,12 @@ geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph);
 
+multibody::BodyIndex GetBrickBodyIndex(
+    const multibody::MultibodyPlant<double>& plant);
+
+multibody::BodyIndex GetTipLinkBodyIndex(
+    const multibody::MultibodyPlant<double>& plant, const int finger);
+
 /// A system that computes the fingertip-sphere contact location in brick frame.
 class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:
@@ -39,6 +45,10 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
                            const geometry::SceneGraph<double>& scene_graph,
                            const int finger = 1);
+
+  void in_contact(
+      const drake::systems::Context<double>& context,
+      bool* is_in_contact) const;
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -62,7 +72,8 @@ class ForceDemuxer final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceDemuxer)
 
-  ForceDemuxer(const multibody::MultibodyPlant<double>& plant);
+  ForceDemuxer(const multibody::MultibodyPlant<double>& plant,
+               const int finger);
 
   void SetContactResultsForceOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -99,6 +110,7 @@ class ForceDemuxer final : public systems::LeafSystem<double> {
   systems::InputPortIndex state_input_port_{};
   systems::OutputPortIndex contact_results_vec_output_port_{};
   systems::OutputPortIndex reaction_forces_vec_output_port_{};
+  const int finger_;  /* the finger to control */
 };
 
 }  // namespace planar_gripper

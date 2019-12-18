@@ -28,10 +28,10 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
   // The finger base links are all welded a fixed distance from the gripper
   // frame's origin (Go), lying on the the gripper frame's Y-Z plane. We denote
   // The gripper frame's Y and Z axes as Gy and Gz.
-  const double kGripperOriginToBaseDistance = 0.201;
+  const double kGripperOriginToBaseDistance = 0.19;
   const double kFinger1Angle = M_PI / 3.0;
   const double kFinger2Angle = -M_PI / 3.0;
-  const double kFinger3Angle = M_PI;
+  const double kFinger3Angle = M_PI * 0;
 
   // Note: Before welding and with all finger joint angles being zero, all
   // finger base links sit at the world origin with the finger pointing along
@@ -304,6 +304,12 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
   // list the body names that we want to visualize.
   body_names.push_back("brick_link");
   body_names.push_back("finger1_base");
+  if (plant.HasBodyNamed("finger2_base")) {
+    body_names.push_back("finger2_base");
+  }
+  if (plant.HasBodyNamed("finger3_base")) {
+    body_names.push_back("finger3_base");
+  }
 
   for (size_t i = 0; i < body_names.size(); i++) {
     auto& body = plant.GetBodyByName(body_names[i]);
@@ -319,8 +325,9 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
 FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
                    lcm::DrakeLcm& lcm, double period, bool frames_input)
     : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
-  this->DeclareVectorInputPort("x",
-                               systems::BasicVector<double>(6 /* mbp state*/));
+  this->DeclareVectorInputPort(
+      "x", systems::BasicVector<double>(plant.num_positions() +
+                                        plant.num_velocities() /* mbp state*/));
   // if true, then we create an additional input port which takes arbitrary
   // frames to visualize (a vector of type RigidTransform).
   if (frames_input_) {

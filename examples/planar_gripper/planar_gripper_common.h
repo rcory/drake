@@ -16,7 +16,8 @@ using drake::multibody::MultibodyPlant;
 using Eigen::Vector3d;
 
 constexpr int kNumFingers = 3;
-constexpr int kNumJoints = kNumFingers * 2;
+constexpr int kNumJointsPerFinger = 2;
+constexpr int kNumJoints = kNumFingers * kNumJointsPerFinger;
 
 // The planar-gripper coordinate frame G (with origin Go) and finger layout are
 // defined as follows (assuming all finger joint angles are set to zero):

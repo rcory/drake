@@ -132,7 +132,7 @@ int do_main() {
   auto object_file_name =
       FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
   auto brick_index =
-      Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
+      Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "brick");
   const multibody::Frame<double>& brick_base_frame =
       plant.GetFrameByName("brick_base_link", brick_index);
   plant.WeldFrames(plant.world_frame(), brick_base_frame);
@@ -180,6 +180,7 @@ int do_main() {
       1e-3, plant.num_velocities());
 
   // Setup the force controller.
+  const int kFingerToControl = 1;
   ForceControlOptions foptions;
   foptions.kfy_ = FLAGS_kfy;
   foptions.kfz_ = FLAGS_kfz;
@@ -193,10 +194,12 @@ int do_main() {
   foptions.brick_damping_ = brick_damping;
   foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
-  foptions.finger_to_control_ = 1;
+  foptions.finger_to_control_ = kFingerToControl;
 
   auto force_controller = builder.AddSystem<ForceController>(
       plant, scene_graph, foptions, finger_index, brick_index);
+  builder.Connect(plant.get_state_output_port(finger_index),
+                  force_controller->GetInputPort("gripper_x_act"));
   builder.Connect(plant.get_state_output_port(finger_index),
                   force_controller->get_finger_state_actual_input_port());
   builder.Connect(plant.get_state_output_port(brick_index),
@@ -211,14 +214,13 @@ int do_main() {
                   force_controller->get_accelerations_actual_input_port());
   builder.Connect(plant.get_reaction_forces_output_port(),
                   zoh_reaction_forces->get_input_port());
-  builder.Connect(scene_graph.get_query_output_port(),
-                  force_controller->get_geometry_query_input_port());
 
   DrakeLcm lcm;
 
   // Here we output the contact results forces as well as the force sensor weld
   // joint reaction forces to the LCM scope.
-  auto force_demux_sys = builder.AddSystem<ForceDemuxer>(plant);
+  auto force_demux_sys =
+      builder.AddSystem<ForceDemuxer>(plant, kFingerToControl);
   builder.Connect(zoh_contact_results->get_output_port(),
                   force_demux_sys->get_contact_results_input_port());
   builder.Connect(zoh_reaction_forces->get_output_port(),
@@ -315,7 +317,8 @@ int do_main() {
   plant.SetVelocities(&plant_context, brick_index,
                       Vector1d(FLAGS_brick_thetadot0));
 
-  PrintJointOrdering(plant);
+//  PrintJointOrdering(plant);
+  unused(PrintJointOrdering);
 
   math::RigidTransformd goal_frame;
   goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));

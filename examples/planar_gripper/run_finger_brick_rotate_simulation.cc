@@ -21,6 +21,7 @@
 #include "drake/examples/planar_gripper/finger_brick_control.h"
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
@@ -48,7 +49,7 @@ DEFINE_double(floor_coef_static_friction, 0 /*0.5*/,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0 /*0.5*/,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 1e-5,
+DEFINE_double(brick_floor_penetration, 0 /* 1e-5 */,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -131,7 +132,6 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
       .default_rotational_inertia()
       .get_moments()(0);
 
-  // Connect the force controller
   auto zoh_contact_results = builder->AddSystem<systems::ZeroOrderHold<double>>(
   1e-3, Value<ContactResults<double>>());
 
@@ -145,6 +145,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
 //      1e-3, plant.num_velocities());
 
   // Setup the force controller.
+  const int kFingerToControl = 3;
   ForceControlOptions foptions;
   foptions.kfy_ = FLAGS_kfy;
   foptions.kfz_ = FLAGS_kfz;
@@ -158,18 +159,21 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   foptions.brick_damping_ = brick_damping;
   foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
-  foptions.finger_to_control_ = 3;
+  foptions.finger_to_control_ = kFingerToControl;
 
+  // Connect the force controller
   auto force_controller = builder->AddSystem<ForceController>(
       plant, scene_graph, foptions, planar_gripper.get_planar_gripper_index(),
       planar_gripper.get_brick_index());
   auto plant_to_finger_state_sel =
       builder->AddSystem<PlantStateToFingerStateSelector>(
-          planar_gripper.get_multibody_plant());
+          planar_gripper.get_multibody_plant(), kFingerToControl);
   builder->Connect(planar_gripper.GetOutputPort("plant_state"),
                    plant_to_finger_state_sel->GetInputPort("plant_state"));
-  builder->Connect(plant_to_finger_state_sel->GetOutputPort("finger3_state"),
+  builder->Connect(plant_to_finger_state_sel->GetOutputPort("finger_state"),
                    force_controller->get_finger_state_actual_input_port());
+  builder->Connect(planar_gripper.GetOutputPort("gripper_state"),
+                   force_controller->GetInputPort("gripper_x_act"));
   // TODO(rcory) Make sure we are passing in the proper gripper state, once
   //  horizontal with gravity on is supported (due to additional "x" prismatic
   //  joint).
@@ -193,12 +197,11 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
 
   builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
                   zoh_reaction_forces->get_input_port());
-  builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
-                  force_controller->get_geometry_query_input_port());
+//  builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
+//                  force_controller->get_geometry_query_input_port());
 
-  // Here we output the contact results forces as well as the force sensor weld
-  // joint reaction forces to the LCM scope.
-  auto force_demux_sys = builder->AddSystem<ForceDemuxer>(plant);
+  auto force_demux_sys =
+      builder->AddSystem<ForceDemuxer>(plant, kFingerToControl);
   builder->Connect(zoh_contact_results->get_output_port(),
                    force_demux_sys->get_contact_results_input_port());
   builder->Connect(zoh_reaction_forces->get_output_port(),
@@ -213,16 +216,22 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
 
   // Set the plant's actuation input.
   auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
-      planar_gripper.get_control_plant());
-  auto zero_u_src =
+      planar_gripper.get_control_plant(), kFingerToControl);
+  auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
       builder->AddSystem<systems::ConstantVectorSource<double>>(
           VectorX<double>::Zero(6));
   builder->Connect(zero_u_src->get_output_port(),
                    fingers_to_plant->GetInputPort("u_in"));  /* 6x1 of zeros */
   builder->Connect(force_controller->get_torque_output_port(),
-                   fingers_to_plant->GetInputPort("u_f3"));
+                   fingers_to_plant->GetInputPort("u_fn"));
   builder->Connect(fingers_to_plant->GetOutputPort("u_out"),
                    planar_gripper.GetInputPort("actuation"));
+
+  // Connect to the scope.
+  systems::lcm::ConnectLcmScope(fingers_to_plant->GetOutputPort("u_out"),
+                                "ACTUATION_OUTPUT", builder, &lcm);
+  systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
+                                "TORQUE_OUTPUT", builder, &lcm);
 
   // We don't regulate position for now (set these to zero).
   // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
@@ -256,6 +265,10 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);
   builder->Connect(planar_gripper.GetOutputPort("plant_state"),
                    frame_viz->get_input_port(0));
+
+  math::RigidTransformd goal_frame;
+  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &lcm);
 }
 
 int DoMain() {
@@ -334,13 +347,12 @@ int DoMain() {
 
   auto diagram = builder.Build();
 
-  // Set the intial conditions for the planar-gripper.
+  // Set the initial conditions for the planar-gripper.
   std::map<std::string, double> init_gripper_pos_map;
-  std::map<std::string, double> init_brick_2D_pose_G_map;
-  init_gripper_pos_map["finger1_BaseJoint"] = 0.7;
-  init_gripper_pos_map["finger1_MidJoint"] = 0.7;
-  init_gripper_pos_map["finger2_BaseJoint"] = -0.7;
-  init_gripper_pos_map["finger2_MidJoint"] = -0.7;
+  init_gripper_pos_map["finger1_BaseJoint"] = -0.7;
+  init_gripper_pos_map["finger1_MidJoint"] = -0.7;
+  init_gripper_pos_map["finger2_BaseJoint"] = 0.7;
+  init_gripper_pos_map["finger2_MidJoint"] = 0.7;
   init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_j1;
   init_gripper_pos_map["finger3_MidJoint"] = FLAGS_j2;
 

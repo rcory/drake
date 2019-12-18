@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <sdf xmlns:xacro="http://www.ros.org/wiki/xacro" version='1.6'>
-  <model name='planar_finger'>
+  <model name='planar_gripper'>
 
     <!-- Link mass and inertia values are guessed, calculated using a
          uniform rod model, rotating about its center of mass. -->
