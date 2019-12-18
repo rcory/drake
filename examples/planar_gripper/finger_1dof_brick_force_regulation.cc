@@ -193,6 +193,7 @@ int do_main() {
   foptions.brick_damping_ = brick_damping;
   foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
+  foptions.finger_to_control_ = 1;
 
   auto force_controller = builder.AddSystem<ForceController>(
       plant, scene_graph, foptions, finger_index, brick_index);
@@ -303,9 +304,9 @@ int do_main() {
   VectorX<double> finger_initial_conditions = VectorX<double>::Zero(4);
   finger_initial_conditions << FLAGS_j1, FLAGS_j2, 0, 0;
   const RevoluteJoint<double>& sh_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_BaseJoint");
+      plant.GetJointByName<RevoluteJoint>("finger1_BaseJoint");
   const RevoluteJoint<double>& el_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_MidJoint");
+      plant.GetJointByName<RevoluteJoint>("finger1_MidJoint");
   sh_pin1.set_angle(&plant_context, finger_initial_conditions(0));
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
 

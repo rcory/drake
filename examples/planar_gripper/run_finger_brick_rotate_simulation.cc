@@ -158,6 +158,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   foptions.brick_damping_ = brick_damping;
   foptions.brick_inertia_ = brick_inertia;
   foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
+  foptions.finger_to_control_ = 3;
 
   auto force_controller = builder->AddSystem<ForceController>(
       plant, scene_graph, foptions, planar_gripper.get_planar_gripper_index(),

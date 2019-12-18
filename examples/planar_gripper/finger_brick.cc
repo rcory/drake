@@ -21,7 +21,7 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double z_offset) {
   X_WF = X_WF * math::RigidTransformd(
       Eigen::Vector3d(0, 0, kOriginToBaseDistance + z_offset));
   const multibody::Frame<T>& finger_base_frame =
-      plant->GetFrameByName("finger_base");
+      plant->GetFrameByName("finger1_base");
   plant->WeldFrames(plant->world_frame(), finger_base_frame, X_WF);
 }
 
@@ -43,42 +43,43 @@ geometry::GeometryId GetBrickGeometryId(
 
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph) {
+    const geometry::SceneGraph<double>& scene_graph, const int finger) {
+  std::string fnum = std::to_string(finger);
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
       inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("finger_tip_link").index()),
+              plant.GetBodyByName("finger" + fnum + "_tip_link").index()),
           geometry::Role::kProximity, "planar_finger::tip_sphere_collision");
   return finger_tip_geometry_id;
 }
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph) {
+    const geometry::SceneGraph<double>& scene_graph, const int finger) {
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph);
+      GetFingerTipGeometryId(plant, scene_graph, finger);
   Eigen::Vector3d p_LtTip =  // position of sphere center in tip-link frame
       inspector.GetPoseInFrame(finger_tip_geometry_id).translation();
   return p_LtTip;
 }
 
-double GetFingerTipSphereRadius(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph) {
-  const geometry::SceneGraphInspector<double>& inspector =
-      scene_graph.model_inspector();
-  const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph);
-  const geometry::Shape& fingertip_shape =
-      inspector.GetShape(finger_tip_geometry_id);
-  double finger_tip_radius =
-      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
-  return finger_tip_radius;
-}
+//double GetFingerTipSphereRadius(
+//    const multibody::MultibodyPlant<double>& plant,
+//    const geometry::SceneGraph<double>& scene_graph) {
+//  const geometry::SceneGraphInspector<double>& inspector =
+//      scene_graph.model_inspector();
+//  const geometry::GeometryId finger_tip_geometry_id =
+//      GetFingerTipGeometryId(plant, scene_graph);
+//  const geometry::Shape& fingertip_shape =
+//      inspector.GetShape(finger_tip_geometry_id);
+//  double finger_tip_radius =
+//      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
+//  return finger_tip_radius;
+//}
 
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph) {
@@ -101,14 +102,16 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 /// center.
 ContactPointInBrickFrame::ContactPointInBrickFrame(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph)
+    const geometry::SceneGraph<double>& scene_graph, const int finger)
     : plant_(plant),
       scene_graph_(scene_graph),
-      plant_context_(plant.CreateDefaultContext()) {
+      plant_context_(plant.CreateDefaultContext()),
+      finger_(finger) {
   this->DeclareAbstractInputPort("contact_results",
                                  Value<ContactResults<double>>{});
-  this->DeclareVectorInputPort("x",
-                               systems::BasicVector<double>(6 /* state */));
+  this->DeclareVectorInputPort(
+      "x", systems::BasicVector<double>(plant.num_positions() +
+                                        plant.num_velocities() /* state */));
   this->DeclareVectorOutputPort("p_BCb",
                                 systems::BasicVector<double>(2 /* {y,z} */),
                                 &ContactPointInBrickFrame::CalcOutput);
@@ -129,8 +132,9 @@ void ContactPointInBrickFrame::CalcOutput(
       this->get_input_port(0).Eval<ContactResults<double>>(context);
 
   auto state = this->EvalVectorInput(context, 1)->get_value();
-  plant_.SetPositions(plant_context_.get(), state.head(3));
-  plant_.SetVelocities(plant_context_.get(), state.tail(3));
+  plant_.SetPositions(plant_context_.get(), state.head(plant_.num_positions()));
+  plant_.SetVelocities(plant_context_.get(),
+                       state.tail(plant_.num_velocities()));
 
   // The geometry query object to be used for impedance control (determines
   // closest points between fingertip and brick).
@@ -153,6 +157,7 @@ void ContactPointInBrickFrame::CalcOutput(
   // results gives the contact location in world frame, which we need to convert
   // to brick frame.
   if (contact_results.num_point_pair_contacts() > 0) {
+    // For this task, we should only have a single contact (fingertip/brick).
     DRAKE_DEMAND(contact_results.num_point_pair_contacts() == 1);
     Eigen::Vector3d result;
     auto p_WCb =
@@ -168,7 +173,7 @@ void ContactPointInBrickFrame::CalcOutput(
 
     geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
     geometry::GeometryId ftip_id =
-        GetFingerTipGeometryId(plant_, scene_graph_);
+        GetFingerTipGeometryId(plant_, scene_graph_, finger_);
 
     // Find the pair that contains the brick geometry.
     int pairs_index;
@@ -265,7 +270,7 @@ void ForceDemuxer::SetReactionForcesOutput(
           .Eval<std::vector<multibody::SpatialForce<double>>>(context);
 
   const multibody::WeldJoint<double>& sensor_joint =
-      plant_.GetJointByName<multibody::WeldJoint>("finger_sensor_weldjoint");
+      plant_.GetJointByName<multibody::WeldJoint>("finger1_sensor_weldjoint");
   auto sensor_joint_index = sensor_joint.index();
 
   // Get rotation of child link `tip_link' in the world frame, i.e., R_WC

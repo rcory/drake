@@ -30,10 +30,11 @@ struct ForceControlOptions{
   double brick_damping_{0};  // brick pin joint damping
   double brick_inertia_{0};  // brick's rotational inertia
   bool always_direct_force_control_{true};  // false for impedance control during non-contact
+  int finger_to_control_{1};  // specifies which finger to control.
 };
 
 // Force controller with pure gravity compensation (no dynamics compensation
-// yet). Regulates position in z, and force in y.
+// yet).
 // TODO(rcory) Should this class inherit from
 //  systems::controllers::StateFeedbackControllerInterface?
 class ForceController : public systems::LeafSystem<double> {
@@ -42,6 +43,10 @@ class ForceController : public systems::LeafSystem<double> {
                   const SceneGraph<double>& scene_graph,
                   ForceControlOptions options, ModelInstanceIndex gripper_index,
                   ModelInstanceIndex brick_index);
+
+  ForceControlOptions get_options() const {
+    return options_;
+  }
 
   const InputPort<double>& get_force_desired_input_port() const {
     return this->get_input_port(force_desired_input_port_);

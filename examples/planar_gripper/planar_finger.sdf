@@ -5,7 +5,7 @@
 <!-- =================================================================================== -->
 <sdf version="1.6" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <model name="planar_finger">
-    <link name="finger_base">
+    <link name="finger1_base">
       <visual name="base_visual">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
@@ -18,7 +18,7 @@
         </material>
       </visual>
     </link>
-    <link name="finger_link1">
+    <link name="finger1_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
         <pose>0 0 -0.0425 0 0 0</pose>
@@ -56,9 +56,9 @@
         </material>
       </visual>
     </link>
-    <joint name="finger_BaseJoint" type="revolute">
-      <child>finger_link1</child>
-      <parent>finger_base</parent>
+    <joint name="finger1_BaseJoint" type="revolute">
+      <child>finger1_link1</child>
+      <parent>finger1_base</parent>
       <axis>
         <xyz>1 0 0</xyz>
         <limit>
@@ -73,7 +73,7 @@
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
-    <link name="finger_link2">
+    <link name="finger1_link2">
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
@@ -102,18 +102,18 @@
       </visual>
       <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-<!--      <collision name="link2_collision">-->
-<!--        <pose>0 0 -0.0299 0 0 0</pose>-->
-<!--        <geometry>-->
-<!--          <cylinder>-->
-<!--            <length>0.0598</length>-->
-<!--            <radius>0.011</radius>-->
-<!--          </cylinder>-->
-<!--        </geometry>-->
-<!--        <material>-->
-<!--          <diffuse>1 0 1 1</diffuse>-->
-<!--        </material>-->
-<!--      </collision>-->
+      <collision name="link2_collision">
+        <pose>0 0 -0.0299 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.0598</length>
+            <radius>0.011</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>1 0 1 1</diffuse>
+        </material>
+      </collision>
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
         <geometry>
@@ -126,9 +126,9 @@
         </material>
       </visual>
     </link>
-    <joint name="finger_MidJoint" type="revolute">
-      <parent>finger_link1</parent>
-      <child>finger_link2</child>
+    <joint name="finger1_MidJoint" type="revolute">
+      <parent>finger1_link1</parent>
+      <child>finger1_link2</child>
       <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <pose>0 0 0 0 0 0</pose>
       <axis>
@@ -144,7 +144,7 @@
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
-    <link name="finger_tip_link">
+    <link name="finger1_tip_link">
       <pose>0 0 -0.13 0 0 0</pose>
       <inertial>
         <pose>0 0 -0.0074 0 0 0</pose>
@@ -205,9 +205,9 @@
         </material>
       </collision>
     </link>
-    <joint name="finger_sensor_weldjoint" type="fixed">
-      <parent>finger_link2</parent>
-      <child>finger_tip_link</child>
+    <joint name="finger1_sensor_weldjoint" type="fixed">
+      <parent>finger1_link2</parent>
+      <child>finger1_tip_link</child>
       <pose>0 0 0 0 0 0</pose>
     </joint>
   </model>

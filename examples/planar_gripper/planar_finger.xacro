@@ -32,7 +32,7 @@
     <xacro:property name="tip_sphere_radius" value="0.015" />
 
     <xacro:macro name="finger" params="fnum">
-      <link name="finger_base">
+      <link name="finger${fnum}_base">
         <visual name='base_visual'>
           <pose>0 0 0 0 0 0</pose>
           <geometry>
@@ -45,7 +45,7 @@
           </material>
         </visual>
       </link>
-      <link name="finger_link1">
+      <link name="finger${fnum}_link1">
         <pose>0 0 0 0 0 0</pose>
         <inertial>
           <pose>0 0 -${l1_length/2} 0 0 0</pose>
@@ -83,9 +83,9 @@
           </material>
         </visual>
       </link>
-      <joint name='finger_BaseJoint' type='revolute'>
-        <child>finger_link1</child>
-        <parent>finger_base</parent>
+      <joint name='finger${fnum}_BaseJoint' type='revolute'>
+        <child>finger${fnum}_link1</child>
+        <parent>finger${fnum}_base</parent>
         <axis>
           <xyz>1 0 0</xyz>
           <limit>
@@ -100,7 +100,7 @@
           <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
       </joint>
-      <link name="finger_link2">
+      <link name="finger${fnum}_link2">
         <!-- The origin of the link2 frame is located at the MidJoint. -->
         <pose>0 0 -${l1_length} 0 0 0</pose>
         <inertial>
@@ -153,9 +153,9 @@
           </material>
         </visual>
       </link>
-      <joint name='finger_MidJoint' type='revolute'>
-        <parent>finger_link1</parent>
-        <child>finger_link2</child>
+      <joint name='finger${fnum}_MidJoint' type='revolute'>
+        <parent>finger${fnum}_link1</parent>
+        <child>finger${fnum}_link2</child>
         <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
         <pose>0 0 0 0 0 0</pose>
         <axis>
@@ -171,7 +171,7 @@
           <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
       </joint>
-      <link name="finger_tip_link">
+      <link name="finger${fnum}_tip_link">
         <pose>0 0 -${l1_length + l2_length + sensor_length} 0 0 0</pose>
         <inertial>
           <pose>0 0 -${(tip_adapter_length + tip_cylinder_length)/2} 0 0 0</pose>
@@ -228,9 +228,9 @@
           </material>
         </collision>
       </link>
-      <joint name='finger_sensor_weldjoint' type='fixed'>
-        <parent>finger_link2</parent>
-        <child>finger_tip_link</child>
+      <joint name='finger${fnum}_sensor_weldjoint' type='fixed'>
+        <parent>finger${fnum}_link2</parent>
+        <child>finger${fnum}_tip_link</child>
         <pose>0 0 0 0 0 0</pose>
       </joint>
     </xacro:macro>

@@ -1,3 +1,11 @@
+/* This demo is no longer tuned to best performance. Needs some more TLC after
+ * converting finger models to represent the real inertias.
+ * TODO(rcory) Refactor this demo to use the stock ForceController available in
+ *  finger_brick_control.cc, and to use planar_gripper.sdf instead of
+ *  planar_finger.sdf
+ *
+ */
+
 #include <memory>
 
 #include <gflags/gflags.h>
@@ -47,7 +55,7 @@ using systems::InputPort;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 8.0,
+DEFINE_double(simulation_time, 10.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-4,
             "If greater than zero, the plant is modeled as a system with "
@@ -60,10 +68,13 @@ DEFINE_bool(use_brick, false,
 DEFINE_double(penetration_allowance, 0.005, "Penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(fz, -5.0, "Desired end effector force");
-DEFINE_double(Kd, 0.3, "joint damping Kd");
+DEFINE_double(Kd, 15, "joint damping Kd");
 
 DEFINE_double(j1, -0.7, "Joint 1 initial angle.");
-DEFINE_double(j2, 0.8667, "Joint 2 initial angle.");
+DEFINE_double(j2, 1.05, "Joint 2 initial angle.");
+
+DEFINE_double(kfz, 400, "Force control gain in +z.");
+DEFINE_double(kpy, 50e3, "Position control gain in +y.");
 
 template<typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
@@ -78,7 +89,7 @@ void WeldFingerFrame(multibody::MultibodyPlant<T> *plant) {
                               Eigen::Vector3d::Zero());
   X_PC1 = X_PC1 * XT;
   const multibody::Frame<T> &finger1_base_frame =
-      plant->GetFrameByName("finger_base");
+      plant->GetFrameByName("finger1_base");
   plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_PC1);
 }
 
@@ -178,9 +189,9 @@ class ForceController : public systems::LeafSystem<double> {
     // Compute the jacobian.
     Eigen::Matrix<double, 6, 2> Jv_V_WFtip(6, 2);
     const multibody::Frame<double>& l2_frame =
-        plant_.GetBodyByName("finger_link2").body_frame();
+        plant_.GetBodyByName("finger1_link2").body_frame();
     const multibody::Frame<double>& base_frame =
-        plant_.GetBodyByName("finger_base").body_frame();        
+        plant_.GetBodyByName("finger1_base").body_frame();
     const Vector3<double> p_L2Ftip(0, 0, -0.086);
     plant_.CalcJacobianSpatialVelocity(
         *plant_context_, multibody::JacobianWrtVariable::kV, l2_frame, p_L2Ftip,
@@ -193,14 +204,14 @@ class ForceController : public systems::LeafSystem<double> {
 
     // Get the fingertip position
     const multibody::Frame<double>& L2_frame =
-        plant_.GetBodyByName("finger_link2").body_frame();
+        plant_.GetBodyByName("finger1_link2").body_frame();
     Eigen::Vector3d p_WFtip(0, 0, 0);
     plant_.CalcPointsPositions(*plant_context_, L2_frame, p_L2Ftip,
                                plant_.world_frame(), &p_WFtip);
 
     // Force control gains.
     Eigen::Matrix<double, 2, 2> Kf(2,2);
-    Kf << 0, 0, 0, 10;  // Gain only on z component (y regulates position)
+    Kf << 0, 0, 0, FLAGS_kfz;  // Gain only on z component (y regulates position)
 
     // Regulate force in z (in world frame)
     auto delta_f = force_des - force_act;
@@ -213,7 +224,7 @@ class ForceController : public systems::LeafSystem<double> {
     auto delta_vel =
         tip_state_desired.tail<2>() - tip_velocity_actual.head<2>();
     Eigen::Matrix<double, 2, 2> Kp_pos(2,2), Kd_pos(2,2);
-    Kp_pos << 5e3, 0, 0, 0;  // position control only in y
+    Kp_pos << FLAGS_kpy, 0, 0, 0;  // position control only in y
     Kd_pos << 0, 0, 0, 0;  // already lots of damping
     auto fy_command = Kp_pos * delta_pos + Kd_pos * delta_vel;
 
@@ -367,9 +378,9 @@ int do_main() {
 
   // Finger 1
   const RevoluteJoint<double>& sh_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_BaseJoint");
+      plant.GetJointByName<RevoluteJoint>("finger1_BaseJoint");
   const RevoluteJoint<double>& el_pin1 =
-      plant.GetJointByName<RevoluteJoint>("finger_MidJoint");
+      plant.GetJointByName<RevoluteJoint>("finger1_MidJoint");
   sh_pin1.set_angle(&plant_context, finger_initial_conditions(0));
   el_pin1.set_angle(&plant_context, finger_initial_conditions(1));
   sh_pin1.set_angular_rate(&plant_context, finger_initial_conditions(2));
@@ -378,7 +389,7 @@ int do_main() {
   // Set the brick's initial condition.
   if (FLAGS_use_brick) {
     const RevoluteJoint<double> &box_pin =
-        plant.GetJointByName<RevoluteJoint>("box_pin_joint");
+        plant.GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
     box_pin.set_angle(&plant_context, 0);
   }
 

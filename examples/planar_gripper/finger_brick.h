@@ -13,18 +13,18 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double x_offset = 0);
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph);
+    const geometry::SceneGraph<double>& scene_graph, const int finger);
 
-double GetFingerTipSphereRadius(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph);
+//double GetFingerTipSphereRadius(
+//    const multibody::MultibodyPlant<double>& plant,
+//    const geometry::SceneGraph<double>& scene_graph);
 
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph);
 
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph);
+    const geometry::SceneGraph<double>& scene_graph, const int finger);
 
 geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,
@@ -35,8 +35,10 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
+  // TODO(rcory) replace finger with Enum
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
-                           const geometry::SceneGraph<double>& scene_graph);
+                           const geometry::SceneGraph<double>& scene_graph,
+                           const int finger = 1);
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -50,6 +52,7 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   const geometry::SceneGraph<double>& scene_graph_;
   std::unique_ptr<systems::Context<double>> plant_context_;
   systems::InputPortIndex geometry_query_input_port_{};
+  const int finger_{1};  /* the finger to control */
 };
 
 /// A system that outputs the force vector portion of ContactResults as

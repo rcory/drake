@@ -118,6 +118,9 @@ void ForceController::CalcTauOutput(
   auto output_calc = output_vector->get_mutable_value();
   output_calc.setZero();
 
+  // The finger to control.
+  std::string fnum = std::to_string(options_.finger_to_control_);
+
   // Run through the port evaluations.
   auto external_spatial_forces_vec =
       get_force_desired_input_port()
@@ -158,7 +161,7 @@ void ForceController::CalcTauOutput(
   const auto& contact_results =
       get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
-  Eigen::Vector3d force_sensor_vec =
+  Eigen::Vector3d force_sensor_vec_W =
       this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
 
   // Get the plant vdot for dynamics inverse dynamics.
@@ -176,10 +179,10 @@ void ForceController::CalcTauOutput(
 
   // Define some important frames.
   const multibody::Frame<double>& tip_link_frame =
-      plant_.GetBodyByName("finger_tip_link").body_frame();
+      plant_.GetBodyByName("finger" + fnum + "_tip_link").body_frame();
 
   const multibody::Frame<double>& base_frame =
-      plant_.GetBodyByName("finger_base").body_frame();
+      plant_.GetBodyByName("finger" + fnum + "_base").body_frame();
 
   const multibody::Frame<double>& brick_frame =
       plant_.GetBodyByName("brick_link").body_frame();
@@ -225,7 +228,8 @@ void ForceController::CalcTauOutput(
                                tip_link_frame, &p_LtFTip);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
-    p_LtFTip = GetFingerTipSpherePositionInLt(plant_, scene_graph_);
+    p_LtFTip = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
+                                              options_.finger_to_control_);
     plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtFTip,
                                plant_.world_frame(), &p_WC);
   }
@@ -246,9 +250,9 @@ void ForceController::CalcTauOutput(
   // Extract the 6 x 2 Jacobian that corresponds to fingers only (ignore the
   // brick).
   int j1_index = static_cast<int>(
-      plant_.GetJointByName("finger_BaseJoint").velocity_start());
+      plant_.GetJointByName("finger" + fnum + "_BaseJoint").velocity_start());
   int j2_index = static_cast<int>(
-      plant_.GetJointByName("finger_MidJoint").velocity_start());
+      plant_.GetJointByName("finger" + fnum + "_MidJoint").velocity_start());
   Eigen::Matrix<double, 6, 2> Jtemp(6, 2);
   Jtemp.block<6, 1>(0, 0) = Jv_V_BaseFtip.block<6, 1>(0, j1_index);
   Jtemp.block<6, 1>(0, 1) = Jv_V_BaseFtip.block<6, 1>(0, j2_index);
@@ -328,13 +332,6 @@ void ForceController::CalcTauOutput(
     // the Jacobian.
     Eigen::Vector3d force_des_Br = R_BrW * force_des_W;
 
-    Eigen::Vector3d force_sim_W = force_sensor_vec;
-    // assume only zero or one contact is possible.
-//    if (contact_results.num_point_pair_contacts() > 0) {
-//      auto contact_info = contact_results.point_pair_contact_info(0);
-//      force_sim_W = contact_info.contact_force();
-//    }
-
     // Force control gains. Allow force control in both (brick frame) y and z.
     Eigen::Matrix<double, 3, 3> Kf(3, 3);
     Kf << 0, 0, 0,  /* don't care about x */
@@ -342,7 +339,7 @@ void ForceController::CalcTauOutput(
         0, 0, options_.kfz_;
 
     // Rotate the force reported by simulation to brick frame.
-    Eigen::Vector3d force_act_Br = R_BrW * force_sim_W;
+    Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
 
     // Regulate force (in brick frame)
     Eigen::Vector3d delta_f_Br = force_des_Br - force_act_Br;
@@ -585,7 +582,7 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
 
     // Adds system to calculate fingertip contact.
     auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
-        plant, scene_graph);
+        plant, scene_graph, force_controller.get_options().finger_to_control_);
     builder->Connect(zoh->get_output_port(),
                      contact_point_calc_sys->get_input_port(0));
     builder->Connect(plant.get_state_output_port(),
