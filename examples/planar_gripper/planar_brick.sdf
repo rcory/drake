@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <sdf version='1.6'>
 <model name="brick">
-  <link name="brick_base">
+  <link name="brick_base_link">
   </link>
   <link name="brick_dummy_link1">
     <inertial>
@@ -19,7 +19,7 @@
   </link>
   <joint name="brick_translate_y_joint" type="prismatic">
     <child> brick_dummy_link1 </child>
-    <parent> brick_base </parent>
+    <parent> brick_base_link </parent>
     <axis>
       <xyz> 0 1 0 </xyz>
       <limit>

@@ -133,6 +133,9 @@ int do_main() {
       FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
   auto brick_index =
       Parser(&plant, &scene_graph).AddModelFromFile(object_file_name, "object");
+  const multibody::Frame<double>& brick_base_frame =
+      plant.GetFrameByName("brick_base_link", brick_index);
+  plant.WeldFrames(plant.world_frame(), brick_base_frame);
 
   // Add gravity
   Vector3<double> gravity(0, 0, 0);
@@ -156,11 +159,11 @@ int do_main() {
   double brick_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
     brick_damping =
-        plant.GetJointByName<multibody::RevoluteJoint>("brick_pin_joint")
+        plant.GetJointByName<multibody::RevoluteJoint>("brick_revolute_x_joint")
             .damping();
   }
   double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
-                             plant.GetFrameByName("brick_base").body())
+                             plant.GetFrameByName("brick_link").body())
                              .default_rotational_inertia()
                              .get_moments()(0);
 

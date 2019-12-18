@@ -195,7 +195,7 @@ void PlanarGripper::SetupPlanarBrick(std::string orientation) {
 
 void PlanarGripper::SetupPinBrick(std::string orientation) {
   SetupPlant(orientation,
-             "drake/examples/planar_gripper/1dof_brick_updated.sdf");
+             "drake/examples/planar_gripper/1dof_brick.sdf");
 }
 
 void PlanarGripper::SetupPlant(std::string orientation,
@@ -220,7 +220,7 @@ void PlanarGripper::SetupPlant(std::string orientation,
   // -Z axis (vertical case), or world -X axis (horizontal case).
   if (orientation == "vertical") {
     const multibody::Frame<double>& brick_base_frame =
-        plant_->GetFrameByName("brick_base", brick_index_);
+        plant_->GetFrameByName("brick_base_link", brick_index_);
     plant_->WeldFrames(plant_->world_frame(), brick_base_frame);
     gravity = Vector3d(
         0, 0, -multibody::UniformGravityFieldElement<double>::kDefaultStrength);
@@ -228,7 +228,7 @@ void PlanarGripper::SetupPlant(std::string orientation,
     plant_->AddJoint<PrismaticJoint>(
         "brick_translate_x_joint",
         plant_->world_body(), std::nullopt,
-        plant_->GetBodyByName("brick_base"), std::nullopt,
+        plant_->GetBodyByName("brick_base_link"), std::nullopt,
         Vector3d::UnitX());
     gravity = Vector3d(
         -multibody::UniformGravityFieldElement<double>::kDefaultStrength, 0, 0);

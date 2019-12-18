@@ -23,7 +23,7 @@ drake_cc_library(
         "planar_gripper.h",
     ],
     data = [
-        "//examples/planar_gripper:1dof_brick_updated.sdf",
+        "//examples/planar_gripper:1dof_brick.sdf",
         "//examples/planar_gripper:planar_brick.sdf",
         "//examples/planar_gripper:planar_gripper.sdf",
         "//examples/planar_gripper:postures.txt",

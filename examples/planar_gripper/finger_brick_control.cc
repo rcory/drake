@@ -107,6 +107,9 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
   // points between fingertip and box (used in impedance control).
   geometry_query_input_port_ = this->DeclareAbstractInputPort(
       "geometry_query", Value<geometry::QueryObject<double>>{}).get_index();
+
+  p_BrFingerTip_input_port_ =
+      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
 }
 
 void ForceController::CalcTauOutput(
@@ -179,7 +182,7 @@ void ForceController::CalcTauOutput(
       plant_.GetBodyByName("finger_base").body_frame();
 
   const multibody::Frame<double>& brick_frame =
-      plant_.GetBodyByName("brick_base").body_frame();
+      plant_.GetBodyByName("brick_link").body_frame();
 
   /* Rotation of world (W) w.r.t. finger brick (Br) */
   auto R_BrW = plant_.CalcRelativeRotationMatrix(
@@ -240,15 +243,23 @@ void ForceController::CalcTauOutput(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
       p_LtFTip, base_frame, base_frame, &Jv_V_BaseFtip);
 
+  // Extract the 6 x 2 Jacobian that corresponds to fingers only (ignore the
+  // brick).
+  int j1_index = static_cast<int>(
+      plant_.GetJointByName("finger_BaseJoint").velocity_start());
+  int j2_index = static_cast<int>(
+      plant_.GetJointByName("finger_MidJoint").velocity_start());
+  Eigen::Matrix<double, 6, 2> Jtemp(6, 2);
+  Jtemp.block<6, 1>(0, 0) = Jv_V_BaseFtip.block<6, 1>(0, j1_index);
+  Jtemp.block<6, 1>(0, 1) = Jv_V_BaseFtip.block<6, 1>(0, j2_index);
+
   // Extract the translational part of the Jacobian.
   // The last three rows of Jv_V_WFtip correspond to x-y-z.
-  // TODO(rcory) Figure out jacobian ordering.
-  // Last two columns of Jacobian correspond to j1 and j2 (first column seems to
-  // correspond to the brick).
+  // Two columns of Jacobian correspond to j1 and j2.
   Eigen::Matrix<double, 3, 2> J_Ba(3, 2);
-  J_Ba.block<1, 2>(0, 0) = Jv_V_BaseFtip.block<1, 2>(3, 1);
-  J_Ba.block<1, 2>(1, 0) = Jv_V_BaseFtip.block<1, 2>(4, 1);
-  J_Ba.block<1, 2>(2, 0) = Jv_V_BaseFtip.block<1, 2>(5, 1);
+  J_Ba.block<1, 2>(0, 0) = Jtemp.block<1, 2>(3, 0);
+  J_Ba.block<1, 2>(1, 0) = Jtemp.block<1, 2>(4, 0);
+  J_Ba.block<1, 2>(2, 0) = Jtemp.block<1, 2>(5, 0);
 
   // Regulate position (in brick frame). First, rotate the contact point
   // reference into the brick frame.
@@ -396,23 +407,8 @@ void ForceController::CalcTauOutput(
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere.
-    // TODO(rcory) Consider moving this calculation to the system
-    //  ContactPointInBrickFrame (in finger_brick.cc)
-    auto pairs_vec = geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
-    DRAKE_DEMAND(pairs_vec.size() == 1);
-
-    geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
-    geometry::GeometryId ftip_id =
-        GetFingerTipGeometryId(plant_, scene_graph_);
-
-    Eigen::Vector2d target_position_Br;
-    if (pairs_vec[0].id_A == ftip_id) {
-      DRAKE_DEMAND(brick_id == pairs_vec[0].id_B);
-      target_position_Br = pairs_vec[0].p_BCb.tail<2>();
-    } else {
-      DRAKE_DEMAND(brick_id == pairs_vec[0].id_A);
-      target_position_Br = pairs_vec[0].p_ACa.tail<2>();
-    }
+    Eigen::Vector2d target_position_Br =
+        get_p_BrFingerTip_input_port().Eval(context);
 
     // Regulate the fingertip position back to the surface w/ impedance control
     // implement a simple spring law for now (-kx), i.e., just compliance
@@ -598,6 +594,10 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                      qp_controller->get_input_port_p_BFingerTip());
     builder->Connect(scene_graph.get_query_output_port(),
                     contact_point_calc_sys->get_geometry_query_input_port());
+
+    // Communicate the contact point to the force controller.
+    builder->Connect(contact_point_calc_sys->get_output_port(0),
+                     force_controller.get_p_BrFingerTip_input_port());
 
     // Provides contact point ref accelerations to the force controller (for
     // inverse dynamics).
@@ -804,6 +804,10 @@ void ConnectAllControllers(PlanarGripper& planar_gripper,
                    qp_controller->get_input_port_p_BFingerTip());
   builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
                    contact_point_calc_sys->get_geometry_query_input_port());
+
+  // Communicate the contact point to the force controller.
+  builder->Connect(contact_point_calc_sys->get_output_port(0),
+                   force_controller.get_p_BrFingerTip_input_port());
 
   // Provides contact point ref accelerations to the force controller (for
   // inverse dynamics).

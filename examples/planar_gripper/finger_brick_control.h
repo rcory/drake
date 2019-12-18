@@ -79,6 +79,15 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(contact_point_ref_accel_input_port_);
   }
 
+  /**
+   * This port takes in the current finger tip sphere center (y, z) position in
+   * the brick frame. Notice that we ignore the x position since it is a planar
+   * system.
+   */
+  const systems::InputPort<double>& get_p_BrFingerTip_input_port() const {
+    return this->get_input_port(p_BrFingerTip_input_port_);
+  }
+
   const OutputPort<double>& get_torque_output_port() const {
     return this->get_output_port(torque_output_port_);
   }
@@ -101,6 +110,7 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex accelerations_actual_input_port_{};
   InputPortIndex geometry_query_input_port_{};
   InputPortIndex contact_point_ref_accel_input_port_{};
+  InputPortIndex p_BrFingerTip_input_port_{};
   OutputPortIndex torque_output_port_{};
   ModelInstanceIndex gripper_index_{};
   ModelInstanceIndex brick_index_{};

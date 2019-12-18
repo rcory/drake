@@ -127,7 +127,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
             .damping();
   }
   double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
-      plant.GetFrameByName("brick_base").body())
+      plant.GetFrameByName("brick_link").body())
       .default_rotational_inertia()
       .get_moments()(0);
 

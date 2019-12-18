@@ -97,8 +97,8 @@ PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
           .get_index();
 
   brick_revolute_position_index_ =
-      plant_->GetJointByName("brick_pin_joint").position_start();
-  brick_body_index_ = plant_->GetBodyByName("brick_base").index();
+      plant_->GetJointByName("brick_revolute_x_joint").position_start();
+  brick_body_index_ = plant_->GetBodyByName("brick_link").index();
 }
 
 void PlanarFingerInstantaneousQPController::CalcControl(

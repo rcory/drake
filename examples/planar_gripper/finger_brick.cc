@@ -36,7 +36,7 @@ geometry::GeometryId GetBrickGeometryId(
   const geometry::GeometryId brick_geometry_id =
       inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("brick_base").index()),
+              plant.GetBodyByName("brick_link").index()),
           geometry::Role::kProximity, "object::box_collision");
   return brick_geometry_id;
 }
@@ -87,7 +87,7 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
   const geometry::Shape& brick_shape =
       inspector.GetShape(inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("brick_base").index()),
+              plant.GetBodyByName("brick_link").index()),
           geometry::Role::kProximity, "object::box_collision"));
   const Eigen::Vector3d brick_size =
       dynamic_cast<const geometry::Box&>(brick_shape).size();
@@ -139,7 +139,7 @@ void ContactPointInBrickFrame::CalcOutput(
           context);
 
   const multibody::Frame<double>& brick_frame =
-      plant_.GetFrameByName("brick_base");
+      plant_.GetFrameByName("brick_link");
 
   const multibody::Frame<double>& world_frame =
       plant_.world_frame();
@@ -164,19 +164,38 @@ void ContactPointInBrickFrame::CalcOutput(
     // First, obtain the closest point on the brick from the fingertip sphere.
     auto pairs_vec =
         geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
-    DRAKE_DEMAND(pairs_vec.size() == 1);
+    DRAKE_DEMAND(pairs_vec.size() >= 1);
 
     geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
     geometry::GeometryId ftip_id =
         GetFingerTipGeometryId(plant_, scene_graph_);
 
-    if (pairs_vec[0].id_A == ftip_id) {
-      DRAKE_DEMAND(brick_id == pairs_vec[0].id_B);
-      p_BCb = pairs_vec[0].p_BCb.tail<2>();
-    } else {
-      DRAKE_DEMAND(brick_id == pairs_vec[0].id_A);
-      p_BCb = pairs_vec[0].p_ACa.tail<2>();
+    // Find the pair that contains the brick geometry.
+    int pairs_index;
+    for (pairs_index = 0; pairs_index < static_cast<int>(pairs_vec.size());
+         pairs_index++) {
+      if (pairs_vec[pairs_index].id_A == brick_id) {
+        DRAKE_DEMAND(pairs_vec[pairs_index].id_B == ftip_id);
+        p_BCb = pairs_vec[pairs_index].p_ACa.tail<2>();
+        break;
+      } else if (pairs_vec[pairs_index].id_B == brick_id) {
+        DRAKE_DEMAND(pairs_vec[pairs_index].id_A == ftip_id);
+        p_BCb = pairs_vec[pairs_index].p_BCb.tail<2>();
+        break;
+      }
     }
+    if (pairs_index == static_cast<int>(pairs_vec.size())) {
+      throw std::runtime_error(
+          "Could not find brick box geometry in collision pairs vector.");
+    }
+
+//    if (pairs_vec[0].id_A == ftip_id) {
+//      DRAKE_DEMAND(brick_id == pairs_vec[0].id_B);
+//      p_BCb = pairs_vec[0].p_BCb.tail<2>();
+//    } else {
+//      DRAKE_DEMAND(brick_id == pairs_vec[0].id_A);
+//      p_BCb = pairs_vec[0].p_ACa.tail<2>();
+//    }
   }
 
 
