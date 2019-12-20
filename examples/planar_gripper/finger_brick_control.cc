@@ -165,10 +165,7 @@ void ForceController::CalcTauOutput(
           ->get_value();
   unused(a_BrCr);
 
-  // Get the actual contact force. This extracts actual forces from
-  // ContactResults.
-  // TODO(rcory) Remove this input port once contact detection relies solely
-  //  on the force sensor input, and contact point estimation exists.
+  // TODO(rcory) Remove this input port once contact point estimation exists.
   const auto& contact_results =
       get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
@@ -332,6 +329,7 @@ void ForceController::CalcTauOutput(
 #else
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
+    drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world frame.
     // Express these in the brick frame instead (to compute the force error
     // terms), we then convert these commands to the finger base frame to match
@@ -403,13 +401,14 @@ void ForceController::CalcTauOutput(
                                        (R_BaBr * force_error_command_Br) +
                                        (R_BaBr * position_error_command_Br);
 
-//    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-//    drake::log()->info("force_act_Br: \n{}", force_act_Br);
-//    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
-//    drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
-//    drake::log()->info("R_BaBr: \n{}", R_BaBr.matrix());
-//    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
-//    drake::log()->info("force_command_Ba: \n{}", force_command_Ba);
+    drake::log()->info("force_des_W: \n{}", force_des_W);
+    drake::log()->info("force_des_Br: \n{}", force_des_Br);
+    drake::log()->info("force_act_Br: \n{}", force_act_Br);
+    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+    drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
+    drake::log()->info("R_BaBr: \n{}", R_BaBr.matrix());
+    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
+    drake::log()->info("force_command_Ba: \n{}", force_command_Ba);
 
     torque_calc += J_planar_Ba.transpose() * force_command_Ba.tail<2>();
 
@@ -418,6 +417,7 @@ void ForceController::CalcTauOutput(
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere.
+    drake::log()->info("In impedance force control.");
     Eigen::Vector2d target_position_Br =
         get_p_BrFingerTip_input_port().Eval(context);
 
@@ -436,9 +436,16 @@ void ForceController::CalcTauOutput(
         K * (target_position_Br[0] - p_BrC(1)) - D * v_Ftip_Br(1);
     double z_force_desired_Br =
         K * (target_position_Br[1] - p_BrC(2)) - D * v_Ftip_Br(2);
-    Vector2<double> imp_force_desired(y_force_desired_Br, z_force_desired_Br);
-    torque_calc += J_planar_Ba.transpose() * imp_force_desired;
+    Vector3<double> imp_force_desired_Br(0, y_force_desired_Br,
+                                         z_force_desired_Br);
+
+    Vector3<double> imp_force_desired_Ba = R_BaBr * imp_force_desired_Br;
+    torque_calc += J_planar_Ba.transpose() * imp_force_desired_Ba.tail(2);
+
     // TODO(rcory) Need to calculate a_BrCr_Ba for impedance control part.
+
+//    drake::log()->info("imp_force_desired_Br: \n{}", imp_force_desired_Br);
+//    drake::log()->info("imp_force_desired_Ba: \n{}", imp_force_desired_Ba);
   }
 #endif
 
@@ -464,7 +471,7 @@ void ForceController::CalcTauOutput(
 
   // The output for calculated torques.
   output_calc.head<2>() = torque_calc;
-//  drake::log()->info("torque_calc: \n{}", torque_calc);
+  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
 /// Creates the QP controller (type depending on whether we are simulating a

@@ -11,18 +11,30 @@ template <typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double z_offset) {
   // The finger base link is welded a fixed distance from the world
   // origin, on the Y-Z plane.
-  const double kOriginToBaseDistance = 0.19;
+  const double kGripperOriginToBaseDistance = 0.19;
+  const double kFinger1Angle = 0;
 
-  // Before welding, the finger base link sits at the world origin with the
-  // finger pointing along the -Z axis, with all joint angles being zero.
+  // Note: Before welding and with the finger joint angles being zero, the
+  // finger base link sits at the world origin with the finger pointing along
+  // the world -Z axis.
 
-  // Weld the finger. Frame F1 corresponds to the base link finger frame.
-  math::RigidTransformd X_WF(Eigen::Vector3d::Zero());
-  X_WF = X_WF * math::RigidTransformd(
-      Eigen::Vector3d(0, 0, kOriginToBaseDistance + z_offset));
-  const multibody::Frame<T>& finger_base_frame =
+  // We align the planar gripper coordinate frame G with the world frame W.
+  const math::RigidTransformd X_WG = math::RigidTransformd::Identity();
+
+  // Weld the first finger. Finger base links are arranged equidistant along the
+  // perimeter of a circle. The first finger is welded kFinger1Angle radians
+  // from the +Gz-axis. Frames F1, F2, F3 correspond to the base link finger
+  // frames.
+  math::RigidTransformd X_GF1 =
+      math::RigidTransformd(
+          Eigen::AngleAxisd(kFinger1Angle, Eigen::Vector3d::UnitX()),
+          Eigen::Vector3d(0, 0, 0)) *
+      math::RigidTransformd(
+          math::RotationMatrixd(),
+          Eigen::Vector3d(0, 0, kGripperOriginToBaseDistance + z_offset));
+  const multibody::Frame<T>& finger1_base_frame =
       plant->GetFrameByName("finger1_base");
-  plant->WeldFrames(plant->world_frame(), finger_base_frame, X_WF);
+  plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_WG * X_GF1);
 }
 
 template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant,

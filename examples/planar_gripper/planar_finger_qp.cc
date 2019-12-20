@@ -83,7 +83,7 @@ PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
           .get_index();
 
   input_index_state_ =
-      this->DeclareInputPort(systems::kVectorValued,
+      this->DeclareInputPort("plant_state", systems::kVectorValued,
                              plant_->num_positions() + plant_->num_velocities())
           .get_index();
   input_index_desired_brick_state_ =
