@@ -14,7 +14,7 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
     double Kp, double Kd, double theta, double thetadot,
     const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
     double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
-    double mu, double I_B, double finger_tip_radius, double damping)
+    double mu, double I_B, double damping)
     : prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
   prog_->AddBoundingBoxConstraint(0, kInf, f_Cb_B_edges_);
@@ -38,7 +38,6 @@ PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
     }
     default: { throw std::runtime_error("Unknown face."); }
   }
-  unused(finger_tip_radius);
   Vector2<symbolic::Expression> f_Cb_B = friction_cone_edges_ * f_Cb_B_edges_;
   // Now compute thetaddot
   const symbolic::Expression thetaddot =
@@ -60,15 +59,14 @@ const Eigen::Vector2d PlanarFingerInstantaneousQP::GetContactForceResult(
 
 PlanarFingerInstantaneousQPController::PlanarFingerInstantaneousQPController(
     const multibody::MultibodyPlant<double>* plant, double Kp, double Kd,
-    double weight_thetaddot, double weight_f_Cb_B, double mu,
-    double finger_tip_radius, double damping, double I_B)
+    double weight_thetaddot, double weight_f_Cb_B, double mu, double damping,
+    double I_B)
     : plant_{plant},
       mu_{mu},
       Kp_{Kp},
       Kd_{Kd},
       weight_thetaddot_{weight_thetaddot},
       weight_f_Cb_B_{weight_f_Cb_B},
-      finger_tip_radius_{finger_tip_radius},
       damping_(damping),
       I_B_(I_B) {
   DRAKE_DEMAND(Kp_ >= 0);
@@ -122,7 +120,7 @@ void PlanarFingerInstantaneousQPController::CalcControl(
   PlanarFingerInstantaneousQP qp(
       brick_state_desired(0), brick_state_desired(1), thetaddot_planned(0), Kp_,
       Kd_, theta, thetadot, p_BFingerTip, weight_thetaddot_, weight_f_Cb_B_,
-      contact_face, mu_, I_B_, finger_tip_radius_, damping_);
+      contact_face, mu_, I_B_, damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
 

@@ -10,7 +10,6 @@
 #include "drake/systems/lcm/connect_lcm_scope.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/examples/planar_gripper/gripper_brick.h"
-#include "drake/examples/planar_gripper/brick_qp.h"
 #include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
@@ -527,16 +526,18 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
       builder->AddSystem<systems::ConstantValueSource<double>>(
           Value<BrickFace>(BrickFace::kPosZ));
 
+  auto qp_controller =
+      builder->AddSystem<PlanarFingerInstantaneousQPController>(
+          &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping,
+          I_B);
+
   if (qpoptions.brick_only_) {
     // ================ Brick QP controller =================================
     // This implements the QP controller for brick only.
     // ======================================================================
-    auto qp_controller = builder->AddSystem<BrickInstantaneousQPController>(
-        &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping,
-        I_B);
 
     // Connect the QP controller
-    builder->Connect(plant.get_state_output_port(brick_index),
+    builder->Connect(plant.get_state_output_port(),
                      qp_controller->get_input_port_estimated_state());
     builder->Connect(qp_controller->get_output_port_control(),
                      plant.get_applied_spatial_force_input_port());
@@ -559,22 +560,16 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Eigen::Vector2d(qpoptions.yc_, qpoptions.zc_));
     builder->Connect(p_BCb_source->get_output_port(),
-                     qp_controller->get_input_port_p_BCb());
+                     qp_controller->get_input_port_p_BFingerTip());
 
     builder->Connect(thetaddot_planned_source->get_output_port(),
-                     qp_controller->get_input_port_desired_acceleration());
+                     qp_controller->get_input_port_desired_thetaddot());
     builder->Connect(theta_traj_source->get_output_port(),
                      qp_controller->get_input_port_desired_state());
   } else {
     // ================ Planar Finger QP controller =========================
     // This implements the QP controller for brick AND planar-finger.
     // ======================================================================
-
-    double fingertip_radius = 0.015;
-    auto qp_controller =
-        builder->AddSystem<PlanarFingerInstantaneousQPController>(
-            &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu,
-            fingertip_radius, damping, I_B);
 
     // Connect the QP controller
     builder->Connect(plant.get_state_output_port(),
@@ -786,11 +781,10 @@ void ConnectAllControllers(PlanarGripper& planar_gripper,
   // ================ Planar Finger QP controller =========================
   // This implements the QP controller for brick AND planar-finger.
   // ======================================================================
-  double fingertip_radius = 0.015;
   auto qp_controller =
       builder->AddSystem<PlanarFingerInstantaneousQPController>(
           &planar_gripper.get_multibody_plant(), Kp, Kd, weight_thetaddot_error,
-          weight_f_Cb_B, mu, fingertip_radius, damping, I_B);
+          weight_f_Cb_B, mu, damping, I_B);
 
   // Connect the QP controller
   builder->Connect(planar_gripper.GetOutputPort("plant_state"),

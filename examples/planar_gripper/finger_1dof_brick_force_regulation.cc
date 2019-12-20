@@ -18,7 +18,6 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/systems/primitives/demultiplexer.h"
-#include "drake/examples/planar_gripper/brick_qp.h"
 #include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/tree/revolute_joint.h"
