@@ -328,7 +328,7 @@ void ForceController::CalcTauOutput(
 #else
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-    drake::log()->info("In direct force control.");
+//    drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world frame.
     // Express these in the brick frame instead (to compute the force error
     // terms), we then convert these commands to the finger base frame to match
@@ -400,6 +400,7 @@ void ForceController::CalcTauOutput(
                                        (R_BaBr * force_error_command_Br) +
                                        (R_BaBr * position_error_command_Br);
 
+#ifdef MY_DEBUG
     drake::log()->info("force_des_W: \n{}", force_des_W);
     drake::log()->info("force_des_Br: \n{}", force_des_Br);
     drake::log()->info("force_act_Br: \n{}", force_act_Br);
@@ -408,6 +409,7 @@ void ForceController::CalcTauOutput(
     drake::log()->info("R_BaBr: \n{}", R_BaBr.matrix());
     drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
     drake::log()->info("force_command_Ba: \n{}", force_command_Ba);
+#endif
 
     torque_calc += J_planar_Ba.transpose() * force_command_Ba.tail<2>();
 
@@ -416,7 +418,7 @@ void ForceController::CalcTauOutput(
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere.
-    drake::log()->info("In impedance force control.");
+//    drake::log()->info("In impedance force control.");
     Eigen::Vector2d target_position_Br =
         get_p_BrFingerTip_input_port().Eval(context);
 
@@ -470,7 +472,7 @@ void ForceController::CalcTauOutput(
 
   // The output for calculated torques.
   output_calc.head<2>() = torque_calc;
-  drake::log()->info("torque_calc: \n{}", torque_calc);
+//  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
 void DoConnectControllers(const MultibodyPlant<double>& plant,

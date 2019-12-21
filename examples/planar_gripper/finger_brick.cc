@@ -181,9 +181,7 @@ void ContactPointInBrickFrame::in_contact(
       this->get_input_port(0).Eval<ContactResults<double>>(context);
 
   int pair_index = GetContactPairIndex(plant_, contact_results, finger_);
-  if (pair_index < contact_results.num_point_pair_contacts()) {
-    *is_in_contact = true;
-  }
+  *is_in_contact = pair_index < contact_results.num_point_pair_contacts();
 }
 
 void ContactPointInBrickFrame::CalcOutput(
