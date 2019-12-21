@@ -91,7 +91,7 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
+DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain"); /* 20 for brick only */
 DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");

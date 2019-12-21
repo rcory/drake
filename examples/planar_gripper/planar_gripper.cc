@@ -303,6 +303,8 @@ void PlanarGripper::Finalize() {
                        "gripper_state");
   builder.ExportOutput(plant_->get_state_output_port(brick_index_),
                        "brick_state");
+  builder.ExportInput(plant_->get_applied_spatial_force_input_port(),
+                      "spatial_force");
 
   // Connect MBP and SG.
   builder.Connect(

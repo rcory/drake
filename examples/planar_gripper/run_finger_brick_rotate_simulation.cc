@@ -105,7 +105,7 @@ DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
 DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");
+DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain"); /* 20 for brick only */
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -197,8 +197,6 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
 
   builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
                   zoh_reaction_forces->get_input_port());
-//  builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
-//                  force_controller->get_geometry_query_input_port());
 
   auto force_demux_sys =
       builder->AddSystem<ForceDemuxer>(plant, kFingerToControl);
@@ -214,24 +212,33 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   builder->Connect(force_demux_sys->get_reaction_vec_output_port(),
                    force_controller->get_force_sensor_input_port());
 
-  // Set the plant's actuation input.
-  auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
-      planar_gripper.get_control_plant(), kFingerToControl);
-  auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
-      builder->AddSystem<systems::ConstantVectorSource<double>>(
-          VectorX<double>::Zero(6));
-  builder->Connect(zero_u_src->get_output_port(),
-                   fingers_to_plant->GetInputPort("u_in"));  /* 6x1 of zeros */
-  builder->Connect(force_controller->get_torque_output_port(),
-                   fingers_to_plant->GetInputPort("u_fn"));
-  builder->Connect(fingers_to_plant->GetOutputPort("u_out"),
-                   planar_gripper.GetInputPort("actuation"));
-
-  // Connect to the scope.
-  systems::lcm::ConnectLcmScope(fingers_to_plant->GetOutputPort("u_out"),
-                                "ACTUATION_OUTPUT", builder, &lcm);
-  systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
-                                "TORQUE_OUTPUT", builder, &lcm);
+  // Set the force controller to drive the actuation input of the plant *unless*
+  // we are simulating the brick only, in which case we leave the output of the
+  // force controller unconnected such that it is never asked to evaluate during
+  // simulation.
+  //
+  // Note: This is important. If we do connect the force controller in the brick
+  // only simulation it will complain about all its input ports note being
+  // connected (which we don't do for brick only simulation).
+  if (!FLAGS_brick_only) {
+    auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
+        planar_gripper.get_control_plant(), kFingerToControl);
+    fingers_to_plant->set_name("fingers_to_plant_actuation_map");
+    auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
+        builder->AddSystem<systems::ConstantVectorSource<double>>(
+            VectorX<double>::Zero(6));
+    builder->Connect(zero_u_src->get_output_port(),
+                     fingers_to_plant->GetInputPort("u_in"));  /* 6x1 of zeros */
+    builder->Connect(force_controller->get_torque_output_port(),
+                     fingers_to_plant->GetInputPort("u_fn"));
+    builder->Connect(fingers_to_plant->GetOutputPort("u_out"),
+                     planar_gripper.GetInputPort("actuation"));
+    // Connect to the scope.
+    systems::lcm::ConnectLcmScope(fingers_to_plant->GetOutputPort("u_out"),
+                                  "ACTUATION_OUTPUT", builder, &lcm);
+    systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
+                                  "TORQUE_OUTPUT", builder, &lcm);
+  }
 
   // We don't regulate position for now (set these to zero).
   // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
@@ -258,8 +265,8 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   qpoptions.zc_ = FLAGS_zc;
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
-  ConnectAllControllers(planar_gripper, lcm, *force_controller, qpoptions,
-                        builder);
+  ConnectControllers(planar_gripper, lcm, *force_controller, qpoptions,
+                     builder);
 
   // publish body frames.
   auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);
@@ -362,6 +369,17 @@ int DoMain() {
   // Create a context for the diagram.
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
+
+  // If we are only simulating the brick, then ignore the force controller by
+  // fixing the plant's actuation input port to zero.
+  if (FLAGS_brick_only) {
+    systems::Context<double>& planar_gripper_context =
+        diagram->GetMutableSubsystemContext(*planar_gripper,
+                                            diagram_context.get());
+    Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumJoints);
+    planar_gripper_context.FixInputPort(
+        planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
+  }
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   systems::Context<double>& simulator_context = simulator.get_mutable_context();

@@ -473,15 +473,18 @@ void ForceController::CalcTauOutput(
   drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
-/// Creates the QP controller (type depending on whether we are simulating a
-/// single brick or finger/brick), and connects it to the force controller.
-void ConnectControllers(const MultibodyPlant<double>& plant,
-                        const geometry::SceneGraph<double>& scene_graph,
-                        lcm::DrakeLcm& lcm,
-                        const ForceController& force_controller,
-                        const ModelInstanceIndex& brick_index,
-                        const QPControlOptions qpoptions,
-                        systems::DiagramBuilder<double>* builder) {
+void DoConnectControllers(const MultibodyPlant<double>& plant,
+                          const geometry::SceneGraph<double>& scene_graph,
+                          lcm::DrakeLcm& lcm,
+                          const ForceController& force_controller,
+                          const ModelInstanceIndex& brick_index,
+                          const QPControlOptions qpoptions,
+                          const OutputPort<double>& brick_state_output,
+                          const OutputPort<double>& plant_state_output,
+                          const InputPort<double>& plant_spatial_force_input,
+                          const OutputPort<double>& contact_results_output,
+                          const OutputPort<double>& scene_graph_query_output,
+                          systems::DiagramBuilder<double>* builder) {
   // thetaddot_planned is 0. Use a constant source.
   auto thetaddot_planned_source =
       builder->AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
@@ -537,18 +540,17 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
     // ======================================================================
 
     // Connect the QP controller
-    builder->Connect(plant.get_state_output_port(),
+    builder->Connect(plant_state_output,
                      qp_controller->get_input_port_estimated_state());
     builder->Connect(qp_controller->get_output_port_control(),
-                     plant.get_applied_spatial_force_input_port());
+                     plant_spatial_force_input);
 
     // To visualize the applied spatial forces.
     auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
         plant, brick_index, -qpoptions.viz_force_scale_);
     builder->Connect(qp_controller->get_output_port_control(),
                      viz_converter->get_input_port(0));
-    builder->Connect(plant.get_state_output_port(brick_index),
-                     viz_converter->get_input_port(1));
+    builder->Connect(brick_state_output, viz_converter->get_input_port(1));
     multibody::ConnectSpatialForcesToDrakeVisualizer(
         builder, plant, viz_converter->get_output_port(0), &lcm);
 
@@ -572,7 +574,7 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
     // ======================================================================
 
     // Connect the QP controller
-    builder->Connect(plant.get_state_output_port(),
+    builder->Connect(plant_state_output,
                      qp_controller->get_input_port_estimated_state());
 
     // TODO(rcory) Connect this to the force controller.
@@ -590,7 +592,7 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                      viz_converter->get_input_port(0));
     multibody::ConnectSpatialForcesToDrakeVisualizer(
         builder, plant, viz_converter->get_output_port(0), &lcm);
-    builder->Connect(plant.get_state_output_port(brick_index),
+    builder->Connect(brick_state_output,
                      viz_converter->get_input_port(1));
 
     builder->Connect(contact_face_source->get_output_port(0),
@@ -599,20 +601,19 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
     // Adds a zero order hold to the contact results.
     auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
         1e-3, Value<ContactResults<double>>());
-    builder->Connect(plant.get_contact_results_output_port(),
-                     zoh->get_input_port());
+    builder->Connect(contact_results_output, zoh->get_input_port());
 
     // Adds system to calculate fingertip contact.
     auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
         plant, scene_graph, force_controller.get_options().finger_to_control_);
     builder->Connect(zoh->get_output_port(),
                      contact_point_calc_sys->get_input_port(0));
-    builder->Connect(plant.get_state_output_port(),
+    builder->Connect(plant_state_output,
                      contact_point_calc_sys->get_input_port(1));
     builder->Connect(contact_point_calc_sys->get_output_port(0),
                      qp_controller->get_input_port_p_BFingerTip());
-    builder->Connect(scene_graph.get_query_output_port(),
-                    contact_point_calc_sys->get_geometry_query_input_port());
+    builder->Connect(scene_graph_query_output,
+                     contact_point_calc_sys->get_geometry_query_input_port());
 
     // Communicate the contact point to the force controller.
     builder->Connect(contact_point_calc_sys->get_output_port(0),
@@ -639,6 +640,51 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
     builder->Connect(theta_traj_source->get_output_port(),
                      qp_controller->get_input_port_desired_state());
   }
+}
+
+/// Creates the QP controller (type depending on whether we are simulating a
+/// single brick or finger/brick), and connects it to the force controller.
+void ConnectControllers(const MultibodyPlant<double>& plant,
+                        const geometry::SceneGraph<double>& scene_graph,
+                        lcm::DrakeLcm& lcm,
+                        const ForceController& force_controller,
+                        const ModelInstanceIndex& brick_index,
+                        const QPControlOptions qpoptions,
+                        systems::DiagramBuilder<double>* builder) {
+
+  const auto& brick_state_output = plant.get_state_output_port(brick_index);
+  const auto& plant_state_output = plant.get_state_output_port();
+  const auto& plant_spatial_force_input =
+      plant.get_applied_spatial_force_input_port();
+  const auto& contact_results_output = plant.get_contact_results_output_port();
+  const auto& scene_graph_query_output = scene_graph.get_query_output_port();
+
+  DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
+                       qpoptions, brick_state_output, plant_state_output,
+                       plant_spatial_force_input, contact_results_output,
+                       scene_graph_query_output, builder);
+}
+
+void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+                        const ForceController& force_controller,
+                        const QPControlOptions qpoptions,
+                        systems::DiagramBuilder<double>* builder) {
+  const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
+  const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
+  const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
+  const auto& brick_state_output = planar_gripper.GetOutputPort("brick_state");
+  const auto& plant_state_output = planar_gripper.GetOutputPort("plant_state");
+  const auto& plant_spatial_force_input =
+      planar_gripper.GetInputPort("spatial_force");
+  const auto& contact_results_output =
+      planar_gripper.GetOutputPort("contact_results");
+  const auto& scene_graph_query_output =
+      planar_gripper.GetOutputPort("scene_graph_query");
+
+  DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
+                       qpoptions, brick_state_output, plant_state_output,
+                       plant_spatial_force_input, contact_results_output,
+                       scene_graph_query_output, builder);
 }
 
 /**
@@ -724,138 +770,6 @@ void FingersToPlantActuationMap::CalcOutput(
   // Set the output.
   auto u = actuation_selector_matrix_ * u_s;
   output->get_mutable_value() = u;
-}
-
-/// Creates the QP controller (finger/brick for now), and connects it to the
-/// force controller (this is for the lcm based finger/brick rotate).
-// TODO(rcory) Reconcile this with ConnectControllers in finger_brick_control.cc
-void ConnectAllControllers(PlanarGripper& planar_gripper,
-                           lcm::DrakeLcm& lcm,
-                           const ForceController& force_controller,
-                           const QPControlOptions qpoptions,
-                           systems::DiagramBuilder<double>* builder) {
-  // thetaddot_planned is 0. Use a constant source.
-  auto thetaddot_planned_source =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
-
-  // The planned theta trajectory is from 0 to 90 degree in T seconds.
-  std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
-  std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(1, 1));
-  Y[0](0, 0) = qpoptions.theta0_;
-  Y[1](0, 0) = qpoptions.theta0_;
-  Y[2](0, 0) = qpoptions.thetaf_;
-  Y[3](0, 0) = qpoptions.thetaf_;
-
-//  const trajectories::PiecewisePolynomial<double> theta_traj =
-//      trajectories::PiecewisePolynomial<double>::Pchip(T, Y);
-
-  // this doesn't work well for disturbed trajectories (since the traj is only
-  // computed at initialization).
-//  auto theta_traj_source =
-//      builder->AddSystem<systems::TrajectorySource<double>>(
-//          theta_traj, 1 /* take 1st derivatives */);
-
-  // so, just use a constant target...
-  auto theta_vec = Eigen::Vector2d(qpoptions.thetaf_, 0);
-  auto theta_traj_source =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(theta_vec);
-
-  // Spit out to scope
-  systems::lcm::ConnectLcmScope(theta_traj_source->get_output_port(),
-                                "THETA_TRAJ", builder, &lcm);
-
-  // QP controller
-  double Kp = qpoptions.QP_Kp_;
-  double Kd = qpoptions.QP_Kd_;
-  double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
-  double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
-  double mu = qpoptions.QP_mu_;
-  double damping = qpoptions.brick_damping_;
-  double I_B = qpoptions.brick_inertia_;
-
-  // Always get in contact with the +z face.
-  auto contact_face_source =
-      builder->AddSystem<systems::ConstantValueSource<double>>(
-          Value<BrickFace>(BrickFace::kPosZ));
-
-  // ================ Planar Finger QP controller =========================
-  // This implements the QP controller for brick AND planar-finger.
-  // ======================================================================
-  auto qp_controller =
-      builder->AddSystem<PlanarFingerInstantaneousQPController>(
-          &planar_gripper.get_multibody_plant(), Kp, Kd, weight_thetaddot_error,
-          weight_f_Cb_B, mu, damping, I_B);
-
-  // Connect the QP controller
-  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
-                   qp_controller->get_input_port_estimated_state());
-
-  // TODO(rcory) Connect this to the force controller.
-  // Note: The spatial forces coming from the output of the QP controller
-  // are already in the world frame (only the contact point is in the brick
-  // frame)
-
-  builder->Connect(qp_controller->get_output_port_control(),
-                   force_controller.get_force_desired_input_port());
-
-  // To visualize the applied spatial forces.
-  auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
-      planar_gripper.get_multibody_plant(),
-      planar_gripper.get_brick_index(), qpoptions.viz_force_scale_);
-  builder->Connect(qp_controller->get_output_port_control(),
-                   viz_converter->get_input_port(0));
-  multibody::ConnectSpatialForcesToDrakeVisualizer(
-      builder, planar_gripper.get_multibody_plant(),
-      viz_converter->get_output_port(0), &lcm);
-  builder->Connect(planar_gripper.GetOutputPort("brick_state"),
-                   viz_converter->get_input_port(1));
-
-  builder->Connect(contact_face_source->get_output_port(0),
-                   qp_controller->get_input_port_contact_face());
-
-  // Adds a zero order hold to the contact results.
-  auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
-      1e-3, Value<ContactResults<double>>());
-  builder->Connect(planar_gripper.GetOutputPort("contact_results"),
-                   zoh->get_input_port());
-
-  // Adds system to calculate fingertip contact.
-  auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
-      planar_gripper.get_multibody_plant(), planar_gripper.get_scene_graph(),
-      force_controller.get_options().finger_to_control_);
-  builder->Connect(zoh->get_output_port(),
-                   contact_point_calc_sys->get_input_port(0));
-  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
-                   contact_point_calc_sys->get_input_port(1));
-  builder->Connect(contact_point_calc_sys->get_output_port(0),
-                   qp_controller->get_input_port_p_BFingerTip());
-  builder->Connect(planar_gripper.GetOutputPort("scene_graph_query"),
-                   contact_point_calc_sys->get_geometry_query_input_port());
-
-  // Communicate the contact point to the force controller.
-  builder->Connect(contact_point_calc_sys->get_output_port(0),
-                   force_controller.get_p_BrFingerTip_input_port());
-
-  // Tells the force controller whether there is contact between the fingertip
-  // and the brick.
-  builder->Connect(contact_point_calc_sys->GetOutputPort("b_in_contact"),
-                   force_controller.get_is_contact_input_port());
-
-  // Provides contact point ref accelerations to the force controller (for
-  // inverse dynamics).
-  // TODO(rcory) likely don't need these accels anymore. Consider removing.
-  auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
-  auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
-  builder->Connect(contact_point_calc_sys->get_output_port(0),
-                   v_BrCr->get_input_port());
-  builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
-  builder->Connect(a_BrCr->get_output_port(),
-                   force_controller.get_contact_point_ref_accel_input_port());
-
-  builder->Connect(thetaddot_planned_source->get_output_port(),
-                   qp_controller->get_input_port_desired_thetaddot());
-  builder->Connect(theta_traj_source->get_output_port(),
-                   qp_controller->get_input_port_desired_state());
 }
 
 }  // namespace planar_gripper

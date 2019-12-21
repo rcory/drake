@@ -161,6 +161,11 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                         const QPControlOptions options,
                         systems::DiagramBuilder<double>* builder);
 
+void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+                        const ForceController& force_controller,
+                        const QPControlOptions qpoptions,
+                        systems::DiagramBuilder<double>* builder);
+
 /**
  *
  */
