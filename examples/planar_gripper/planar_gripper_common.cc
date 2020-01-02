@@ -31,7 +31,7 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
   const double kGripperOriginToBaseDistance = 0.19;
   const double kFinger1Angle = M_PI / 3.0;
   const double kFinger2Angle = -M_PI / 3.0;
-  const double kFinger3Angle = M_PI * 0;
+  const double kFinger3Angle = M_PI;
 
   // Note: Before welding and with all finger joint angles being zero, all
   // finger base links sit at the world origin with the finger pointing along

@@ -194,13 +194,17 @@ void ForceController::CalcTauOutput(
   const multibody::Frame<double>& brick_frame =
       plant_.GetBodyByName("brick_link").body_frame();
 
-  /* Rotation of world (W) w.r.t. finger brick (Br) */
+  /* Rotation of world (W) w.r.t. brick (Br) */
   auto R_BrW = plant_.CalcRelativeRotationMatrix(
       *plant_context_, brick_frame, plant_.world_frame());
 
   /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */
   auto R_BaBr = plant_.CalcRelativeRotationMatrix(
       *plant_context_, base_frame, brick_frame);
+
+  /* Rotation of finger base frame (Ba) w.r.t. brick frame (Br) */
+  auto R_BrBa = plant_.CalcRelativeRotationMatrix(
+      *plant_context_, brick_frame, base_frame);
 
   // Initialize the vector for calculated torque commands.
   Eigen::Vector2d torque_calc(0, 0);
@@ -280,7 +284,7 @@ void ForceController::CalcTauOutput(
   // w.r.t. the finger base (Ba)
   Eigen::Vector3d v_Ftip_Ba = J_Ba * finger_state.segment<2>(2);
   // Convert fingertip translation velocity to brick frame.
-  Eigen::Vector3d v_Ftip_Br = R_BrW * v_Ftip_Ba;
+  Eigen::Vector3d v_Ftip_Br = R_BrBa * v_Ftip_Ba;
 
   // The contact reference translational acceleration, in the finger base frame.
   Eigen::Vector3d a_BrCr_Ba = Eigen::Vector3d::Zero();
@@ -422,9 +426,12 @@ void ForceController::CalcTauOutput(
     Eigen::Vector2d target_position_Br =
         get_p_BrFingerTip_input_port().Eval(context);
 
+//    drake::log()->info("finger_state: \n{}", finger_state);
+//    drake::log()->info("brick_state: \n{}", brick_state);
 //    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
 //    drake::log()->info("p_BrFingerTip: \n{}", target_position_Br);
 //    drake::log()->info("p_BrC: \n{}", p_BrC);
+//    drake::log()->info("v_Ftip_Ba: \n{}", v_Ftip_Ba);
 //    drake::log()->info("v_Ftip_Br: \n{}", v_Ftip_Br);
 
     // Regulate the fingertip position back to the surface w/ impedance control
