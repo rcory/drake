@@ -63,7 +63,7 @@ DEFINE_double(j1, -0.15, "j1");  // shoulder joint
 DEFINE_double(j2, 1.2 /* 0.84 */, "j2");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
-// Hybrid position/force control paramters.
+// Hybrid position/force control parameters.
 DEFINE_double(kd_j1, 0.2, "joint damping for joint 1.");
 DEFINE_double(kd_j2, 0.2, "joint damping for joint 2.");
 DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
@@ -83,7 +83,7 @@ DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
 DEFINE_double(yc, 0,
               "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, 0.046,
+DEFINE_double(zc, 0.05,
               "z_br contact point location for brick only sim.");
 
 // QP task parameters
@@ -91,8 +91,8 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain"); /* 20 for brick only */
-DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");
+DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");  /* 20 for brick only */
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */

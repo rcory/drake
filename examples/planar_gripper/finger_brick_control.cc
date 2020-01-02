@@ -526,10 +526,21 @@ void DoConnectControllers(const MultibodyPlant<double>& plant,
   double damping = qpoptions.brick_damping_;
   double I_B = qpoptions.brick_inertia_;
 
-  // Always get in contact with the +z face.
+  // Determine which face on the brick to make contact with.
+  Value<BrickFace> contact_face;
+  if (qpoptions.contact_face_ == "PosZ") {
+    contact_face.set_value(BrickFace::kPosZ);
+  } else if (qpoptions.contact_face_ == "NegZ") {
+    contact_face.set_value(BrickFace::kNegZ);
+  } else if (qpoptions.contact_face_ == "PosY") {
+    contact_face.set_value(BrickFace::kPosY);
+  } else if (qpoptions.contact_face_ == "NegY") {
+    contact_face.set_value(BrickFace::kNegY);
+  } else {
+    throw std::logic_error("Undefined contact face specified.");
+  }
   auto contact_face_source =
-      builder->AddSystem<systems::ConstantValueSource<double>>(
-          Value<BrickFace>(BrickFace::kPosZ));
+      builder->AddSystem<systems::ConstantValueSource<double>>(contact_face);
 
   auto qp_controller =
       builder->AddSystem<PlanarFingerInstantaneousQPController>(

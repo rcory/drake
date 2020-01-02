@@ -149,6 +149,9 @@ struct QPControlOptions{
   // Brick specific parameters.
   double brick_damping_{0};  // brick's pin joint damping.
   double brick_inertia_{0};  // brick's rotational inertia.
+
+  // The brick's contact face.
+  std::string contact_face_{"PosZ"};
 };
 
 /// A method that connects the finger/brick QP controller to the force

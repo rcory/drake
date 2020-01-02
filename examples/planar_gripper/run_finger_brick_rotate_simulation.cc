@@ -76,7 +76,7 @@ DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 // now).
 DEFINE_bool(zero_gravity, true, "Always zero gravity?");
 
-// Hybrid position/force control paramters.
+// Hybrid position/force control parameters.
 DEFINE_double(kd_j1, 0.2, "joint damping for joint 1.");
 DEFINE_double(kd_j2, 0.2, "joint damping for joint 2.");
 DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
@@ -96,7 +96,7 @@ DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
 DEFINE_double(yc, 0,
               "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, 0.046,
+DEFINE_double(zc, 0.05,
               "z_br contact point location for brick only sim.");
 
 // QP task parameters
@@ -110,6 +110,9 @@ DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
+
+DEFINE_string(contact_face, "PosZ",
+              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
 
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
@@ -265,6 +268,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   qpoptions.zc_ = FLAGS_zc;
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
+  qpoptions.contact_face_ = FLAGS_contact_face;
   ConnectControllers(planar_gripper, lcm, *force_controller, qpoptions,
                      builder);
 
