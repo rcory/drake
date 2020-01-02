@@ -96,7 +96,7 @@ DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
 DEFINE_double(yc, 0,
               "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, 0.05,
+DEFINE_double(zc, -0.05,
               "z_br contact point location for brick only sim.");
 
 // QP task parameters
@@ -321,13 +321,6 @@ int DoMain() {
 //  auto planner_decoder = builder.AddSystem<GripperCommandDecoder>();
 //  builder.Connect(planner_sub->get_output_port(),
 //                  planner_decoder->get_input_port(0));
-
-  // TODO(rcory) Replace this actuation input with the force controller.
-//  VectorX<double> zero_vec = VectorX<double>::Zero(6);
-//  auto const_zero_src =
-//      builder.AddSystem<systems::ConstantVectorSource<double>>(zero_vec);
-//  builder.Connect(const_zero_src->get_output_port(),
-//                  planar_gripper->GetInputPort("actuation"));
 
   SetupFeedbackController(*planar_gripper, drake_lcm, &builder);
 

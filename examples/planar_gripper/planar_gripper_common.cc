@@ -347,6 +347,11 @@ systems::EventStatus FrameViz::PublishFramePose(
 }
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
+/// A system that takes an `ExternallyAppliedSpatialForce` as input, and outputs
+/// a `SpatialForceOutput`, which is then used for visualization. The latter
+/// omits the body index, and expresses the contact point in the world frame,
+/// instead of the body frame. The force is expressed in the world frame for
+/// both.
 ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
     const MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
     double force_scale_factor)
@@ -390,8 +395,7 @@ void ExternalSpatialToSpatialViz::CalcOutput(
     auto p_BoBq_W = X_WB * ext_spatial_force.p_BoBq_B;
 
     spatial_forces_viz_output->emplace_back(
-        p_BoBq_W,
-        ext_spatial_force.F_Bq_W * force_scale_factor_);
+        p_BoBq_W, ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
 }
 

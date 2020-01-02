@@ -482,18 +482,14 @@ void ForceController::CalcTauOutput(
 //  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
-void DoConnectControllers(const MultibodyPlant<double>& plant,
-                          const geometry::SceneGraph<double>& scene_graph,
-                          lcm::DrakeLcm& lcm,
-                          const ForceController& force_controller,
-                          const ModelInstanceIndex& brick_index,
-                          const QPControlOptions qpoptions,
-                          const OutputPort<double>& brick_state_output,
-                          const OutputPort<double>& plant_state_output,
-                          const InputPort<double>& plant_spatial_force_input,
-                          const OutputPort<double>& contact_results_output,
-                          const OutputPort<double>& scene_graph_query_output,
-                          systems::DiagramBuilder<double>* builder) {
+void DoConnectControllers(
+    const MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
+    const ForceController& force_controller,
+    const ModelInstanceIndex& brick_index, const QPControlOptions qpoptions,
+    std::map<std::string, const InputPort<double>&>& in_ports,
+    std::map<std::string, const OutputPort<double>&>& out_ports,
+    systems::DiagramBuilder<double>* builder) {
   // thetaddot_planned is 0. Use a constant source.
   auto thetaddot_planned_source =
       builder->AddSystem<systems::ConstantVectorSource<double>>(Vector1d(0));
@@ -524,15 +520,6 @@ void DoConnectControllers(const MultibodyPlant<double>& plant,
   systems::lcm::ConnectLcmScope(theta_traj_source->get_output_port(),
                                 "THETA_TRAJ", builder, &lcm);
 
-  // QP controller
-  double Kp = qpoptions.QP_Kp_;
-  double Kd = qpoptions.QP_Kd_;
-  double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
-  double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
-  double mu = qpoptions.QP_mu_;
-  double damping = qpoptions.brick_damping_;
-  double I_B = qpoptions.brick_inertia_;
-
   // Determine which face on the brick to make contact with.
   Value<BrickFace> contact_face;
   if (qpoptions.contact_face_ == "PosZ") {
@@ -549,90 +536,83 @@ void DoConnectControllers(const MultibodyPlant<double>& plant,
   auto contact_face_source =
       builder->AddSystem<systems::ConstantValueSource<double>>(contact_face);
 
-  auto qp_controller =
-      builder->AddSystem<PlanarFingerInstantaneousQPController>(
-          &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping,
-          I_B);
-
   if (qpoptions.brick_only_) {
     // ================ Brick QP controller =================================
     // This implements the QP controller for brick only.
     // ======================================================================
 
     // Connect the QP controller
-    builder->Connect(plant_state_output,
-                     qp_controller->get_input_port_estimated_state());
-    builder->Connect(qp_controller->get_output_port_control(),
-                     plant_spatial_force_input);
+    builder->Connect(out_ports.at("plant_state"), in_ports.at("qp_state"));
+    builder->Connect(out_ports.at("qp_control"),
+                     in_ports.at("plant_spatial_force"));
 
     // To visualize the applied spatial forces.
     auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
-        plant, brick_index, -qpoptions.viz_force_scale_);
-    builder->Connect(qp_controller->get_output_port_control(),
-                     viz_converter->get_input_port(0));
-    builder->Connect(brick_state_output, viz_converter->get_input_port(1));
+        plant, brick_index, qpoptions.viz_force_scale_);
+    builder->Connect(out_ports.at("qp_control"), viz_converter->get_input_port(0));
+    builder->Connect(out_ports.at("brick_state"),
+                     viz_converter->get_input_port(1));
     multibody::ConnectSpatialForcesToDrakeVisualizer(
         builder, plant, viz_converter->get_output_port(0), &lcm);
 
     builder->Connect(contact_face_source->get_output_port(0),
-                     qp_controller->get_input_port_contact_face());
+                     in_ports.at("qp_contact_face"));
 
     // Always make contact with sphere center at position (yc, zc).
     auto p_BCb_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Eigen::Vector2d(qpoptions.yc_, qpoptions.zc_));
     builder->Connect(p_BCb_source->get_output_port(),
-                     qp_controller->get_input_port_p_BFingerTip());
+                     in_ports.at("qp_p_BFingerTip"));
 
     builder->Connect(thetaddot_planned_source->get_output_port(),
-                     qp_controller->get_input_port_desired_thetaddot());
+                     in_ports.at("qp_desired_thetaddot"));
     builder->Connect(theta_traj_source->get_output_port(),
-                     qp_controller->get_input_port_desired_state());
+                     in_ports.at("qp_desired_state"));
   } else {
     // ================ Planar Finger QP controller =========================
     // This implements the QP controller for brick AND planar-finger.
     // ======================================================================
 
     // Connect the QP controller
-    builder->Connect(plant_state_output,
-                     qp_controller->get_input_port_estimated_state());
+    builder->Connect(out_ports.at("plant_state"), in_ports.at("qp_state"));
 
     // TODO(rcory) Connect this to the force controller.
     // Note: The spatial forces coming from the output of the QP controller
     // are already in the world frame (only the contact point is in the brick
     // frame)
 
-    builder->Connect(qp_controller->get_output_port_control(),
+    builder->Connect(out_ports.at("qp_control"),
                      force_controller.get_force_desired_input_port());
 
     // To visualize the applied spatial forces.
     auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
         plant, brick_index, qpoptions.viz_force_scale_);
-    builder->Connect(qp_controller->get_output_port_control(),
+    builder->Connect(out_ports.at("qp_control"),
                      viz_converter->get_input_port(0));
     multibody::ConnectSpatialForcesToDrakeVisualizer(
         builder, plant, viz_converter->get_output_port(0), &lcm);
-    builder->Connect(brick_state_output,
+    builder->Connect(out_ports.at("brick_state"),
                      viz_converter->get_input_port(1));
 
     builder->Connect(contact_face_source->get_output_port(0),
-                     qp_controller->get_input_port_contact_face());
+                     in_ports.at("qp_contact_face"));
 
     // Adds a zero order hold to the contact results.
     auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
         1e-3, Value<ContactResults<double>>());
-    builder->Connect(contact_results_output, zoh->get_input_port());
+    builder->Connect(out_ports.at("contact_results"), zoh->get_input_port());
 
     // Adds system to calculate fingertip contact.
     auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
         plant, scene_graph, force_controller.get_options().finger_to_control_);
     builder->Connect(zoh->get_output_port(),
                      contact_point_calc_sys->get_input_port(0));
-    builder->Connect(plant_state_output,
+    builder->Connect(out_ports.at("plant_state"),
                      contact_point_calc_sys->get_input_port(1));
     builder->Connect(contact_point_calc_sys->get_output_port(0),
-                     qp_controller->get_input_port_p_BFingerTip());
-    builder->Connect(scene_graph_query_output,
+                     in_ports.at("qp_p_BFingerTip"));
+    builder->Connect(out_ports.at("scene_graph_query"),
                      contact_point_calc_sys->get_geometry_query_input_port());
 
     // Communicate the contact point to the force controller.
@@ -656,14 +636,59 @@ void DoConnectControllers(const MultibodyPlant<double>& plant,
                      force_controller.get_contact_point_ref_accel_input_port());
 
     builder->Connect(thetaddot_planned_source->get_output_port(),
-                     qp_controller->get_input_port_desired_thetaddot());
+                     in_ports.at("qp_desired_thetaddot"));
     builder->Connect(theta_traj_source->get_output_port(),
-                     qp_controller->get_input_port_desired_state());
+                     in_ports.at("qp_desired_state"));
   }
 }
 
+/// Adds the QP controller to the diagram and returns its corresponding
+/// input/output ports.
+void AddQPControllerToDiagram(
+    const MultibodyPlant<double>& plant,
+    systems::DiagramBuilder<double>* builder,
+    const QPControlOptions& qpoptions,
+    std::map<std::string, const InputPort<double>&>* in_ports,
+    std::map<std::string, const OutputPort<double>&>* out_ports) {
+
+  // QP controller
+  double Kp = qpoptions.QP_Kp_;
+  double Kd = qpoptions.QP_Kd_;
+  double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
+  double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
+  double mu = qpoptions.QP_mu_;
+  double damping = qpoptions.brick_damping_;
+  double I_B = qpoptions.brick_inertia_;
+
+  PlanarFingerInstantaneousQPController* qp_controller =
+      builder->AddSystem<PlanarFingerInstantaneousQPController>(
+          &plant, Kp, Kd, weight_thetaddot_error, weight_f_Cb_B, mu, damping,
+          I_B);
+
+  // Get the QP controller ports.
+  // Output ports.
+  out_ports->insert(std::pair<std::string, const OutputPort<double>&>(
+      "qp_control", qp_controller->get_output_port_control()));
+
+  // Input ports.
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_state", qp_controller->get_input_port_estimated_state()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_contact_face", qp_controller->get_input_port_contact_face()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_p_BFingerTip", qp_controller->get_input_port_p_BFingerTip()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_thetaddot",
+      qp_controller->get_input_port_desired_thetaddot()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_state", qp_controller->get_input_port_desired_state()));
+}
+
 /// Creates the QP controller (type depending on whether we are simulating a
-/// single brick or finger/brick), and connects it to the force controller.
+/// a standard plant or planar-gripper Diagram), and connects it to the force
+/// controller.
+
+// Connects a QP controller for a standard plant type simulation.
 void ConnectControllers(const MultibodyPlant<double>& plant,
                         const geometry::SceneGraph<double>& scene_graph,
                         lcm::DrakeLcm& lcm,
@@ -672,19 +697,31 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
                         const QPControlOptions qpoptions,
                         systems::DiagramBuilder<double>* builder) {
 
-  const auto& brick_state_output = plant.get_state_output_port(brick_index);
-  const auto& plant_state_output = plant.get_state_output_port();
-  const auto& plant_spatial_force_input =
-      plant.get_applied_spatial_force_input_port();
-  const auto& contact_results_output = plant.get_contact_results_output_port();
-  const auto& scene_graph_query_output = scene_graph.get_query_output_port();
+  // Create a std::map to hold all input/output ports.
+  std::map<std::string, const OutputPort<double>&> out_ports;
+  std::map<std::string, const InputPort<double>&> in_ports;
+
+  // Output ports.
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "brick_state", plant.get_state_output_port(brick_index)));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "plant_state", plant.get_state_output_port()));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "contact_results", plant.get_contact_results_output_port()));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "scene_graph_query", scene_graph.get_query_output_port()));
+
+  // Input ports.
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "plant_spatial_force", plant.get_applied_spatial_force_input_port()));
+
+  AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
 
   DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
-                       qpoptions, brick_state_output, plant_state_output,
-                       plant_spatial_force_input, contact_results_output,
-                       scene_graph_query_output, builder);
+                       qpoptions, in_ports, out_ports, builder);
 }
 
+// Connects a QP controller for a PlanarGripper diagram type simulation..
 void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
                         const ForceController& force_controller,
                         const QPControlOptions qpoptions,
@@ -692,19 +729,29 @@ void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
   const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
-  const auto& brick_state_output = planar_gripper.GetOutputPort("brick_state");
-  const auto& plant_state_output = planar_gripper.GetOutputPort("plant_state");
-  const auto& plant_spatial_force_input =
-      planar_gripper.GetInputPort("spatial_force");
-  const auto& contact_results_output =
-      planar_gripper.GetOutputPort("contact_results");
-  const auto& scene_graph_query_output =
-      planar_gripper.GetOutputPort("scene_graph_query");
+
+  // Create a std::map to hold all input/output ports.
+  std::map<std::string, const OutputPort<double>&> out_ports;
+  std::map<std::string, const InputPort<double>&> in_ports;
+
+  // Output ports.
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "brick_state", planar_gripper.GetOutputPort("brick_state")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "plant_state", planar_gripper.GetOutputPort("plant_state")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "contact_results", planar_gripper.GetOutputPort("contact_results")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "scene_graph_query", planar_gripper.GetOutputPort("scene_graph_query")));
+
+  // Input ports.
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "plant_spatial_force", planar_gripper.GetInputPort("spatial_force")));
+
+  AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
 
   DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
-                       qpoptions, brick_state_output, plant_state_output,
-                       plant_spatial_force_input, contact_results_output,
-                       scene_graph_query_output, builder);
+                       qpoptions, in_ports, out_ports, builder);
 }
 
 /**

@@ -77,7 +77,7 @@ int DoMain() {
 
   const lcmt_planar_gripper_status& first_status = status_sub.message();
   DRAKE_DEMAND(first_status.num_fingers == 0 ||
-      first_status.num_fingers == num_fingers);
+               first_status.num_fingers == num_fingers);
 
   VectorX<double> q0 = VectorX<double>::Zero(num_joints);
   for (int i = 0; i < first_status.num_fingers; ++i) {

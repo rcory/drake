@@ -70,20 +70,20 @@ DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
 DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
 DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kfy, 25e3, "y-axis force gain (in brick frame).");
-DEFINE_double(kfz, 20e3, "z-axis force gain (in brick frame).");
-DEFINE_double(K_compliance, 10e3, "Impedance control stiffness.");
+DEFINE_double(kfy, 3e3, "y-axis force gain (in brick frame).");
+DEFINE_double(kfz, 5e3, "z-axis force gain (in brick frame).");
+DEFINE_double(K_compliance, 2e3, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1e3, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, false,
             "Always use direct force control (i.e., no impedance control for "
             "regulating fingertip back to contact)?");
-DEFINE_double(viz_force_scale, 5,
+DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
 DEFINE_double(yc, 0,
               "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, 0.05,
+DEFINE_double(zc, -0.05,
               "z_br contact point location for brick only sim.");
 
 // QP task parameters
@@ -91,8 +91,8 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 60 /* 50 */, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 0 /* 5 */, "QP controller Kd gain");  /* 20 for brick only */
+DEFINE_double(QP_Kp, 150 /* 50 */, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 20 /* 5 */, "QP controller Kd gain");  /* 20 for brick only */
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
