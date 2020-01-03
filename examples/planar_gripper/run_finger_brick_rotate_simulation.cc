@@ -269,8 +269,8 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
   qpoptions.contact_face_ = FLAGS_contact_face;
-  ConnectControllers(planar_gripper, lcm, *force_controller, qpoptions,
-                     builder);
+  ConnectQPController(planar_gripper, lcm, *force_controller, qpoptions,
+                      builder);
 
   // publish body frames.
   auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 60.0, true);

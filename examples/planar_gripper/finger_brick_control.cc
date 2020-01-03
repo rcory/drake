@@ -482,7 +482,7 @@ void ForceController::CalcTauOutput(
 //  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
-void DoConnectControllers(
+void DoConnectQPController(
     const MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
     const ForceController& force_controller,
@@ -689,14 +689,13 @@ void AddQPControllerToDiagram(
 /// controller.
 
 // Connects a QP controller for a standard plant type simulation.
-void ConnectControllers(const MultibodyPlant<double>& plant,
-                        const geometry::SceneGraph<double>& scene_graph,
-                        lcm::DrakeLcm& lcm,
-                        const ForceController& force_controller,
-                        const ModelInstanceIndex& brick_index,
-                        const QPControlOptions qpoptions,
-                        systems::DiagramBuilder<double>* builder) {
-
+void ConnectQPController(const MultibodyPlant<double>& plant,
+                         const geometry::SceneGraph<double>& scene_graph,
+                         lcm::DrakeLcm& lcm,
+                         const ForceController& force_controller,
+                         const ModelInstanceIndex& brick_index,
+                         const QPControlOptions qpoptions,
+                         systems::DiagramBuilder<double>* builder) {
   // Create a std::map to hold all input/output ports.
   std::map<std::string, const OutputPort<double>&> out_ports;
   std::map<std::string, const InputPort<double>&> in_ports;
@@ -717,15 +716,15 @@ void ConnectControllers(const MultibodyPlant<double>& plant,
 
   AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
 
-  DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
-                       qpoptions, in_ports, out_ports, builder);
+  DoConnectQPController(plant, scene_graph, lcm, force_controller, brick_index,
+                        qpoptions, in_ports, out_ports, builder);
 }
 
 // Connects a QP controller for a PlanarGripper diagram type simulation..
-void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
-                        const ForceController& force_controller,
-                        const QPControlOptions qpoptions,
-                        systems::DiagramBuilder<double>* builder) {
+void ConnectQPController(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+                         const ForceController& force_controller,
+                         const QPControlOptions qpoptions,
+                         systems::DiagramBuilder<double>* builder) {
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
   const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
@@ -750,8 +749,8 @@ void ConnectControllers(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
 
   AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
 
-  DoConnectControllers(plant, scene_graph, lcm, force_controller, brick_index,
-                       qpoptions, in_ports, out_ports, builder);
+  DoConnectQPController(plant, scene_graph, lcm, force_controller, brick_index,
+                         qpoptions, in_ports, out_ports, builder);
 }
 
 /**

@@ -17,6 +17,8 @@
 #include "drake/lcmt_planar_gripper_status.hpp"
 #include "drake/systems/framework/event_status.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/systems/framework/diagram.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
 
 namespace drake {
 namespace examples {
@@ -217,6 +219,13 @@ class GripperStatusEncoder : public systems::LeafSystem<double> {
   const InputPort<double>* state_input_port_{};
   const InputPort<double>* force_input_port_{};
 };
+
+// A system that subscribes to the QP planer and publishes to the QP planer.
+//class PlanarFingerQPControllerLCM : public systems::Diagram<double> {
+// public:
+//  PlanarFingerQPControllerLCM(drake::lcm::DrakeLcmInterface* lcm,
+//                              double publish_period);
+//};
 
 }  // namespace planar_gripper
 }  // namespace examples

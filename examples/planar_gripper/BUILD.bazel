@@ -62,7 +62,12 @@ drake_cc_library(
     hdrs = ["planar_gripper_lcm.h"],
     deps = [
         "//lcmtypes:planar_gripper",
+        "//lcmtypes:planar_manipuland",
+        "//systems/framework:diagram",
+        "//systems/framework:diagram_builder",
         "//systems/framework:leaf_system",
+        "//systems/lcm:lcm_interface_system",
+        "//systems/lcm:lcm_publisher_system",
     ],
 )
 

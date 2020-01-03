@@ -1,0 +1,15 @@
+package drake;
+
+struct lcmt_planar_manipuland_qp_plan {
+  // in microseconds
+  int64_t timestamp;
+
+  // Application point in the body frame.
+  double p_B[3];
+
+  // Force vector in the body frame.
+  double force_B[3];
+
+  // Torque vector in the body frame (optional).
+  double torque_B[3];
+}

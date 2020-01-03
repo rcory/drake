@@ -5,6 +5,10 @@
 #include "drake/common/drake_assert.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
+#include "drake/lcmt_planar_gripper_qp_status.hpp"
+#include "drake/lcmt_planar_manipuland_qp_plan.hpp"
+#include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/lcm_publisher_system.h"
 
 namespace drake {
 namespace examples {
@@ -250,6 +254,27 @@ void GripperStatusEncoder::OutputStatus(
     fstatus.fingertip_force.tz = 0;
   }
 }
+
+//PlanarFingerQPControllerLCM::PlanarFingerQPControllerLCM(
+//    drake::lcm::DrakeLcmInterface* lcm, double publish_period) {
+//  systems::DiagramBuilder<double> builder;
+//
+//  // Sets up the publisher.
+//  auto qp_status_pub = builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
+//      drake::lcmt_planar_gripper_qp_status>(
+//      "PLANAR_GRIPPER_QP_STATUS", lcm, publish_period));
+//  auto qp_status_enc = builder.AddSystem<QPStatusEncoder>();
+//  builder.Connect(qp_status_enc->get_output_port(0),
+//                  qp_status_pub->get_input_port());
+//
+//  // Sets up the receiver.
+//  auto qp_plan_sub = builder.AddSystem(
+//      systems::lcm::LcmSubscriberSystem::Make<lcmt_planar_manipuland_qp_plan>(
+//          "MANIPULAND_QP_PLAN", lcm));
+//  auto qp_plan_decoder = builder.AddSystem<QPPlanDecoder>();
+//  builder.Connect(qp_plan_sub->get_output_port(),
+//                  qp_plan_decoder->get_input_port(0));
+//}
 
 }  // namespace planar_gripper
 }  // namespace examples

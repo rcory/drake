@@ -141,6 +141,7 @@ class PlanarFingerInstantaneousQPController
   int input_index_contact_face_{-1};
   int output_index_control_{-1};
 };
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

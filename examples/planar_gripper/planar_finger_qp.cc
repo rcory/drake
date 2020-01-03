@@ -140,6 +140,7 @@ void PlanarFingerInstantaneousQPController::CalcControl(
 //   (*control)[0].F_Bq_W = multibody::SpatialForce<double>(
 //       Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 0));
 }
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

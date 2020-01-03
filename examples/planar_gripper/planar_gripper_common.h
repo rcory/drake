@@ -114,9 +114,10 @@ const math::RigidTransformd X_WGripper();
 
 /// Utility to publish frames to LCM.
 void PublishFramesToLcm(
-    const std::string &channel_name,
-    const std::unordered_map<std::string, math::RigidTransformd> &name_to_frame_map,
-    drake::lcm::DrakeLcmInterface *lcm);
+    const std::string& channel_name,
+    const std::unordered_map<std::string, math::RigidTransformd>&
+        name_to_frame_map,
+    drake::lcm::DrakeLcmInterface* lcm);
 
 void PublishFramesToLcm(
     const std::string &channel_name,
