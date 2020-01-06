@@ -4,6 +4,7 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 
 namespace drake {
 namespace examples {
@@ -30,7 +31,7 @@ struct ForceControlOptions{
   double brick_damping_{0};  // brick pin joint damping
   double brick_inertia_{0};  // brick's rotational inertia
   bool always_direct_force_control_{true};  // false for impedance control during non-contact
-  int finger_to_control_{1};  // specifies which finger to control.
+  Finger finger_to_control_{Finger::kFinger1};  // specifies which finger to control.
 };
 
 // Force controller with pure gravity compensation (no dynamics compensation
@@ -151,7 +152,7 @@ struct QPControlOptions{
   double brick_inertia_{0};  // brick's rotational inertia.
 
   // The brick's contact face.
-  std::string contact_face_{"PosZ"};
+  BrickFace contact_face_{BrickFace::kPosZ};
 };
 
 /// A method that connects the finger/brick QP controller to the force
@@ -177,7 +178,7 @@ class PlantStateToFingerStateSelector : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlantStateToFingerStateSelector);
   PlantStateToFingerStateSelector(const MultibodyPlant<double>& plant,
-                                  const int finger);
+                                  const Finger finger);
 
   void CalcOutput(const drake::systems::Context<double>& context,
                   drake::systems::BasicVector<double>* output) const;
@@ -198,7 +199,7 @@ class FingersToPlantActuationMap : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersToPlantActuationMap);
   FingersToPlantActuationMap(const MultibodyPlant<double>& plant,
-                             const int finger);
+                             const Finger finger);
 
   void CalcOutput(const drake::systems::Context<double>& context,
                   drake::systems::BasicVector<double>* output) const;
@@ -206,7 +207,7 @@ class FingersToPlantActuationMap : public systems::LeafSystem<double> {
  private:
   MatrixX<double> actuation_selector_matrix_;
   MatrixX<double> actuation_selector_matrix_inv_;
-  const int finger_;
+  const Finger finger_;
 };
 
 /// Creates the QP controller (finger/brick for now), and connects it to the

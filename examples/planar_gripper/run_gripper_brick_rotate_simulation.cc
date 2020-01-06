@@ -59,12 +59,15 @@ DEFINE_string(orientation, "vertical",
 DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
 
-// Finger/brick rotate specific flags
+// Gripper/brick rotate specific flags
 // Initial finger joint angles.
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
-DEFINE_double(j1, -0.15, "j1");  // shoulder joint
-DEFINE_double(j2, 1.2 /* 0.84 */, "j2");  // elbow joint
+DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
+DEFINE_double(f1_base, -0.35, "f3_base");  // shoulder joint
+DEFINE_double(f1_mid, 1.3 /* 0.84 */, "f3_mid");  // elbow joint
+DEFINE_double(f3_base, -0.15, "f3_base");  // shoulder joint
+DEFINE_double(f3_mid, 1.2 /* 0.84 */, "f3_mid");  // elbow joint
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Note: The default plant sets up a vertical orientation with zero gravity.
@@ -148,7 +151,16 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
 //      1e-3, plant.num_velocities());
 
   // Setup the force controller.
-  const Finger kFingerToControl = Finger::kFinger3;
+  Finger kFingerToControl;
+  if (FLAGS_finger_to_control == 1) {
+    kFingerToControl = Finger::kFinger1;
+  } else if (FLAGS_finger_to_control == 2) {
+    kFingerToControl = Finger::kFinger2;
+  } else if (FLAGS_finger_to_control == 3) {
+    kFingerToControl = Finger::kFinger3;
+  } else {
+    throw std::logic_error("Undefined Finger specified.");
+  }
   ForceControlOptions foptions;
   foptions.kfy_ = FLAGS_kfy;
   foptions.kfz_ = FLAGS_kfz;
@@ -363,12 +375,12 @@ int DoMain() {
 
   // Set the initial conditions for the planar-gripper.
   std::map<std::string, double> init_gripper_pos_map;
-  init_gripper_pos_map["finger1_BaseJoint"] = -0.7;
-  init_gripper_pos_map["finger1_MidJoint"] = -0.7;
+  init_gripper_pos_map["finger1_BaseJoint"] = FLAGS_f1_base;
+  init_gripper_pos_map["finger1_MidJoint"] = FLAGS_f1_mid;
   init_gripper_pos_map["finger2_BaseJoint"] = 0.7;
   init_gripper_pos_map["finger2_MidJoint"] = 0.7;
-  init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_j1;
-  init_gripper_pos_map["finger3_MidJoint"] = FLAGS_j2;
+  init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_f3_base;
+  init_gripper_pos_map["finger3_MidJoint"] = FLAGS_f3_mid;
 
   auto gripper_initial_positions = MakePositionVector(
       planar_gripper->get_control_plant(), init_gripper_pos_map);

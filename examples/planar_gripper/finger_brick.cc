@@ -1,5 +1,6 @@
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/multibody/tree/weld_joint.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 
 namespace drake {
 namespace examples {
@@ -55,21 +56,21 @@ geometry::GeometryId GetBrickGeometryId(
 
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const int finger) {
-  std::string fnum = std::to_string(finger);
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger) {
+  std::string fnum = to_string(finger);
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
       inspector.GetGeometryIdByName(
           plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("finger" + fnum + "_tip_link").index()),
+              plant.GetBodyByName(fnum + "_tip_link").index()),
           geometry::Role::kProximity, "planar_gripper::tip_sphere_collision");
   return finger_tip_geometry_id;
 }
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const int finger) {
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger) {
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
@@ -85,8 +86,8 @@ multibody::BodyIndex GetBrickBodyIndex(
 }
 
 multibody::BodyIndex GetTipLinkBodyIndex(
-    const multibody::MultibodyPlant<double>& plant, const int finger) {
-  std::string fnum = "finger" + std::to_string(finger);
+    const multibody::MultibodyPlant<double>& plant, const Finger finger) {
+  std::string fnum = to_string(finger);
   return plant.GetBodyByName(fnum + "_tip_link").index();
 }
 
@@ -123,7 +124,7 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 /// index = contact_results.num_point_pair_contacts()
 int GetContactPairIndex(const multibody::MultibodyPlant<double>& plant,
                         const ContactResults<double>& contact_results,
-                        const int finger) {
+                        const Finger finger) {
   // Determine whether we have fingertip/brick contact.
   int brick_index = GetBrickBodyIndex(plant);
   int ftip_index = GetTipLinkBodyIndex(plant, finger);
@@ -150,7 +151,7 @@ int GetContactPairIndex(const multibody::MultibodyPlant<double>& plant,
 /// center.
 ContactPointInBrickFrame::ContactPointInBrickFrame(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const int finger)
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger)
     : plant_(plant),
       scene_graph_(scene_graph),
       plant_context_(plant.CreateDefaultContext()),
@@ -259,7 +260,7 @@ void ContactPointInBrickFrame::CalcOutput(
 }
 
 ForceDemuxer::ForceDemuxer(const multibody::MultibodyPlant<double>& plant,
-                           const int finger)
+                           const Finger finger)
     : plant_(plant), finger_(finger) {
   plant_context_ = plant.CreateDefaultContext();
 
@@ -323,7 +324,7 @@ void ForceDemuxer::SetReactionForcesOutput(
       get_reaction_forces_input_port()
           .Eval<std::vector<multibody::SpatialForce<double>>>(context);
 
-  std::string fnum = "finger" + std::to_string(finger_);
+  std::string fnum = to_string(finger_);
   const multibody::WeldJoint<double>& sensor_joint =
       plant_.GetJointByName<multibody::WeldJoint>(fnum + "_sensor_weldjoint");
   auto sensor_joint_index = sensor_joint.index();

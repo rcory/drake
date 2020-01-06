@@ -123,7 +123,7 @@ void ForceController::CalcTauOutput(
   output_calc.setZero();
 
   // The finger to control.
-  std::string fnum = std::to_string(options_.finger_to_control_);
+  std::string fnum = to_string(options_.finger_to_control_);
 
   // Run through the port evaluations.
   auto external_spatial_forces_vec =
@@ -186,10 +186,10 @@ void ForceController::CalcTauOutput(
 
   // Define some important frames.
   const multibody::Frame<double>& tip_link_frame =
-      plant_.GetBodyByName("finger" + fnum + "_tip_link").body_frame();
+      plant_.GetBodyByName(fnum + "_tip_link").body_frame();
 
   const multibody::Frame<double>& base_frame =
-      plant_.GetBodyByName("finger" + fnum + "_base").body_frame();
+      plant_.GetBodyByName(fnum + "_base").body_frame();
 
   const multibody::Frame<double>& brick_frame =
       plant_.GetBodyByName("brick_link").body_frame();
@@ -257,9 +257,9 @@ void ForceController::CalcTauOutput(
   // Extract the 6 x 2 Jacobian that corresponds to finger only (ignore the
   // brick).
   int j1_index = static_cast<int>(
-      plant_.GetJointByName("finger" + fnum + "_BaseJoint").velocity_start());
+      plant_.GetJointByName(fnum + "_BaseJoint").velocity_start());
   int j2_index = static_cast<int>(
-      plant_.GetJointByName("finger" + fnum + "_MidJoint").velocity_start());
+      plant_.GetJointByName(fnum + "_MidJoint").velocity_start());
   Eigen::Matrix<double, 6, 2> Jtemp(6, 2);
   Jtemp.block<6, 1>(0, 0) = Jv_V_BaseFtip.block<6, 1>(0, j1_index);
   Jtemp.block<6, 1>(0, 1) = Jv_V_BaseFtip.block<6, 1>(0, j2_index);
@@ -520,19 +520,9 @@ void DoConnectQPController(
   systems::lcm::ConnectLcmScope(theta_traj_source->get_output_port(),
                                 "THETA_TRAJ", builder, &lcm);
 
-  // Determine which face on the brick to make contact with.
+  // The face on the brick to make contact with.
   Value<BrickFace> contact_face;
-  if (qpoptions.contact_face_ == "PosZ") {
-    contact_face.set_value(BrickFace::kPosZ);
-  } else if (qpoptions.contact_face_ == "NegZ") {
-    contact_face.set_value(BrickFace::kNegZ);
-  } else if (qpoptions.contact_face_ == "PosY") {
-    contact_face.set_value(BrickFace::kPosY);
-  } else if (qpoptions.contact_face_ == "NegY") {
-    contact_face.set_value(BrickFace::kNegY);
-  } else {
-    throw std::logic_error("Undefined contact face specified.");
-  }
+  contact_face.set_value(qpoptions.contact_face_);
   auto contact_face_source =
       builder->AddSystem<systems::ConstantValueSource<double>>(contact_face);
 
@@ -760,8 +750,8 @@ void ConnectQPController(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
  */
 
 PlantStateToFingerStateSelector::PlantStateToFingerStateSelector(
-    const MultibodyPlant<double>& plant, const int finger) {
-  std::string fnum = "finger" + std::to_string(finger);
+    const MultibodyPlant<double>& plant, const Finger finger) {
+  std::string fnum = to_string(finger);
   std::vector<multibody::JointIndex> joint_index_vector;
   joint_index_vector.push_back(
       plant.GetJointByName(fnum + "_BaseJoint").index());
@@ -788,7 +778,7 @@ void PlantStateToFingerStateSelector::CalcOutput(
 }
 
 FingersToPlantActuationMap::FingersToPlantActuationMap(
-    const MultibodyPlant<double>& plant, const int finger) : finger_(finger) {
+    const MultibodyPlant<double>& plant, const Finger finger) : finger_(finger) {
   std::vector<multibody::JointIndex> joint_index_vector;
 
   // Create the Sᵤ matrix.
@@ -830,7 +820,7 @@ void FingersToPlantActuationMap::CalcOutput(
   VectorX<double> u_s = actuation_selector_matrix_inv_ * u_all_in;
 
   // Replace finger n actuation values with the torque control actuation values.
-  u_s.segment((finger_ - 1) * kNumJointsPerFinger, kNumJointsPerFinger) =
+  u_s.segment((to_num(finger_) - 1) * kNumJointsPerFinger, kNumJointsPerFinger) =
       u_fn_in;
 
   // Set the output.

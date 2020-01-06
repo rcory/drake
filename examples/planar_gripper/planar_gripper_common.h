@@ -19,6 +19,22 @@ constexpr int kNumFingers = 3;
 constexpr int kNumJointsPerFinger = 2;
 constexpr int kNumJoints = kNumFingers * kNumJointsPerFinger;
 
+enum class Finger {
+  kFinger1,
+  kFinger2,
+  kFinger3,
+};
+
+std::string to_string(Finger finger);
+int to_num(Finger finger);
+
+enum class BrickFace {
+  kPosZ,
+  kNegZ,
+  kPosY,
+  kNegY,
+};
+
 // The planar-gripper coordinate frame G (with origin Go) and finger layout are
 // defined as follows (assuming all finger joint angles are set to zero):
 //
@@ -111,6 +127,10 @@ VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
 
 /// Returns the planar gripper frame G's transform w.r.t. the world frame W.
 const math::RigidTransformd X_WGripper();
+
+/// Returns a specific finger's weld angle from the +Gz axis
+/// (gripper frame, +z axis)
+double FingerWeldAngle(Finger finger);
 
 /// Utility to publish frames to LCM.
 void PublishFramesToLcm(

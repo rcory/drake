@@ -3,6 +3,7 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/framework/diagram.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 
 namespace drake {
 namespace examples {
@@ -13,7 +14,7 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double x_offset = 0);
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const int finger);
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger);
 
 //double GetFingerTipSphereRadius(
 //    const multibody::MultibodyPlant<double>& plant,
@@ -24,7 +25,7 @@ Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
 
 geometry::GeometryId GetFingerTipGeometryId(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const int finger);
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger);
 
 geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,
@@ -34,7 +35,7 @@ multibody::BodyIndex GetBrickBodyIndex(
     const multibody::MultibodyPlant<double>& plant);
 
 multibody::BodyIndex GetTipLinkBodyIndex(
-    const multibody::MultibodyPlant<double>& plant, const int finger);
+    const multibody::MultibodyPlant<double>& plant, const Finger finger);
 
 /// A system that computes the fingertip-sphere contact location in brick frame.
 class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
@@ -44,7 +45,7 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   // TODO(rcory) replace finger with Enum
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
                            const geometry::SceneGraph<double>& scene_graph,
-                           const int finger = 1);
+                           const Finger finger = Finger::kFinger1);
 
   void in_contact(
       const drake::systems::Context<double>& context,
@@ -62,7 +63,7 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   const geometry::SceneGraph<double>& scene_graph_;
   std::unique_ptr<systems::Context<double>> plant_context_;
   systems::InputPortIndex geometry_query_input_port_{};
-  const int finger_{1};  /* the finger to control */
+  const Finger finger_{Finger::kFinger1};  /* the finger to control */
 };
 
 /// A system that outputs the force vector portion of ContactResults as
@@ -73,7 +74,7 @@ class ForceDemuxer final : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceDemuxer)
 
   ForceDemuxer(const multibody::MultibodyPlant<double>& plant,
-               const int finger);
+               const Finger finger);
 
   void SetContactResultsForceOutput(const systems::Context<double>& context,
                   systems::BasicVector<double> *output) const;
@@ -110,7 +111,7 @@ class ForceDemuxer final : public systems::LeafSystem<double> {
   systems::InputPortIndex state_input_port_{};
   systems::OutputPortIndex contact_results_vec_output_port_{};
   systems::OutputPortIndex reaction_forces_vec_output_port_{};
-  const int finger_;  /* the finger to control */
+  const Finger finger_;  /* the finger to control */
 };
 
 }  // namespace planar_gripper
