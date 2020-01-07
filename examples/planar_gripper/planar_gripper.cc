@@ -174,7 +174,7 @@ void PlanarGripper::SetGripperVelocity(
 PlanarGripper::PlanarGripper(double time_step, bool use_position_control)
     : owned_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
       owned_scene_graph_(std::make_unique<SceneGraph<double>>()),
-      owned_control_plant_(std::make_unique<MultibodyPlant<double>>()),
+      owned_control_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
       use_position_control_(use_position_control) {
   // This class holds the unique_ptrs explicitly for plant and scene_graph
   // until Finalize() is called (when they are moved into the Diagram). Grab

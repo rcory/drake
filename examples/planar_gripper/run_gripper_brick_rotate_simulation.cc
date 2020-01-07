@@ -64,10 +64,12 @@ DEFINE_bool(visualize_contacts, true,
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
-DEFINE_double(f1_base, -0.35, "f3_base");  // shoulder joint
-DEFINE_double(f1_mid, 1.3 /* 0.84 */, "f3_mid");  // elbow joint
-DEFINE_double(f3_base, -0.15, "f3_base");  // shoulder joint
-DEFINE_double(f3_mid, 1.2 /* 0.84 */, "f3_mid");  // elbow joint
+DEFINE_double(f1_base, -0.15 /*-0.35*/, "f1_base");  // shoulder joint
+DEFINE_double(f1_mid, 1.2 /* 1.3 */, "f1_mid");  // elbow joint
+DEFINE_double(f2_base, -0.15, "f2_base");
+DEFINE_double(f2_mid, 1.2 /* 0.84 */, "f2_mid");
+DEFINE_double(f3_base, -0.15, "f3_base");
+DEFINE_double(f3_mid, 1.2 /* 0.84 */, "f3_mid");
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 
 // Note: The default plant sets up a vertical orientation with zero gravity.
@@ -103,6 +105,8 @@ DEFINE_double(zc, -0.05,
               "z_br contact point location for brick only sim.");
 
 // QP task parameters
+// finger 1: theta0=-2.679793, thetaf=-1.308997
+// finger 2: theta0=1.509, thetaf=2.87979
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
@@ -377,8 +381,8 @@ int DoMain() {
   std::map<std::string, double> init_gripper_pos_map;
   init_gripper_pos_map["finger1_BaseJoint"] = FLAGS_f1_base;
   init_gripper_pos_map["finger1_MidJoint"] = FLAGS_f1_mid;
-  init_gripper_pos_map["finger2_BaseJoint"] = 0.7;
-  init_gripper_pos_map["finger2_MidJoint"] = 0.7;
+  init_gripper_pos_map["finger2_BaseJoint"] = FLAGS_f2_base;
+  init_gripper_pos_map["finger2_MidJoint"] = FLAGS_f2_mid;
   init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_f3_base;
   init_gripper_pos_map["finger3_MidJoint"] = FLAGS_f3_mid;
 

@@ -179,7 +179,7 @@ int do_main() {
       1e-3, plant.num_velocities());
 
   // Setup the force controller.
-  const int kFingerToControl = 1;
+  const Finger kFingerToControl = Finger::kFinger1;
   ForceControlOptions foptions;
   foptions.kfy_ = FLAGS_kfy;
   foptions.kfz_ = FLAGS_kfz;
@@ -279,8 +279,9 @@ int do_main() {
   qpoptions.zc_ = FLAGS_zc;
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
-  ConnectControllers(plant, scene_graph, lcm, *force_controller, brick_index,
-                     qpoptions, &builder);
+  qpoptions.contact_face_ = BrickFace::kPosZ;
+  ConnectQPController(plant, scene_graph, lcm, *force_controller, brick_index,
+                      qpoptions, &builder);
 
   // publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);
