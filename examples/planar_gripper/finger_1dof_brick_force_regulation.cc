@@ -70,8 +70,8 @@ DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
 DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
 DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kfy, 3e3, "y-axis force gain (in brick frame).");
-DEFINE_double(kfz, 5e3, "z-axis force gain (in brick frame).");
+DEFINE_double(kpfy, 3e3, "y-axis force gain (in brick frame).");
+DEFINE_double(kpfz, 5e3, "z-axis force gain (in brick frame).");
 DEFINE_double(K_compliance, 2e3, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1e3, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, false,
@@ -181,8 +181,8 @@ int do_main() {
   // Setup the force controller.
   const Finger kFingerToControl = Finger::kFinger1;
   ForceControlOptions foptions;
-  foptions.kfy_ = FLAGS_kfy;
-  foptions.kfz_ = FLAGS_kfz;
+  foptions.kpfy_ = FLAGS_kpfy;
+  foptions.kpfz_ = FLAGS_kpfz;
   foptions.kpy_ = FLAGS_kpy;
   foptions.kdy_ = FLAGS_kdy;
   foptions.kpz_ = FLAGS_kpz;

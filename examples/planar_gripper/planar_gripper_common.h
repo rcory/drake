@@ -150,6 +150,10 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
                        const multibody::MultibodyPlant<double>& plant,
                        lcm::DrakeLcm& lcm);
 
+/// Returns the preferred state ordering for the planar gripper states (e.g.,
+/// used to create the state selector matrix using MBP).
+std::vector<std::string> GetPreferredGripperStateOrdering();
+
 /// A system that publishes frames at a specified period.
  class FrameViz final : public systems::LeafSystem<double> {
   public:
@@ -186,6 +190,23 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
   multibody::ModelInstanceIndex instance_;
   std::unique_ptr<systems::Context<double>> plant_context_;
   double force_scale_factor_;
+};
+
+/// Takes in a state vector from MBP state output port, and outputs a state
+/// whose order is dictated by `user_order`. The user ordered output state can
+/// be a subset of the full state.
+class MapStateToUserOrderedState final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapStateToUserOrderedState)
+
+  MapStateToUserOrderedState(const MultibodyPlant<double>& plant,
+                             std::vector<std::string> user_order_vec);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  systems::BasicVector<double>* output_vector) const;
+
+ private:
+  MatrixX<double> Sx_;  // state selector matrix.
 };
 
 }  // namespace planar_gripper

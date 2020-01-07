@@ -83,8 +83,10 @@ DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
 DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
 DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kfy, 3e3, "y-axis force gain (in brick frame).");
-DEFINE_double(kfz, 5e3, "z-axis force gain (in brick frame).");
+DEFINE_double(kpfy, 3e3, "y-axis proportional force gain (in brick frame).");
+DEFINE_double(kpfz, 5e3, "z-axis proportional force gain (in brick frame).");
+DEFINE_double(kify, 0, "y-axis integral force gain (in brick frame).");
+DEFINE_double(kifz, 0, "z-axis integral force gain (in brick frame).");
 DEFINE_double(K_compliance, 2e3, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1e3, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, false,
@@ -150,8 +152,10 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   // Setup the force controller.
   const Finger kFingerToControl = Finger::kFinger3;
   ForceControlOptions foptions;
-  foptions.kfy_ = FLAGS_kfy;
-  foptions.kfz_ = FLAGS_kfz;
+  foptions.kpfy_ = FLAGS_kpfy;
+  foptions.kpfz_ = FLAGS_kpfz;
+  foptions.kify_ = FLAGS_kify;
+  foptions.kifz_ = FLAGS_kifz;
   foptions.kpy_ = FLAGS_kpy;
   foptions.kdy_ = FLAGS_kdy;
   foptions.kpz_ = FLAGS_kpz;
@@ -351,8 +355,12 @@ int DoMain() {
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
           "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmStatusPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
-
-  builder.Connect(planar_gripper->GetOutputPort("gripper_state"),
+  auto state_remapper = builder.AddSystem<MapStateToUserOrderedState>(
+      planar_gripper->get_multibody_plant(),
+      GetPreferredGripperStateOrdering());
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  state_remapper->get_input_port(0));
+  builder.Connect(state_remapper->get_output_port(0),
                   status_encoder->get_state_input_port());
   builder.Connect(planar_gripper->GetOutputPort("force_sensor"),
                   status_encoder->get_force_input_port());

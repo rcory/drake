@@ -7,23 +7,27 @@
          a uniform rod model, rotating about its center of mass. -->
     <xacro:property name="base_dim" value=".08" />
     <xacro:property name="l1_length" value="0.085" />
+    <xacro:property name="l1_COM" value="0.03811" />
     <xacro:property name="l1_radius" value="0.011" />
     <xacro:property name="l1_mass" value="0.449" />
-    <xacro:property name="l1_ixx" value="1.519282829" />
-    <xacro:property name="l1_iyy" value="1.519856854" />
-    <xacro:property name="l1_izz" value="0.0006529" />
-    <xacro:property name="l1_ixz" value="2.8883e-05" />
-    <xacro:property name="l1_ixy" value="0" />
-    <xacro:property name="l1_iyz" value="0" />
+    <xacro:property name="l1_xx_inertia" value="0.000200329" />
+    <xacro:property name="l1_yy_inertia" value="0.000774354" />
+    <xacro:property name="l1_zz_inertia" value="0.0006529" />
+    <xacro:property name="l1_xz_inertia" value="0.000028883" />
+    <xacro:property name="l1_xy_inertia" value="0" />
+    <xacro:property name="l1_yz_inertia" value="0" />
     <xacro:property name="l2_length" value="0.040" />
+    <xacro:property name="l2_COM" value="0.02966" />
     <xacro:property name="l2_radius" value="0.011" />
     <xacro:property name="l2_mass" value="0.104" />
-    <xacro:property name="l2_ixx" value="1.513503562" />
-    <xacro:property name="l2_iyy" value="1.513508314" />
-    <xacro:property name="l2_izz" value="1.2773e-05" />
-    <xacro:property name="l2_ixz" value="6.523e-06" />
-    <xacro:property name="l2_ixy" value="0" />
-    <xacro:property name="l2_iyz" value="0" />
+    <xacro:property name="l2_xx_inertia" value="0.000078462" />
+    <xacro:property name="l2_yy_inertia" value="0.000083214" />
+    <xacro:property name="l2_zz_inertia" value="0.000012773" />
+    <xacro:property name="l2_xz_inertia" value="0.000006523" />
+    <xacro:property name="l2_xy_inertia" value="0" />
+    <xacro:property name="l2_yz_inertia" value="0" />
+    <xacro:property name="shaft_inertia" value="0.0006" />
+    <xacro:property name="N" value="50" />  <!-- gear reduction -->
     <xacro:property name="sensor_length" value="0.005" />
     <xacro:property name="sensor_width" value="0.02" />
     <xacro:property name="tip_adapter_length" value="0.0113" />
@@ -49,15 +53,22 @@
       <link name="finger${fnum}_link1">
         <pose>0 0 0 0 0 0</pose>
         <inertial>
-          <pose>0 0 -${l1_length/2} 0 0 0</pose>
+          <pose>0 0 -${l1_COM} 0 0 0</pose>
           <mass>${l1_mass}</mass>
           <inertia>
-            <ixx>${l1_ixx}</ixx>
-            <iyy>${l1_iyy}</iyy>
-            <izz>${l1_izz}</izz>
-            <ixz>${l1_ixz}</ixz>
-            <ixy>${l1_ixy}</ixy>
-            <iyz>${l1_iyz}</iyz>
+            <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+            <ixx>${l1_xx_inertia + (shaft_inertia * N * N) + (l1_mass * l1_COM)}</ixx>
+            <iyy>${l1_yy_inertia + (shaft_inertia * N * N) + (l1_mass * l1_COM)}</iyy>
+            <izz>${l1_zz_inertia + (shaft_inertia * N * N) + (l1_mass * l1_COM)}</izz>
+            <ixz>${l1_xz_inertia}</ixz>
+            <ixy>${l1_xy_inertia}</ixy>
+            <iyz>${l1_yz_inertia}</iyz>
           </inertia>
         </inertial>
         <visual name='link1_visual'>
@@ -105,15 +116,22 @@
         <!-- The origin of the link2 frame is located at the MidJoint. -->
         <pose>0 0 -${l1_length} 0 0 0</pose>
         <inertial>
-          <pose>0 0 -${(l2_length + sensor_length + tip_adapter_length + tip_cylinder_length)/2} 0 0 0</pose>
+          <pose>0 0 -${l2_COM} 0 0 0</pose>
           <mass>${l2_mass}</mass>
           <inertia>
-            <ixx>${l2_ixx}</ixx>
-            <iyy>${l2_iyy}</iyy>
-            <izz>${l2_izz}</izz>
-            <ixz>${l2_ixz}</ixz>
-            <ixy>${l2_ixy}</ixy>
-            <iyz>${l2_iyz}</iyz>
+            <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+            <ixx>${l2_xx_inertia  + (shaft_inertia * N * N) + (l2_mass * l2_COM)}</ixx>
+            <iyy>${l2_yy_inertia  + (shaft_inertia * N * N) + (l2_mass * l2_COM)}</iyy>
+            <izz>${l2_zz_inertia  + (shaft_inertia * N * N) + (l2_mass * l2_COM)}</izz>
+            <ixz>${l2_xz_inertia}</ixz>
+            <ixy>${l2_xy_inertia}</ixy>
+            <iyz>${l2_yz_inertia}</iyz>
           </inertia>
         </inertial>
         <visual name='link2_visual'>

@@ -19,8 +19,10 @@ using systems::OutputPortIndex;
 using systems::OutputPort;
 
 struct ForceControlOptions{
-  double kfy_{0};  // y-axis force gain (in brick frame)
-  double kfz_{0};  // z-axis force gain (in brick frame)
+  double kpfy_{0};  // y-axis proportional force gain (in brick frame)
+  double kpfz_{0};  // z-axis proportional force gain (in brick frame)
+  double kify_{0};  // y-axis integral force gain (in brick frame)
+  double kifz_{0};  // z-axis integral force gain (in brick frame)
   double kpy_{0};  // y-axis position gain (in brick frame)
   double kdy_{0};  // y-axis derivative gain (in brick frame)
   double kpz_{0};  // z-axis position gain (in brick frame)
@@ -104,6 +106,11 @@ class ForceController : public systems::LeafSystem<double> {
 
   void CalcTauOutput(const systems::Context<double>& context,
                      systems::BasicVector<double>* output_vector) const;
+
+ protected:
+  void DoCalcTimeDerivatives(
+      const systems::Context<double>& context,
+      systems::ContinuousState<double>* derivatives) const override;
 
  private:
   const MultibodyPlant<double>& plant_;

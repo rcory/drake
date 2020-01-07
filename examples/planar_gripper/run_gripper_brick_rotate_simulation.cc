@@ -38,7 +38,7 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(simulation_time, 2.75,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-4,
+DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
@@ -82,14 +82,16 @@ DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_bool(zero_gravity, true, "Always zero gravity?");
 
 // Hybrid position/force control parameters.
-DEFINE_double(kd_j1, 0.2, "joint damping for joint 1.");
-DEFINE_double(kd_j2, 0.2, "joint damping for joint 2.");
+DEFINE_double(kd_base, 1.0, "joint damping for base joint.");
+DEFINE_double(kd_mid, 1.0, "joint damping for mid joint.");
 DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
 DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
 DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
 DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kfy, 3e3, "y-axis force gain (in brick frame).");
-DEFINE_double(kfz, 5e3, "z-axis force gain (in brick frame).");
+DEFINE_double(kpfy, 3e3, "y-axis proportional force gain (in brick frame).");
+DEFINE_double(kpfz, 5e3, "z-axis proportional force gain (in brick frame).");
+DEFINE_double(kify, 1e2, "y-axis integral force gain (in brick frame).");
+DEFINE_double(kifz, 1e2, "z-axis integral force gain (in brick frame).");
 DEFINE_double(K_compliance, 2e3, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1e3, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, false,
@@ -166,13 +168,15 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
     throw std::logic_error("Undefined Finger specified.");
   }
   ForceControlOptions foptions;
-  foptions.kfy_ = FLAGS_kfy;
-  foptions.kfz_ = FLAGS_kfz;
+  foptions.kpfy_ = FLAGS_kpfy;
+  foptions.kpfz_ = FLAGS_kpfz;
+  foptions.kify_ = FLAGS_kify;
+  foptions.kifz_ = FLAGS_kifz;
   foptions.kpy_ = FLAGS_kpy;
   foptions.kdy_ = FLAGS_kdy;
   foptions.kpz_ = FLAGS_kpz;
   foptions.kdz_ = FLAGS_kdz;
-  foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
+  foptions.Kd_ << FLAGS_kd_base, 0, 0, FLAGS_kd_mid;
   foptions.K_compliance_ = FLAGS_K_compliance;
   foptions.D_damping_ = FLAGS_D_damping;
   foptions.brick_damping_ = brick_damping;
@@ -257,6 +261,8 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
                                   "ACTUATION_OUTPUT", builder, &lcm);
     systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
                                   "TORQUE_OUTPUT", builder, &lcm);
+    systems::lcm::ConnectLcmScope(planar_gripper.GetOutputPort("brick_state"),
+                                  "BRICK_STATE", builder, &lcm);
   }
 
   // We don't regulate position for now (set these to zero).
@@ -367,8 +373,12 @@ int DoMain() {
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
           "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmStatusPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
-
-  builder.Connect(planar_gripper->GetOutputPort("gripper_state"),
+  auto state_remapper = builder.AddSystem<MapStateToUserOrderedState>(
+      planar_gripper->get_multibody_plant(),
+      GetPreferredGripperStateOrdering());
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  state_remapper->get_input_port(0));
+  builder.Connect(state_remapper->get_output_port(0),
                   status_encoder->get_state_input_port());
   builder.Connect(planar_gripper->GetOutputPort("force_sensor"),
                   status_encoder->get_force_input_port());

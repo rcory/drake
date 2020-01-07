@@ -369,6 +369,17 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
   PublishFramesToLcm("SIM", poses, body_names, &lcm);
 }
 
+std::vector<std::string> GetPreferredGripperStateOrdering() {
+  std::vector<std::string> user_order_vec;
+  user_order_vec.push_back("finger1_BaseJoint");
+  user_order_vec.push_back("finger1_MidJoint");
+  user_order_vec.push_back("finger2_BaseJoint");
+  user_order_vec.push_back("finger2_MidJoint");
+  user_order_vec.push_back("finger3_BaseJoint");
+  user_order_vec.push_back("finger3_MidJoint");
+  return user_order_vec;
+}
+
 /// A system that publishes frames at a specified period.
 FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
                    lcm::DrakeLcm& lcm, double period, bool frames_input)
@@ -445,6 +456,36 @@ void ExternalSpatialToSpatialViz::CalcOutput(
     spatial_forces_viz_output->emplace_back(
         p_BoBq_W, ext_spatial_force.F_Bq_W * force_scale_factor_);
   }
+}
+
+MapStateToUserOrderedState::MapStateToUserOrderedState(
+    const MultibodyPlant<double>& plant,
+    std::vector<std::string> user_order_vec) {
+  // Create the state selctor matrix.
+  std::vector<multibody::JointIndex> joint_indices;
+  for (auto iter = user_order_vec.begin(); iter != user_order_vec.end();
+       ++iter) {
+    joint_indices.push_back(plant.GetJointByName(*iter).index());
+  }
+  Sx_ = plant.MakeStateSelectorMatrix(joint_indices);
+
+  this->DeclareVectorInputPort(
+      "plant_state", systems::BasicVector<double>(plant.num_positions() +
+                                                  plant.num_velocities()));
+
+  this->DeclareVectorOutputPort(
+      "user_x", systems::BasicVector<double>(user_order_vec.size() * 2),
+      &MapStateToUserOrderedState::CalcOutput);
+}
+
+void MapStateToUserOrderedState::CalcOutput(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* output_vector) const {
+  auto output_value = output_vector->get_mutable_value();
+  auto plant_state = this->EvalVectorInput(context, 0)->get_value();
+
+  output_value.setZero();
+  output_value = Sx_ * plant_state;  // User ordered state.
 }
 
 }  // namespace planar_gripper

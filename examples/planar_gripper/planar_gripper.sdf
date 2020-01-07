@@ -21,12 +21,19 @@
     <link name="finger1_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
+        <pose>0 0 -0.03811 0 0 0</pose>
         <mass>0.449</mass>
         <inertia>
-          <ixx>1.519282829</ixx>
-          <iyy>1.519856854</iyy>
-          <izz>0.0006529</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
           <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
@@ -77,12 +84,19 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
+        <pose>0 0 -0.02966 0 0 0</pose>
         <mass>0.104</mass>
         <inertia>
-          <ixx>1.513503562</ixx>
-          <iyy>1.513508314</iyy>
-          <izz>1.2773e-05</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
           <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
@@ -231,12 +245,19 @@
     <link name="finger2_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
+        <pose>0 0 -0.03811 0 0 0</pose>
         <mass>0.449</mass>
         <inertia>
-          <ixx>1.519282829</ixx>
-          <iyy>1.519856854</iyy>
-          <izz>0.0006529</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
           <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
@@ -287,12 +308,19 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
+        <pose>0 0 -0.02966 0 0 0</pose>
         <mass>0.104</mass>
         <inertia>
-          <ixx>1.513503562</ixx>
-          <iyy>1.513508314</iyy>
-          <izz>1.2773e-05</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
           <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
@@ -441,12 +469,19 @@
     <link name="finger3_link1">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0425 0 0 0</pose>
+        <pose>0 0 -0.03811 0 0 0</pose>
         <mass>0.449</mass>
         <inertia>
-          <ixx>1.519282829</ixx>
-          <iyy>1.519856854</iyy>
-          <izz>0.0006529</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.517311719</ixx>
+          <iyy>1.517885744</iyy>
+          <izz>1.51776429</izz>
           <ixz>2.8883e-05</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
@@ -497,12 +532,19 @@
       <!-- The origin of the link2 frame is located at the MidJoint. -->
       <pose>0 0 -0.085 0 0 0</pose>
       <inertial>
-        <pose>0 0 -0.0299 0 0 0</pose>
+        <pose>0 0 -0.02966 0 0 0</pose>
         <mass>0.104</mass>
         <inertia>
-          <ixx>1.513503562</ixx>
-          <iyy>1.513508314</iyy>
-          <izz>1.2773e-05</izz>
+          <!-- This includes the inertia contributed by the motor shaft
+                through the gear ratio N, shifted to the COM.
+                See planar_gripper.xacro for the calculation. Note that in
+                reality this inertia affects Ixx only, but we repeat the
+                calculation in Iyy and Izz to satisfy the triangle inequality.
+                This is really a hack for this special 2D case. In 3D, we would
+                have to model the motor shaft and gear reduction. -->
+          <ixx>1.503163102</ixx>
+          <iyy>1.503167854</iyy>
+          <izz>1.503097413</izz>
           <ixz>6.523e-06</ixz>
           <ixy>0</ixy>
           <iyz>0</iyz>
