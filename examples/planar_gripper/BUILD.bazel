@@ -26,7 +26,6 @@ drake_cc_library(
         "//examples/planar_gripper:1dof_brick.sdf",
         "//examples/planar_gripper:planar_brick.sdf",
         "//examples/planar_gripper:planar_gripper.sdf",
-        "//examples/planar_gripper:postures.txt",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -121,7 +120,8 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_trajectory_publisher.cc"],
     data = [
         ":models",
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
     ],
     deps = [
         ":planar_gripper_common",
@@ -167,7 +167,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":models",
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
@@ -193,7 +193,8 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_simulation.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
     ],
     test_rule_args = [
         "--simulation_time=0.1",

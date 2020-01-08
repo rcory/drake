@@ -45,6 +45,9 @@ DEFINE_double(keyframe_dt, 0.1,
               "data in postures.txt contains static equilibrium poses and we "
               "play these back at an arbitrary speed for this simulation.");
 
+DEFINE_string(keyframes_filename, "postures_horizontal.txt",
+              "The name of the file containing the keyframes.");
+
 const char* const kLcmStatusChannel = "PLANAR_GRIPPER_STATUS";
 const char* const kLcmCommandChannel = "PLANAR_GRIPPER_COMMAND";
 
@@ -75,7 +78,7 @@ int DoMain() {
 
   // Parse the keyframes from a file.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/postures.txt";
+      "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::tie(keyframes, finger_joint_name_to_row_index_map) =

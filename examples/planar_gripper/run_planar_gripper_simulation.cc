@@ -46,7 +46,7 @@ DEFINE_double(brick_floor_penetration, 1e-5,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
-DEFINE_string(orientation, "vertical",
+DEFINE_string(orientation, "horizontal",
               "The orientation of the planar gripper. Options are {vertical, "
               "horizontal}.");
 DEFINE_bool(visualize_contacts, true,
@@ -55,6 +55,9 @@ DEFINE_bool(
     use_position_control, true,
     "If true (default) we simulate position control via inverse dynamics "
     "control. If false we actuate torques directly.");
+
+DEFINE_string(keyframes_filename, "postures_horizontal.txt",
+              "The name of the file containing the keyframes.");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
@@ -127,7 +130,7 @@ int DoMain() {
   // Extract the initial gripper and brick poses by parsing the keyframe file.
   // The brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/postures.txt";
+      "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   Vector3<double> brick_initial_2D_pose_G;
