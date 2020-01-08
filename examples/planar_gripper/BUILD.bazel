@@ -215,6 +215,33 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "run_playback_gripper_keyframes",
+    srcs = ["run_playback_gripper_keyframes.cc"],
+    add_test_rule = 1,
+    data = [
+        ":models",
+        "//examples/planar_gripper:postures_horizontal.txt",
+        "//examples/planar_gripper:postures_vertical.txt",
+    ],
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":planar_gripper_common",
+        ":planar_gripper_lcm",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/rendering:multibody_position_to_geometry_pose",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
     name = "run_finger_brick_rotate_simulation",
     srcs = ["run_finger_brick_rotate_simulation.cc"],
     add_test_rule = 1,
