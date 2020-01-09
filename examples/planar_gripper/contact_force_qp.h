@@ -18,6 +18,12 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
+
+enum class BrickType {
+  PinBrick,
+  PlanarBrick,
+};
+
 /**
  * Solves a QP to find the contact force from the finger to the object, such
  * that the object is steered back to the desired trajectory. Note this only
@@ -60,6 +66,7 @@ class InstantaneousContactForceQP {
    * @param weight_f_Cb_B The weight of the contact force in the cost.
    */
   InstantaneousContactForceQP(
+      const BrickType brick_type,
       const Eigen::Ref<const Eigen::Vector2d>& p_WB_planned,
       const Eigen::Ref<const Eigen::Vector2d>& v_WB_planned,
       const Eigen::Ref<const Eigen::Vector2d>& a_WB_planned,
@@ -121,6 +128,7 @@ class InstantaneousContactForceQPController
    * @param weight_f_Cb_B The weighting for the contact forces in the cost.
    */
   InstantaneousContactForceQPController(
+      BrickType brick_type,
       const multibody::MultibodyPlant<double>* plant,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
@@ -186,6 +194,7 @@ class InstantaneousContactForceQPController
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
           contact_forces) const;
 
+  const BrickType brick_type_;
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;
   Eigen::Matrix2d Kp_t_;

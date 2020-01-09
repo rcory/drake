@@ -34,10 +34,11 @@ Eigen::Matrix2d GetFrictionConeEdges(double mu, BrickFace brick_face) {
 }
 
 InstantaneousContactForceQP::InstantaneousContactForceQP(
+    const BrickType brick_type,
     const Eigen::Ref<const Eigen::Vector2d>& p_WB_planned,
     const Eigen::Ref<const Eigen::Vector2d>& v_WB_planned,
-    const Eigen::Ref<const Eigen::Vector2d>& a_WB_planned, double theta_planned,
-    double thetadot_planned, double thetaddot_planned,
+    const Eigen::Ref<const Eigen::Vector2d>& a_WB_planned,
+    double theta_planned, double thetadot_planned, double thetaddot_planned,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
     const Eigen::Ref<const Vector6<double>>& brick_state,
@@ -78,7 +79,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   }
 
   // Add the damping term
-  total_torque += -translational_damping * thetadot;
+  total_torque += -rotational_damping * thetadot;
 
   // First compute the desired acceleration.
   const Eigen::Vector2d a_WB_des =
@@ -96,13 +97,18 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   for (const auto& face_contact_force : f_Cb_B) {
     f_total_B += face_contact_force.second;
   }
+
+  Eigen::Matrix2d D;
+  D << translational_damping, 0, 0, translational_damping;
   Vector2<symbolic::Expression> a_WB =
       Eigen::Vector2d(
           0, 0*-multibody::UniformGravityFieldElement<double>::kDefaultStrength) +
-      (R_WB * f_total_B) / brick_mass;
+      (R_WB * f_total_B - D * brick_state.segment<2>(3)) / brick_mass;
 
   symbolic::Expression thetaddot = total_torque / I_B;
-  prog_->AddQuadraticCost((a_WB - a_WB_des).squaredNorm() * weight_a);
+  if (brick_type == BrickType::PlanarBrick) {
+    prog_->AddQuadraticCost((a_WB - a_WB_des).squaredNorm() * weight_a);
+  }
   using std::pow;
   prog_->AddQuadraticCost(pow(thetaddot - thetaddot_des, 2) *
                           weight_thetaddot_error);
@@ -133,13 +139,15 @@ InstantaneousContactForceQP::GetContactForceResult(
 }
 
 InstantaneousContactForceQPController::InstantaneousContactForceQPController(
+    const BrickType brick_type,
     const multibody::MultibodyPlant<double>* plant,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
     double weight_a, double weight_thetaddot, double weight_f_Cb_B, double mu,
     double translational_damping, double rotational_damping, double I_B,
     double mass_B)
-    : plant_{plant},
+    : brick_type_(brick_type),
+      plant_{plant},
       mu_{mu},
       Kp_t_{Kp_t},
       Kd_t_{Kd_t},
@@ -185,12 +193,14 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
                   Finger, std::pair<BrickFace, Eigen::Vector2d>>>{})
           .get_index();
 
-  brick_translate_y_position_index_ =
-      plant_->GetJointByName("brick_translate_y_joint")
-          .position_start();
-  brick_translate_z_position_index_ =
-      plant_->GetJointByName("brick_translate_x_joint")
-          .position_start();
+  if (brick_type == BrickType::PlanarBrick) {
+    brick_translate_y_position_index_ =
+        plant_->GetJointByName("brick_translate_y_joint")
+            .position_start();
+    brick_translate_z_position_index_ =
+        plant_->GetJointByName("brick_translate_x_joint")
+            .position_start();
+  }
   brick_revolute_x_position_index_ =
       plant_->GetJointByName("brick_revolute_x_joint").position_start();
   brick_body_index_ = plant_->GetBodyByName("brick_link").index();
@@ -222,14 +232,26 @@ void InstantaneousContactForceQPController::CalcControl(
   const double thetadot_planned = desired_brick_state(5);
   const double thetaddot_planned = desired_brick_acceleration(2);
   Vector6<double> brick_state;
-  brick_state << state(brick_translate_y_position_index_),
-      state(brick_translate_z_position_index_),
-      state(brick_revolute_x_position_index_),
-      state(plant_->num_positions() + brick_translate_y_position_index_),
-      state(plant_->num_positions() + brick_translate_z_position_index_),
-      state(plant_->num_positions() + brick_revolute_x_position_index_);
+
+  if (brick_type_ == BrickType::PlanarBrick) {
+    brick_state << state(brick_translate_y_position_index_),
+        state(brick_translate_z_position_index_),
+        state(brick_revolute_x_position_index_),
+        state(plant_->num_positions() + brick_translate_y_position_index_),
+        state(plant_->num_positions() + brick_translate_z_position_index_),
+        state(plant_->num_positions() + brick_revolute_x_position_index_);
+  } else {
+    brick_state << 0,
+        0,
+        state(brick_revolute_x_position_index_),
+        0,
+        0,
+        state(plant_->num_positions() + brick_revolute_x_position_index_);
+  }
+
 
   InstantaneousContactForceQP qp(
+      brick_type_,
       p_WB_planned, v_WB_planned, a_WB_planned, theta_planned, thetadot_planned,
       thetaddot_planned, Kp_t_, Kd_t_, Kp_r_, Kd_r_, brick_state,
       finger_face_assignments, weight_a_, weight_thetaddot_, weight_f_Cb_B_,
