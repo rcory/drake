@@ -73,6 +73,9 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
 
   (*plant)->Finalize();
 
+  Eigen::Vector3d gravity = Eigen::Vector3d::Zero();
+  (*plant)->mutable_gravity_field().set_gravity_vector(gravity);
+
   AddDrakeVisualizer<T>(&builder, **scene_graph);
 
   *input_port_index_applied_spatial_force =

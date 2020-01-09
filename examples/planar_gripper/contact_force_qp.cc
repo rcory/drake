@@ -97,7 +97,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   }
   Vector2<symbolic::Expression> a_WB =
       Eigen::Vector2d(
-          0, -multibody::UniformGravityFieldElement<double>::kDefaultStrength) +
+          0, 0*-multibody::UniformGravityFieldElement<double>::kDefaultStrength) +
       (R_WB * f_total_B) / brick_mass;
   const double I_B = dynamic_cast<const multibody::RigidBody<double>&>(
                          gripper_brick_->brick_frame().body())
@@ -235,6 +235,8 @@ void InstantaneousContactForceQPController::CalcControl(
     spatial_force.body_index = gripper_brick_->brick_frame().body().index();
     const std::pair<Eigen::Vector2d, Eigen::Vector2d> force_position =
         finger_contact_result.at(finger_contact.first);
+    drake::log()->info("force: \n{}", force_position.first);
+    drake::log()->info("position: \n{}", force_position.second);
     const Eigen::Vector2d p_BCb = force_position.second;
     spatial_force.p_BoBq_B = Eigen::Vector3d(0, p_BCb(0), p_BCb(1));
     const Eigen::Vector2d f_Cb_W = R_WB * force_position.first;
