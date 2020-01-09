@@ -2,13 +2,13 @@
 
 #include <memory>
 
-#include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/mathematical_program.h"
 #include "drake/solvers/mathematical_program_result.h"
 #include "drake/systems/controllers/state_feedback_controller_interface.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 
 namespace drake {
 namespace examples {
@@ -32,11 +32,11 @@ class PlanarFingerInstantaneousQP {
    * @param Kd The derivative gain.
    * @param theta The current brick orientation.
    * @param thetadot The current brick angular velocity.
-   * @param p_BFingerTip The position of the fingertip sphere center measured
-   * in the brick frame.
-   * Note: This assumes that regardless of the position of the fingertip center,
-   *  the fingertip surface is in contact with the brick and can apply a force at
-   *  that point (in reality this may not be true).
+   * @param p_BFingerTipContact The position of the fingertip contact point
+   * measured in the brick frame. Note: This assumes that regardless of the
+   * position of the fingertip center, the fingertip surface is in contact with
+   * the brick and can apply a force at that point (in reality this may not be
+   * true).
    * @param weight_thetaddot_error The weight of the thetaddot error in the
    * cost.
    * @param weight_f_Cb The weight of the contact force in the cost.
@@ -48,7 +48,7 @@ class PlanarFingerInstantaneousQP {
   PlanarFingerInstantaneousQP(
       double theta_planned, double thetadot_planned, double thetaddot_planned,
       double Kp, double Kd, double theta, double thetadot,
-      const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
+      const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTipContact,
       double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
       double mu, double I_B, double damping);
 

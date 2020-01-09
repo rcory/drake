@@ -16,9 +16,11 @@ Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph, const Finger finger);
 
-//double GetFingerTipSphereRadius(
-//    const multibody::MultibodyPlant<double>& plant,
-//    const geometry::SceneGraph<double>& scene_graph);
+// TODO(rcory) This method only exists for planar_finger_qp_test. Remove this
+//  once I remove the dependency in that test.
+double GetFingerTipSphereRadius(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, Finger finger);
 
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph);

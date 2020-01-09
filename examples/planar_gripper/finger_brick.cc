@@ -91,19 +91,21 @@ multibody::BodyIndex GetTipLinkBodyIndex(
   return plant.GetBodyByName(fnum + "_tip_link").index();
 }
 
-//double GetFingerTipSphereRadius(
-//    const multibody::MultibodyPlant<double>& plant,
-//    const geometry::SceneGraph<double>& scene_graph) {
-//  const geometry::SceneGraphInspector<double>& inspector =
-//      scene_graph.model_inspector();
-//  const geometry::GeometryId finger_tip_geometry_id =
-//      GetFingerTipGeometryId(plant, scene_graph);
-//  const geometry::Shape& fingertip_shape =
-//      inspector.GetShape(finger_tip_geometry_id);
-//  double finger_tip_radius =
-//      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
-//  return finger_tip_radius;
-//}
+// TODO(rcory) This method only exists for planar_finger_qp_test. Remove this
+//  once I remove the dependency in that test.
+double GetFingerTipSphereRadius(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, Finger finger) {
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::GeometryId finger_tip_geometry_id =
+      GetFingerTipGeometryId(plant, scene_graph, finger);
+  const geometry::Shape& fingertip_shape =
+      inspector.GetShape(finger_tip_geometry_id);
+  double finger_tip_radius =
+      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
+  return finger_tip_radius;
+}
 
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph) {

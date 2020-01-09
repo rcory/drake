@@ -152,7 +152,21 @@ drake_cc_library(
     srcs = ["planar_finger_qp.cc"],
     hdrs = ["planar_finger_qp.h"],
     deps = [
-        ":gripper_brick",
+        "//examples/planar_gripper:planar_gripper_common",
+        "//multibody/plant",
+        "//solvers:mathematical_program",
+        "//solvers:solve",
+        "//systems/controllers:state_feedback_controller_interface",
+        "//systems/framework:leaf_system",
+    ],
+)
+
+drake_cc_library(
+    name = "contact_force_qp",
+    srcs = ["contact_force_qp.cc"],
+    hdrs = ["contact_force_qp.h"],
+    deps = [
+        "//examples/planar_gripper:planar_gripper_common",
         "//multibody/plant",
         "//solvers:mathematical_program",
         "//solvers:solve",

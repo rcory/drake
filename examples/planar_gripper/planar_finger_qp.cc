@@ -12,13 +12,13 @@ const double kInf = std::numeric_limits<double>::infinity();
 PlanarFingerInstantaneousQP::PlanarFingerInstantaneousQP(
     double theta_planned, double thetadot_planned, double thetaddot_planned,
     double Kp, double Kd, double theta, double thetadot,
-    const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTip,
+    const Eigen::Ref<const Eigen::Vector2d>& p_BFingerTipContact,
     double weight_thetaddot_error, double weight_f_Cb, BrickFace contact_face,
     double mu, double I_B, double damping)
     : prog_{new solvers::MathematicalProgram()},
       f_Cb_B_edges_{prog_->NewContinuousVariables<2>()} {
   prog_->AddBoundingBoxConstraint(0, kInf, f_Cb_B_edges_);
-  p_BCb_ = p_BFingerTip;
+  p_BCb_ = p_BFingerTipContact;
   switch (contact_face) {
     case BrickFace::kPosZ: {
       friction_cone_edges_ << -mu, mu, -1, -1;
