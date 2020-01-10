@@ -241,7 +241,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   // simulation.
   //
   // Note: This is important. If we do connect the force controller in the brick
-  // only simulation it will complain about all its input ports note being
+  // only simulation it will complain about all its input ports not being
   // connected (which we don't do for brick only simulation).
   if (!FLAGS_brick_only) {
     auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
@@ -301,8 +301,10 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   } else {
     throw std::logic_error("Undefined contact face specified.");
   }
-  ConnectQPController(planar_gripper, lcm, *force_controller, qpoptions,
-                      builder);
+  std::unordered_map<Finger, ForceController&> finger_force_control_map;
+  finger_force_control_map.emplace(kFingerToControl, *force_controller);
+  ConnectQPController(planar_gripper, lcm, finger_force_control_map,
+                      QPType::FingerQP, qpoptions, builder);
 
   // publish body frames.
   auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 60.0, true);

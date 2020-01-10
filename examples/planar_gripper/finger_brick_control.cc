@@ -12,6 +12,7 @@
 #include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/contact_force_qp.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/systems/primitives/discrete_derivative.h"
@@ -452,11 +453,11 @@ void ForceController::CalcTauOutput(
     // Adds Joint damping.
     torque_calc += -options_.Kd_ * finger_state.segment<2>(2);
 
-//    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-//    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-//    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-//    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
-//    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
+    drake::log()->info("force_des_Br: \n{}", force_des_Br);
+    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -542,7 +543,263 @@ void ForceController::CalcTauOutput(
 //  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
-void DoConnectQPController(
+/// This is a helper system to distribute the output of the multifinger QP
+/// controller to the separate finger force controllers.
+class QPPlanToForceControllers : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPPlanToForceControllers);
+  QPPlanToForceControllers() {
+    this->DeclareAbstractInputPort(
+        "qp_control",
+        Value<std::unordered_map<
+            Finger, multibody::ExternallyAppliedSpatialForce<
+                        double>>>{});  // std::map<Finger, ExtForces>
+    this->DeclareAbstractOutputPort("f1_force", &QPPlanToForceControllers::CalcF1Output); // F1 std::vector<ExtForces>
+    this->DeclareAbstractOutputPort("f2_force", &QPPlanToForceControllers::CalcF2Output); // F2 std::vector<ExtForces>
+    this->DeclareAbstractOutputPort("f3_force", &QPPlanToForceControllers::CalcF3Output); // F3 std::vector<ExtForces>
+  }
+
+  void CalcF1Output(
+      const systems::Context<double>& context,
+      std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+          desired_force_vec) const {
+    desired_force_vec->clear();
+    auto finger_force_map =
+        this->get_input_port(0)
+            .Eval<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    multibody::ExternallyAppliedSpatialForce<double> desired_force;
+    for (auto finger_force : finger_force_map) {
+      if (finger_force.first == Finger::kFinger1) {
+        desired_force = finger_force.second;
+        break;
+      }
+    }
+    desired_force_vec->push_back(desired_force);
+  }
+
+  void CalcF2Output(
+      const systems::Context<double>& context,
+      std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+      desired_force_vec) const {
+    desired_force_vec->clear();
+    auto finger_force_map =
+        this->get_input_port(0)
+            .Eval<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    multibody::ExternallyAppliedSpatialForce<double> desired_force;
+    for (auto finger_force : finger_force_map) {
+      if (finger_force.first == Finger::kFinger2) {
+        desired_force = finger_force.second;
+        break;
+      }
+    }
+    desired_force_vec->push_back(desired_force);
+  }
+
+  void CalcF3Output(
+      const systems::Context<double>& context,
+      std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+      desired_force_vec) const {
+    desired_force_vec->clear();
+    auto finger_force_map =
+        this->get_input_port(0)
+            .Eval<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    multibody::ExternallyAppliedSpatialForce<double> desired_force;
+    for (auto finger_force : finger_force_map) {
+      if (finger_force.first == Finger::kFinger3) {
+        desired_force = finger_force.second;
+        break;
+      }
+    }
+    desired_force_vec->push_back(desired_force);
+  }
+};
+
+// TODO(rcory) Need to consolidate
+// DoConnectFingerQPController/DoConnectGripperQPController.
+void DoConnectGripperQPController(
+    const MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
+    const std::unordered_map<Finger, ForceController&>& finger_force_control_map,
+    const ModelInstanceIndex& brick_index, const QPControlOptions qpoptions,
+    std::map<std::string, const InputPort<double>&>& in_ports,
+    std::map<std::string, const OutputPort<double>&>& out_ports,
+    systems::DiagramBuilder<double>* builder) {
+  // brick accel planned is 0. Use a constant source.
+  auto brick_acceleration_planned_source =
+      builder->AddSystem<systems::ConstantVectorSource<double>>(
+          Eigen::Vector3d::Zero());
+
+  // just use a constant target...
+  Eigen::VectorXd des_state_vec(6);
+  des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;;
+  auto state_traj_source =
+      builder->AddSystem<systems::ConstantVectorSource<double>>(des_state_vec);
+
+  // Spit out to scope
+  systems::lcm::ConnectLcmScope(state_traj_source->get_output_port(),
+                                "STATE_TRAJ", builder, &lcm);
+
+  std::unordered_map<Finger, BrickFace>
+      finger_face_assignment;
+  finger_face_assignment.emplace(Finger::kFinger1, BrickFace::kNegY);
+//  finger_face_assignment.emplace(Finger::kFinger2, BrickFace::kPosY);
+//  finger_face_assignment.emplace(Finger::kFinger3, BrickFace::kNegZ);
+  auto contact_face_source =
+      builder->AddSystem<systems::ConstantValueSource<double>>(
+          Value<std::unordered_map<Finger, BrickFace>>(finger_face_assignment));
+
+  if (qpoptions.brick_only_) {
+    // ================ Brick QP controller =================================
+    // This implements the QP controller for brick only.
+    // ======================================================================
+
+    // Connect the QP controller
+    builder->Connect(out_ports.at("plant_state"), in_ports.at("qp_state"));
+    builder->Connect(out_ports.at("qp_control"),
+                     in_ports.at("plant_spatial_force"));
+
+    // TODO(rcory) Need to fix spatial force viz.
+//    // To visualize the applied spatial forces.
+//    auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
+//        plant, brick_index, qpoptions.viz_force_scale_);
+//    builder->Connect(out_ports.at("qp_control"), viz_converter->get_input_port(0));
+//    builder->Connect(out_ports.at("brick_state"),
+//                     viz_converter->get_input_port(1));
+//    multibody::ConnectSpatialForcesToDrakeVisualizer(
+//        builder, plant, viz_converter->get_output_port(0), &lcm);
+
+    builder->Connect(contact_face_source->get_output_port(0),
+                     in_ports.at("qp_finger_face_contact"));
+
+    // Always make contact with sphere center at position (yc, zc).
+    // TODO(rcory) bring back use of (yc, zc). Harcoded for now.
+
+    // Specify the finger contact locations.
+    auto f1_contact_pos = Eigen::Vector2d(-0.05, 0);
+    auto f2_contact_pos = Eigen::Vector2d(0.05, 0);
+    auto f3_contact_pos = Eigen::Vector2d(0, -0.05);
+    auto f1_contact_src =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(f1_contact_pos);
+    auto f2_contact_src =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(f2_contact_pos);
+    auto f3_contact_src =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(f3_contact_pos);
+    builder->Connect(f1_contact_src->get_output_port(),
+                     in_ports.at("qp_f1_contact_pos"));
+    builder->Connect(f2_contact_src->get_output_port(),
+                     in_ports.at("qp_f2_contact_pos"));
+    builder->Connect(f3_contact_src->get_output_port(),
+                     in_ports.at("qp_f3_contact_pos"));
+
+    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_accel"));
+    builder->Connect(state_traj_source->get_output_port(),
+                     in_ports.at("qp_desired_state"));
+  } else {
+    // ================ Planar Finger QP controller =========================
+    // This implements the QP controller for brick AND planar-finger.
+    // ======================================================================
+
+    // Connect the QP controller
+    builder->Connect(out_ports.at("plant_state"), in_ports.at("qp_state"));
+
+    // TODO(rcory) Connect the output of the qp controller to the force
+    //  controller.
+    // Note: The spatial forces coming from the output of the QP controller
+    // are already in the world frame (only the contact point is in the brick
+    // frame)
+
+    auto qp2force_sys = builder->AddSystem<QPPlanToForceControllers>();
+    builder->Connect(out_ports.at("qp_control"),
+                     qp2force_sys->GetInputPort("qp_control"));
+
+    for (auto finger_force_control : finger_force_control_map) {
+      if (finger_force_control.first == Finger::kFinger1) {
+        builder->Connect(
+            qp2force_sys->GetOutputPort("f1_force"),
+            finger_force_control.second.get_force_desired_input_port());
+      } else if (finger_force_control.first == Finger::kFinger2) {
+        builder->Connect(
+            qp2force_sys->GetOutputPort("f2_force"),
+            finger_force_control.second.get_force_desired_input_port());
+      } else if (finger_force_control.first == Finger::kFinger3) {
+        builder->Connect(
+            qp2force_sys->GetOutputPort("f3_force"),
+            finger_force_control.second.get_force_desired_input_port());
+      } else {
+        throw std::runtime_error("Unknown Finger");
+      }
+    }
+
+    // TODO(rcory) Need to fix this viz.
+    unused(brick_index);
+//    // To visualize the applied spatial forces.
+//    auto viz_converter = builder->AddSystem<ExternalSpatialToSpatialViz>(
+//        plant, brick_index, qpoptions.viz_force_scale_);
+//    builder->Connect(out_ports.at("qp_control"),
+//                     viz_converter->get_input_port(0));
+//    multibody::ConnectSpatialForcesToDrakeVisualizer(
+//        builder, plant, viz_converter->get_output_port(0), &lcm);
+//    builder->Connect(out_ports.at("brick_state"),
+//                     viz_converter->get_input_port(1));
+
+    builder->Connect(contact_face_source->get_output_port(0),
+                     in_ports.at("qp_contact_face"));
+
+    // Adds a zero order hold to the contact results.
+    auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
+        1e-3, Value<ContactResults<double>>());
+    builder->Connect(out_ports.at("contact_results"), zoh->get_input_port());
+
+    // Adds system to calculate fingertip contact.
+    for (auto finger_control : finger_force_control_map) {
+        auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
+            plant, scene_graph, finger_control.first);
+        builder->Connect(zoh->get_output_port(),
+                         contact_point_calc_sys->get_input_port(0));
+        builder->Connect(out_ports.at("plant_state"),
+                         contact_point_calc_sys->get_input_port(1));
+        builder->Connect(contact_point_calc_sys->get_output_port(0),
+                         in_ports.at("qp_p_BFingerTip"));
+        builder->Connect(out_ports.at("scene_graph_query"),
+                         contact_point_calc_sys->get_geometry_query_input_port());
+
+      // Communicate the contact point to the force controller (if available).
+      builder->Connect(contact_point_calc_sys->get_output_port(0),
+                       finger_control.second.get_p_BrFingerTip_input_port());
+
+      // Tells the force controller whether there is contact between the fingertip
+      // and the brick.
+      builder->Connect(contact_point_calc_sys->GetOutputPort("b_in_contact"),
+                       finger_control.second.get_is_contact_input_port());
+
+      // Provides contact point ref accelerations to the force controller (for
+      // inverse dynamics).
+      // TODO(rcory) likely don't need these accels anymore. Consider removing.
+      auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+      auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
+      builder->Connect(contact_point_calc_sys->get_output_port(0),
+                       v_BrCr->get_input_port());
+      builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
+      builder->Connect(
+          a_BrCr->get_output_port(),
+          finger_control.second.get_contact_point_ref_accel_input_port());
+    }
+
+    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_accel"));
+    builder->Connect(state_traj_source->get_output_port(),
+                     in_ports.at("qp_desired_state"));
+  }
+}
+
+void DoConnectFingerQPController(
     const MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
     const ForceController& force_controller,
@@ -694,7 +951,59 @@ void DoConnectQPController(
 
 /// Adds the QP controller to the diagram and returns its corresponding
 /// input/output ports.
-void AddQPControllerToDiagram(
+// TODO(rcory) Can I consolidate AddGripperQPControllerToDiagram and
+//  AddFingerQPControllerToDiagram?
+void AddGripperQPControllerToDiagram(
+    const MultibodyPlant<double>& plant,
+    systems::DiagramBuilder<double>* builder,
+    const QPControlOptions& qpoptions,
+    std::map<std::string, const InputPort<double>&>* in_ports,
+    std::map<std::string, const OutputPort<double>&>* out_ports) {
+
+  // QP controller
+  double Kp = qpoptions.QP_Kp_;
+  double Kd = qpoptions.QP_Kd_;
+  double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
+  double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
+  double mu = qpoptions.QP_mu_;
+  double damping = qpoptions.brick_damping_;
+  double I_B = qpoptions.brick_inertia_;
+
+  BrickType brick_type = BrickType::PinBrick;  // hardcode pin brick for now
+  Eigen::Vector2d zero2d = Eigen::Vector2d::Zero();
+  InstantaneousContactForceQPController* qp_controller =
+      builder->AddSystem<InstantaneousContactForceQPController>(
+          brick_type, &plant, zero2d /* Kp_t */, zero2d /* Kd_t */, Kp, Kd,
+          0 /* weight_a */, weight_thetaddot_error, weight_f_Cb_B, mu,
+          0 /* trans_damping */, damping, I_B, 1 /* mass_B */);
+
+  // Get the QP controller ports.
+  // Output ports.
+  out_ports->insert(std::pair<std::string, const OutputPort<double>&>(
+      "qp_control", qp_controller->get_output_port_control()));
+
+  // Input ports.
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_state", qp_controller->get_input_port_estimated_state()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_finger_face_contact",
+      qp_controller->get_input_port_finger_contact()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_brick_accel",
+      qp_controller->get_input_port_desired_brick_acceleration()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_state", qp_controller->get_input_port_desired_state()));
+
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_f1_contact_pos", qp_controller->get_input_port_f1_contact_pos()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_f2_contact_pos", qp_controller->get_input_port_f2_contact_pos()));
+  in_ports->insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_f3_contact_pos", qp_controller->get_input_port_f3_contact_pos()));
+
+}
+
+void AddFingerQPControllerToDiagram(
     const MultibodyPlant<double>& plant,
     systems::DiagramBuilder<double>* builder,
     const QPControlOptions& qpoptions,
@@ -764,17 +1073,20 @@ void ConnectQPController(const MultibodyPlant<double>& plant,
   in_ports.insert(std::pair<std::string, const InputPort<double>&>(
       "plant_spatial_force", plant.get_applied_spatial_force_input_port()));
 
-  AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
+  AddFingerQPControllerToDiagram(plant, builder, qpoptions, &in_ports,
+                                 &out_ports);
 
-  DoConnectQPController(plant, scene_graph, lcm, force_controller, brick_index,
-                        qpoptions, in_ports, out_ports, builder);
+  DoConnectFingerQPController(plant, scene_graph, lcm, force_controller,
+                              brick_index, qpoptions, in_ports, out_ports,
+                              builder);
 }
 
 // Connects a QP controller for a PlanarGripper diagram type simulation..
-void ConnectQPController(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
-                         const ForceController& force_controller,
-                         const QPControlOptions qpoptions,
-                         systems::DiagramBuilder<double>* builder) {
+void ConnectQPController(
+    PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const std::unordered_map<Finger, ForceController&> finger_force_control_map,
+    const QPType qp_type, const QPControlOptions qpoptions,
+    systems::DiagramBuilder<double>* builder) {
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
   const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
@@ -797,10 +1109,23 @@ void ConnectQPController(PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
   in_ports.insert(std::pair<std::string, const InputPort<double>&>(
       "plant_spatial_force", planar_gripper.GetInputPort("spatial_force")));
 
-  AddQPControllerToDiagram(plant, builder, qpoptions, &in_ports, &out_ports);
+  if (qp_type == QPType::FingerQP) {
+    AddFingerQPControllerToDiagram(plant, builder, qpoptions, &in_ports,
+                                   &out_ports);
+    DRAKE_DEMAND(finger_force_control_map.size() == 1);
+    DoConnectFingerQPController(
+        plant, scene_graph, lcm, finger_force_control_map.begin()->second,
+        brick_index, qpoptions, in_ports, out_ports, builder);
+  } else if (qp_type == QPType::GripperQP) {
+    AddGripperQPControllerToDiagram(plant, builder, qpoptions, &in_ports,
+                                    &out_ports);
+    DoConnectGripperQPController(plant, scene_graph, lcm,
+                                 finger_force_control_map, brick_index,
+                                 qpoptions, in_ports, out_ports, builder);
+  } else {
+    throw std::logic_error("Unknown QPType");
+  }
 
-  DoConnectQPController(plant, scene_graph, lcm, force_controller, brick_index,
-                         qpoptions, in_ports, out_ports, builder);
 }
 
 /**

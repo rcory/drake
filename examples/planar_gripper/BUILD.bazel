@@ -327,6 +327,7 @@ drake_cc_library(
     deps = [
         "//common/trajectories:piecewise_polynomial",
         "//examples/planar_gripper",
+        "//examples/planar_gripper:contact_force_qp",
         "//examples/planar_gripper:finger_brick",
         "//examples/planar_gripper:gripper_brick",
         "//examples/planar_gripper:planar_finger_qp",

@@ -56,8 +56,8 @@ class InstantaneousContactForceQP {
    * @param Kd_r The derivative gain of the brick rotational (angular) velocity.
    * @param brick_state The brick state include [p_y, p_z, θ, ṗ_y, ṗ_z, θ̇],
    * namely the brick position/orientation and its velocities.
-   * @param finger_face_assignment assigns a finger to a contact point on a
-   * given face of the brick. finger_face_assignment[finger] gives
+   * @param finger_face_info assigns a finger to a contact point on a
+   * given face of the brick. finger_face_info[finger] gives
    * (face, p_BCb_B), where p_BCb_B is the y/z location of the contact point
    * Cb on the brick frame.
    * @param weight_a The weight of the acceleration error in the cost.
@@ -75,7 +75,7 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
       const Eigen::Ref<const Vector6<double>>& brick_state,
       const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
-          finger_face_assignment,
+          finger_face_info,
       double weight_a, double weight_thetaddot_error, double weight_f_Cb,
       double mu, double I_B, double mass_B, double rotational_damping,
       double translational_damping);
@@ -170,6 +170,18 @@ class InstantaneousContactForceQPController
     return this->get_input_port(input_index_finger_contact_);
   }
 
+  const systems::InputPort<double>& get_input_port_f1_contact_pos() const {
+    return this->get_input_port(input_index_f1_contact_pos_);
+  }
+
+  const systems::InputPort<double>& get_input_port_f2_contact_pos() const {
+    return this->get_input_port(input_index_f2_contact_pos_);
+  }
+
+  const systems::InputPort<double>& get_input_port_f3_contact_pos() const {
+    return this->get_input_port(input_index_f3_contact_pos_);
+  }
+
   const systems::OutputPort<double>& get_output_port_control() const final {
     return this->get_output_port(output_index_control_);
   }
@@ -218,6 +230,9 @@ class InstantaneousContactForceQPController
   int input_index_desired_brick_state_{-1};
   int input_index_desired_brick_acceleration_{-1};
   int input_index_finger_contact_{-1};
+  int input_index_f1_contact_pos_{-1};
+  int input_index_f2_contact_pos_{-1};
+  int input_index_f3_contact_pos_{-1};
   int output_index_control_{-1};
   int output_index_contact_force_{-1};
 };
