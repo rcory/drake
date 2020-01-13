@@ -1,3 +1,5 @@
+// TODO(rcory) This file to be deprecated soon, in favor of
+//  contact_force_qp.h/.cc
 #pragma once
 
 #include <memory>

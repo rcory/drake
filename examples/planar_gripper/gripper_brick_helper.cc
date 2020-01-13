@@ -1,4 +1,4 @@
-#include "drake/examples/planar_gripper/gripper_brick.h"
+#include "drake/examples/planar_gripper/gripper_brick_helper.h"
 
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
@@ -49,7 +49,7 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
       FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
   parser.AddModelFromFile(brick_path, "brick");
   (*plant)->WeldFrames((*plant)->world_frame(),
-                       (*plant)->GetFrameByName("brick_base"),
+                       (*plant)->GetFrameByName("brick_base_link"),
                        math::RigidTransformd());
 
   (*plant)->Finalize();

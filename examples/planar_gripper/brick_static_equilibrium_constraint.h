@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-#include "drake/examples/planar_gripper/gripper_brick.h"
+#include "drake/examples/planar_gripper/gripper_brick_helper.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/constraint.h"
 #include "drake/solvers/mathematical_program.h"

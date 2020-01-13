@@ -83,6 +83,8 @@ LIBDRAKE_COMPONENTS = [
     "//multibody/parsing",
     "//multibody/plant",
     "//multibody/plant:contact_results_to_lcm",  # unpackaged
+    "//multibody/plant:spatial_force_output",  # unpackaged
+    "//multibody/plant:spatial_forces_to_lcm",  # unpackaged
     "//multibody/topology:multibody_graph",  # unpackaged
     "//multibody/tree",
     "//multibody/triangle_quadrature",

@@ -38,7 +38,7 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(simulation_time, 2.75,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-4,
+DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
@@ -283,8 +283,10 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   } else {
     throw std::logic_error("Undefined contact face specified.");
   }
-  ConnectQPController(planar_gripper, lcm, *force_controller, qpoptions,
-                      builder);
+  std::unordered_map<Finger, ForceController&> finger_force_control_map;
+  finger_force_control_map.emplace(kFingerToControl, *force_controller);
+  ConnectQPController(planar_gripper, lcm, finger_force_control_map,
+                      QPType::FingerQP, qpoptions, builder);
 
   // publish body frames.
   auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 60.0, true);

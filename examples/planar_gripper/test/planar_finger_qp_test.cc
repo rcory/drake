@@ -1,3 +1,5 @@
+// TODO(rcory) Rename this to planar_gripper_qp_test (once I get rid of the
+//  PlanarFingerInstantaneousQP class and only keep InstantaneousContactForceQP).
 #include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/contact_force_qp.h"
 

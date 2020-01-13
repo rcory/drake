@@ -5,8 +5,8 @@
 #include "drake/common/drake_assert.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
-#include "drake/lcmt_planar_gripper_qp_status.hpp"
-#include "drake/lcmt_planar_manipuland_qp_plan.hpp"
+//#include "drake/lcmt_planar_gripper_qp_status.hpp"
+//#include "drake/lcmt_planar_manipuland_qp_plan.hpp"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 

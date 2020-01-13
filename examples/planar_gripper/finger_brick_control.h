@@ -169,12 +169,13 @@ struct QPControlOptions{
 
 /// A method that connects the finger/brick QP controller to the force
 /// controller.
-void ConnectQPController(
-    const MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
-    const std::unordered_map<Finger, ForceController&> finger_force_control_map,
-    const ModelInstanceIndex& brick_index, const QPControlOptions options,
-    systems::DiagramBuilder<double>* builder);
+void ConnectQPController(const MultibodyPlant<double>& plant,
+                         const geometry::SceneGraph<double>& scene_graph,
+                         lcm::DrakeLcm& lcm,
+                         const ForceController& force_controller,
+                         const ModelInstanceIndex& brick_index,
+                         const QPControlOptions options,
+                         systems::DiagramBuilder<double>* builder);
 
 void ConnectQPController(
     PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,

@@ -9,7 +9,6 @@
 #include "drake/systems/primitives/trajectory_source.h"
 #include "drake/systems/lcm/connect_lcm_scope.h"
 #include "drake/multibody/tree/revolute_joint.h"
-#include "drake/examples/planar_gripper/gripper_brick.h"
 #include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/contact_force_qp.h"
@@ -372,7 +371,7 @@ void ForceController::CalcTauOutput(
 #else
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-    drake::log()->info("In direct force control.");
+//    drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world frame.
     // Express these in the brick frame instead (to compute the force error
     // terms), we then convert these commands to the finger base frame to match
@@ -453,11 +452,11 @@ void ForceController::CalcTauOutput(
     // Adds Joint damping.
     torque_calc += -options_.Kd_ * finger_state.segment<2>(2);
 
-    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
-    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
+//    drake::log()->info("force_des_Br: \n{}", force_des_Br);
+//    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+//    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+//    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+//    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -483,7 +482,7 @@ void ForceController::CalcTauOutput(
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere.
-    drake::log()->info("In impedance force control.");
+//    drake::log()->info("In impedance force control.");
     Eigen::Vector2d target_position_Br =
         get_p_BrFingerTip_input_port().Eval(context);
 
@@ -621,7 +620,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
 };
 
 // TODO(rcory) Need to consolidate
-// DoConnectFingerQPController/DoConnectGripperQPController.
+//  DoConnectFingerQPController/DoConnectGripperQPController.
 void DoConnectGripperQPController(
     const MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,

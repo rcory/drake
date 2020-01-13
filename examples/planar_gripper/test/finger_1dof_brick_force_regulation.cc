@@ -1,3 +1,5 @@
+// TODO(rcory) This file to be deprecated soon...along with
+//  planar_finger.sdf/.xacro
 #include <memory>
 
 #include <gflags/gflags.h>
