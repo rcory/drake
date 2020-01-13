@@ -53,7 +53,7 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
 
   force_desired_input_port_ =
       this->DeclareAbstractInputPort(
-              "f_d", Value<std::vector<
+              "force_desired", Value<std::vector<
                          multibody::ExternallyAppliedSpatialForce<double>>>())
           .get_index();
   finger_state_actual_input_port_ =  // actual state of the finger (joints) (4x1 vec)
@@ -752,15 +752,17 @@ void DoConnectGripperQPController(
                      in_ports.at("qp_contact_face"));
 
     // Adds a zero order hold to the contact results.
-    auto zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
-        1e-3, Value<ContactResults<double>>());
-    builder->Connect(out_ports.at("contact_results"), zoh->get_input_port());
+    auto zoh_contact_results =
+        builder->AddSystem<systems::ZeroOrderHold<double>>(
+            1e-3, Value<ContactResults<double>>());
+    builder->Connect(out_ports.at("contact_results"),
+                     zoh_contact_results->get_input_port());
 
     // Adds system to calculate fingertip contact.
     for (auto finger_control : finger_force_control_map) {
         auto contact_point_calc_sys = builder->AddSystem<ContactPointInBrickFrame>(
             plant, scene_graph, finger_control.first);
-        builder->Connect(zoh->get_output_port(),
+        builder->Connect(zoh_contact_results->get_output_port(),
                          contact_point_calc_sys->get_input_port(0));
         builder->Connect(out_ports.at("plant_state"),
                          contact_point_calc_sys->get_input_port(1));
@@ -842,6 +844,11 @@ void DoConnectFingerQPController(
   auto contact_face_source =
       builder->AddSystem<systems::ConstantValueSource<double>>(contact_face);
 
+  // TODO(rcory) Get rid of this if/else block for brick only. Ultimately, if
+  //  we are simulating brick only, then we connect QP controller to the plant's
+  //  spatial force input. Otherwise (for force control) we connect to the force
+  //  controller's force desired input port. All other connections can stay the
+  //  same.
   if (qpoptions.brick_only_) {
     // ================ Brick QP controller =================================
     // This implements the QP controller for brick only.
