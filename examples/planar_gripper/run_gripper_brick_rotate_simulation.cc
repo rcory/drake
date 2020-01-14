@@ -28,10 +28,8 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
-using lcm::DrakeLcm;
 using multibody::RevoluteJoint;
 using multibody::ContactResults;
-using multibody::SpatialForce;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
@@ -64,6 +62,8 @@ DEFINE_bool(visualize_contacts, true,
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
 DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
+DEFINE_string(contact_face, "NegZ",
+              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
 DEFINE_double(f1_base, -0.15 /*-0.35*/, "f1_base");  // shoulder joint
 DEFINE_double(f1_mid, 1.2 /* 1.3 */, "f1_mid");  // elbow joint
 DEFINE_double(f2_base, -0.15, "f2_base");
@@ -71,6 +71,9 @@ DEFINE_double(f2_mid, 1.2 /* 0.84 */, "f2_mid");
 DEFINE_double(f3_base, -0.15, "f3_base");
 DEFINE_double(f3_mid, 1.2 /* 0.84 */, "f3_mid");
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
+DEFINE_double(G_ROT, 0,
+              "Rotation of gripper frame (G) w.r.t. the world frame W around "
+              "the x-axis (deg).");
 
 // Note: The default plant sets up a vertical orientation with zero gravity.
 // This is because the default penetration allowance is so high, that the
@@ -100,11 +103,10 @@ DEFINE_bool(always_direct_force_control, false,
 DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
-
 DEFINE_double(yc, 0,
-              "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, -0.05,
-              "z_br contact point location for brick only sim.");
+              "Value of y-coordinate for z-face contact (for brick-only sim).");
+DEFINE_double(zc, 0,
+              "Value of z-coordinate for y-face contact (for brick-only sim.");
 
 // QP task parameters
 // finger 1: theta0=-2.679793, thetaf=-1.308997
@@ -116,24 +118,18 @@ DEFINE_double(T, 1.5, "time horizon (s)");
 DEFINE_double(QP_Kp, 150 /* 50 */, "QP controller Kp gain");
 DEFINE_double(QP_Kd, 20 /* 5 */, "QP controller Kd gain"); /* 20 for brick only */
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
-DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
+DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
-
-DEFINE_string(contact_face, "NegZ",
-              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
 
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
 
-void SetupFeedbackController(PlanarGripper& planar_gripper,
-                             DrakeLcm& lcm,
-                             systems::DiagramBuilder<double>* builder) {
-  // Extract the joint damping and rotational inertia parameters for the 1-dof
-  // brick (used in QP and force controllers).
+void GetControllerOptions(const PlanarGripper& planar_gripper,
+                          ForceControlOptions* foptions,
+                          QPControlOptions* qpoptions) {
   double brick_damping = 0;
   auto& plant = planar_gripper.get_multibody_plant();
-  auto& scene_graph = planar_gripper.get_mutable_scene_graph();
   if (!FLAGS_assume_zero_brick_damping) {
     brick_damping =
         plant.GetJointByName<RevoluteJoint>("brick_revolute_x_joint")
@@ -144,176 +140,70 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
       .default_rotational_inertia()
       .get_moments()(0);
 
-  auto zoh_contact_results = builder->AddSystem<systems::ZeroOrderHold<double>>(
-  1e-3, Value<ContactResults<double>>());
-
-  std::vector<SpatialForce<double>> init_spatial_vec{
-      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
-  auto zoh_reaction_forces = builder->AddSystem<systems::ZeroOrderHold<double>>(
-      1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
-
-  // TODO(rcory) remove this?
-//  auto zoh_joint_accels = builder->AddSystem<systems::ZeroOrderHold<double>>(
-//      1e-3, plant.num_velocities());
-
-  // Setup the force controller.
-  Finger kFingerToControl;
+  foptions->kpfy_ = FLAGS_kpfy;
+  foptions->kpfz_ = FLAGS_kpfz;
+  foptions->kify_ = FLAGS_kify;
+  foptions->kifz_ = FLAGS_kifz;
+  foptions->kpy_ = FLAGS_kpy;
+  foptions->kdy_ = FLAGS_kdy;
+  foptions->kpz_ = FLAGS_kpz;
+  foptions->kdz_ = FLAGS_kdz;
+  foptions->Kd_ << FLAGS_kd_base, 0, 0, FLAGS_kd_mid;
+  foptions->K_compliance_ = FLAGS_K_compliance;
+  foptions->D_damping_ = FLAGS_D_damping;
+  foptions->brick_damping_ = brick_damping;
+  foptions->brick_inertia_ = brick_inertia;
+  foptions->always_direct_force_control_ = FLAGS_always_direct_force_control;
   if (FLAGS_finger_to_control == 1) {
-    kFingerToControl = Finger::kFinger1;
+    foptions->finger_to_control_ = Finger::kFinger1;
   } else if (FLAGS_finger_to_control == 2) {
-    kFingerToControl = Finger::kFinger2;
+    foptions->finger_to_control_ = Finger::kFinger2;
   } else if (FLAGS_finger_to_control == 3) {
-    kFingerToControl = Finger::kFinger3;
+    foptions->finger_to_control_ = Finger::kFinger3;
   } else {
     throw std::logic_error("Undefined Finger specified.");
   }
-  ForceControlOptions foptions;
-  foptions.kpfy_ = FLAGS_kpfy;
-  foptions.kpfz_ = FLAGS_kpfz;
-  foptions.kify_ = FLAGS_kify;
-  foptions.kifz_ = FLAGS_kifz;
-  foptions.kpy_ = FLAGS_kpy;
-  foptions.kdy_ = FLAGS_kdy;
-  foptions.kpz_ = FLAGS_kpz;
-  foptions.kdz_ = FLAGS_kdz;
-  foptions.Kd_ << FLAGS_kd_base, 0, 0, FLAGS_kd_mid;
-  foptions.K_compliance_ = FLAGS_K_compliance;
-  foptions.D_damping_ = FLAGS_D_damping;
-  foptions.brick_damping_ = brick_damping;
-  foptions.brick_inertia_ = brick_inertia;
-  foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
-  foptions.finger_to_control_ = kFingerToControl;
-
-  // Connect the force controller
-  auto force_controller = builder->AddSystem<ForceController>(
-      plant, scene_graph, foptions, planar_gripper.get_planar_gripper_index(),
-      planar_gripper.get_brick_index());
-  auto plant_to_finger_state_sel =
-      builder->AddSystem<PlantStateToFingerStateSelector>(
-          planar_gripper.get_multibody_plant(), kFingerToControl);
-  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
-                   plant_to_finger_state_sel->GetInputPort("plant_state"));
-  builder->Connect(plant_to_finger_state_sel->GetOutputPort("finger_state"),
-                   force_controller->get_finger_state_actual_input_port());
-  builder->Connect(planar_gripper.GetOutputPort("gripper_state"),
-                   force_controller->GetInputPort("gripper_x_act"));
-  // TODO(rcory) Make sure we are passing in the proper gripper state, once
-  //  horizontal with gravity on is supported (due to additional "x" prismatic
-  //  joint).
-  builder->Connect(planar_gripper.GetOutputPort("brick_state"),
-                  force_controller->get_brick_state_actual_input_port());
-  builder->Connect(planar_gripper.GetOutputPort("contact_results"),
-                  zoh_contact_results->get_input_port());
-  builder->Connect(zoh_contact_results->get_output_port(),
-                  force_controller->get_contact_results_input_port());
-  // TODO(rcory) Remove these joint accelerations once I confirm they are not
-  // needed.
-//  builder->Connect(plant.get_joint_accelerations_output_port(),
-//                  zoh_joint_accels->get_input_port());
-//  builder->Connect(zoh_joint_accels->get_output_port(),
-//                  force_controller->get_accelerations_actual_input_port());
-  auto zero_accels_src =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(
-          VectorX<double>::Zero(plant.num_velocities()));
-  builder->Connect(zero_accels_src->get_output_port(),
-                   force_controller->get_accelerations_actual_input_port());
-
-  builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
-                  zoh_reaction_forces->get_input_port());
-
-  auto force_demux_sys =
-      builder->AddSystem<ForceDemuxer>(plant, kFingerToControl);
-  builder->Connect(zoh_contact_results->get_output_port(),
-                   force_demux_sys->get_contact_results_input_port());
-  builder->Connect(zoh_reaction_forces->get_output_port(),
-                   force_demux_sys->get_reaction_forces_input_port());
-  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
-                   force_demux_sys->get_state_input_port());
-
-  // Provide the actual force sensor input to the force controller. This
-  // contains the reaction forces (total wrench) at the sensor weld joint.
-  builder->Connect(force_demux_sys->get_reaction_vec_output_port(),
-                   force_controller->get_force_sensor_input_port());
-
-  // Set the force controller to drive the actuation input of the plant *unless*
-  // we are simulating the brick only, in which case we leave the output of the
-  // force controller unconnected such that it is never asked to evaluate during
-  // simulation.
-  //
-  // Note: This is important. If we do connect the force controller in the brick
-  // only simulation it will complain about all its input ports not being
-  // connected (which we don't do for brick only simulation).
-  if (!FLAGS_brick_only) {
-    auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
-        planar_gripper.get_control_plant(), kFingerToControl);
-    fingers_to_plant->set_name("fingers_to_plant_actuation_map");
-    auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            VectorX<double>::Zero(6));
-    builder->Connect(zero_u_src->get_output_port(),
-                     fingers_to_plant->GetInputPort("u_in"));  /* 6x1 of zeros */
-    builder->Connect(force_controller->get_torque_output_port(),
-                     fingers_to_plant->GetInputPort("u_fn"));
-    builder->Connect(fingers_to_plant->GetOutputPort("u_out"),
-                     planar_gripper.GetInputPort("actuation"));
-    // Connect to the scope.
-    systems::lcm::ConnectLcmScope(fingers_to_plant->GetOutputPort("u_out"),
-                                  "ACTUATION_OUTPUT", builder, &lcm);
-    systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
-                                  "TORQUE_OUTPUT", builder, &lcm);
-    systems::lcm::ConnectLcmScope(planar_gripper.GetOutputPort("brick_state"),
-                                  "BRICK_STATE", builder, &lcm);
-  }
-
-  // We don't regulate position for now (set these to zero).
-  // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
-  // ignores the x-components.
-  const Vector6<double> tip_state_des_vec = Vector6<double>::Zero();
-  auto const_pos_src =
-      builder->AddSystem<systems::ConstantVectorSource>(tip_state_des_vec);
-  builder->Connect(const_pos_src->get_output_port(),
-                   force_controller->get_tip_state_desired_input_port());
 
   // Creates the QP controller and connects to the force controller.
-  QPControlOptions qpoptions;
-  qpoptions.T_ = FLAGS_T;
-  qpoptions.theta0_ = FLAGS_theta0;
-  qpoptions.thetaf_ = FLAGS_thetaf;
-  qpoptions.QP_Kp_ = FLAGS_QP_Kp;
-  qpoptions.QP_Kd_ = FLAGS_QP_Kd;
-  qpoptions.QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
-  qpoptions.QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
-  qpoptions.QP_mu_ = FLAGS_QP_mu;
-  qpoptions.brick_only_ = FLAGS_brick_only;
-  qpoptions.viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions.yc_ = FLAGS_yc;
-  qpoptions.zc_ = FLAGS_zc;
-  qpoptions.brick_damping_ = brick_damping;
-  qpoptions.brick_inertia_ = brick_inertia;
+  qpoptions->T_ = FLAGS_T;
+  qpoptions->theta0_ = FLAGS_theta0;
+  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->QP_Kp_ = FLAGS_QP_Kp;
+  qpoptions->QP_Kd_ = FLAGS_QP_Kd;
+  qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
+  qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
+  qpoptions->QP_mu_ = FLAGS_QP_mu;
+  qpoptions->brick_only_ = FLAGS_brick_only;
+  qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
+  qpoptions->brick_damping_ = brick_damping;
+  qpoptions->brick_inertia_ = brick_inertia;
+  qpoptions->brick_type_ = BrickType::PinBrick;
+
+  // Note: finger_face_assignments_ should only be used for brick only
+  // simulation. However, currently I (rcory) don't have a good way of computing
+  // the closest contact face for a given finger, so we instead use the
+  // hardcoded values here (used in DoConnectGripperQPController).
+  // TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
+  //  finger/brick simulations.
   if (FLAGS_contact_face == "PosZ") {
-    qpoptions.contact_face_ = BrickFace::kPosZ;
+    qpoptions->finger_face_assignments_.emplace(
+        foptions->finger_to_control_,
+        std::make_pair(BrickFace::kPosZ, Eigen::Vector2d(FLAGS_yc, 0.05)));
   } else if (FLAGS_contact_face == "NegZ") {
-    qpoptions.contact_face_ = BrickFace::kNegZ;
+    qpoptions->finger_face_assignments_.emplace(
+        foptions->finger_to_control_,
+        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
   } else if (FLAGS_contact_face == "PosY") {
-    qpoptions.contact_face_ = BrickFace::kPosY;
+    qpoptions->finger_face_assignments_.emplace(
+        foptions->finger_to_control_,
+        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
   } else if (FLAGS_contact_face == "NegY") {
-    qpoptions.contact_face_ = BrickFace::kNegY;
+    qpoptions->finger_face_assignments_.emplace(
+        foptions->finger_to_control_,
+        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
   } else {
     throw std::logic_error("Undefined contact face specified.");
   }
-  std::unordered_map<Finger, ForceController&> finger_force_control_map;
-  finger_force_control_map.emplace(kFingerToControl, *force_controller);
-  ConnectQPController(planar_gripper, lcm, finger_force_control_map,
-                      QPType::FingerQP, qpoptions, builder);
-
-  // publish body frames.
-  auto frame_viz = builder->AddSystem<FrameViz>(plant, lcm, 1.0 / 60.0, true);
-  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
-                   frame_viz->get_input_port(0));
-
-  math::RigidTransformd goal_frame;
-  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
-  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &lcm);
 }
 
 int DoMain() {
@@ -337,6 +227,10 @@ int DoMain() {
   planar_gripper->zero_gravity(FLAGS_zero_gravity);
 
   // Setup the 1-dof brick version of the plant.
+  auto X_WG = math::RigidTransformd(
+      math::RollPitchYaw<double>(FLAGS_G_ROT * M_PI / 180, 0, 0),
+      Eigen::Vector3d::Zero());
+  planar_gripper->set_X_WG(X_WG);
   planar_gripper->SetupPinBrick(FLAGS_orientation);
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
   planar_gripper->set_stiction_tolerance(FLAGS_stiction_tolerance);
@@ -356,7 +250,32 @@ int DoMain() {
 //  builder.Connect(planner_sub->get_output_port(),
 //                  planner_decoder->get_input_port(0));
 
-  SetupFeedbackController(*planar_gripper, drake_lcm, &builder);
+  ForceControlOptions foptions; QPControlOptions qpoptions;
+  GetControllerOptions(*planar_gripper, &foptions, &qpoptions);
+  if (!FLAGS_brick_only) {
+    ForceController* force_controller =
+        SetupForceController(*planar_gripper, drake_lcm, foptions, &builder);
+    std::unordered_map<Finger, ForceController&> finger_force_control_map;
+    finger_force_control_map.emplace(foptions.finger_to_control_,
+                                     *force_controller);
+//  ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+//                      QPType::FingerQP, qpoptions, &builder);
+    ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+                        QPType::GripperQP, qpoptions, &builder);
+  } else {
+    ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
+                        QPType::GripperQP, qpoptions, &builder);
+  }
+
+  // publish body frames.
+  auto frame_viz = builder.AddSystem<FrameViz>(
+      planar_gripper->get_multibody_plant(), drake_lcm, 1.0 / 60.0, true);
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  frame_viz->get_input_port(0));
+
+  math::RigidTransformd goal_frame;
+  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
 
   // Connect drake visualizer.
   geometry::ConnectDrakeVisualizer(

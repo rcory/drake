@@ -175,7 +175,8 @@ PlanarGripper::PlanarGripper(double time_step, bool use_position_control)
     : owned_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
       owned_scene_graph_(std::make_unique<SceneGraph<double>>()),
       owned_control_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
-      use_position_control_(use_position_control) {
+      use_position_control_(use_position_control),
+      X_WG_(math::RigidTransformd::Identity()) {
   // This class holds the unique_ptrs explicitly for plant and scene_graph
   // until Finalize() is called (when they are moved into the Diagram). Grab
   // the raw pointers, which should stay valid for the lifetime of the Diagram.
@@ -207,7 +208,7 @@ void PlanarGripper::SetupPlant(std::string orientation,
       FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
 
   gripper_index_ = Parser(plant_, scene_graph_).AddModelFromFile(full_name);
-  WeldGripperFrames<double>(plant_);
+  WeldGripperFrames<double>(plant_, X_WG_);
 
   // Adds the brick to be manipulated.
   const std::string brick_full_file_name =
@@ -238,7 +239,7 @@ void PlanarGripper::SetupPlant(std::string orientation,
 
   // Create the controlled plant. Contains only the fingers (no bricks).
   Parser(control_plant_).AddModelFromFile(full_name);
-  WeldGripperFrames<double>(control_plant_);
+  WeldGripperFrames<double>(control_plant_, X_WG_);
 
   // Adds a thin floor that can provide friction against the brick.
   AddFloor(plant_, *scene_graph_);

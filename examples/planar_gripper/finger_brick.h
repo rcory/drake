@@ -44,7 +44,6 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
 
-  // TODO(rcory) replace finger with Enum
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
                            const geometry::SceneGraph<double>& scene_graph,
                            const Finger finger = Finger::kFinger1);
@@ -66,6 +65,28 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   std::unique_ptr<systems::Context<double>> plant_context_;
   systems::InputPortIndex geometry_query_input_port_{};
   const Finger finger_{Finger::kFinger1};  /* the finger to control */
+};
+
+/// A system to convert the individual contact points coming out of
+/// ContactPointInBrickFrame into a
+/// std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>{}, where
+/// BrickFace would be kClosest (meaning it isn't used) and the Vector2d is the
+/// contact point. This is really only needed because the QP controller takes
+/// in the unordered_map format
+// TODO(rcory) Figure out a way to get rid of this translation.
+class ContactPointsToFingerFaceAssignments final
+    : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointsToFingerFaceAssignments);
+
+  ContactPointsToFingerFaceAssignments(std::vector<Finger> fingers);
+
+  void CalcOutput(
+      const systems::Context<double>& context,
+      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
+          finger_face_assignments) const;
+ private:
+  std::vector<Finger> fingers_;
 };
 
 /// A system that outputs the force vector portion of ContactResults as

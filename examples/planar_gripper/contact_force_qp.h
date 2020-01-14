@@ -136,9 +136,17 @@ class InstantaneousContactForceQPController
       double translational_damping, double rotational_damping, double I_B,
       double mass_B);
 
+  const systems::InputPort<double>& get_input_port_estimated_plant_state()
+      const {
+    return this->get_input_port(input_index_estimated_plant_state_);
+  }
+
+  // TODO(rcory) The FeedbackController inheritance declares these virtual
+  //  functions, but the naming here is too generic, so dispatch to a more
+  //  logical name. Perhaps remove the inheritance?
   const systems::InputPort<double>& get_input_port_estimated_state()
-      const final {
-    return this->get_input_port(input_index_state_);
+  const final {
+    return this->get_input_port_estimated_plant_state();
   }
 
   /**
@@ -146,8 +154,16 @@ class InstantaneousContactForceQPController
    * [p_y, p_z, θ, ṗ_y, ṗ_z, θ̇]. Please do not connect the finger state to this
    * port.
    */
-  const systems::InputPort<double>& get_input_port_desired_state() const final {
+  const systems::InputPort<double>& get_input_port_desired_brick_state()
+      const {
     return this->get_input_port(input_index_desired_brick_state_);
+  }
+  // TODO(rcory) The FeedbackController inheritance declares these virtual
+  //  functions, but the naming here is too generic, so dispatch to a more
+  //  logical name. Perhaps remove the inheritance?
+  const systems::InputPort<double>& get_input_port_desired_state()
+  const final {
+    return this->get_input_port_desired_brick_state();
   }
 
   /**
@@ -166,32 +182,27 @@ class InstantaneousContactForceQPController
    * in contact, and the y/z location of the contact point on the brick,
    * expressed in the brick frame.
    */
-  const systems::InputPort<double>& get_input_port_finger_contact() const {
-    return this->get_input_port(input_index_finger_contact_);
+  const systems::InputPort<double>& get_input_port_finger_face_assignments()
+      const {
+    return this->get_input_port(input_index_finger_face_assignments_);
   }
 
-  const systems::InputPort<double>& get_input_port_f1_contact_pos() const {
-    return this->get_input_port(input_index_f1_contact_pos_);
+  // TODO(rcory) The FeedbackController inheritance declares these virtual
+  //  functions, but the naming here is too generic, so dispatch to a more
+  //  logical name. Perhaps remove the inheritance?
+  const systems::OutputPort<double>& get_output_port_fingers_control() const {
+    return this->get_output_port(output_index_fingers_control_);
   }
-
-  const systems::InputPort<double>& get_input_port_f2_contact_pos() const {
-    return this->get_input_port(input_index_f2_contact_pos_);
-  }
-
-  const systems::InputPort<double>& get_input_port_f3_contact_pos() const {
-    return this->get_input_port(input_index_f3_contact_pos_);
-  }
-
   const systems::OutputPort<double>& get_output_port_control() const final {
-    return this->get_output_port(output_index_control_);
+    return this->get_output_port_fingers_control();
   }
 
   /**
    * This port is used for faking the computed contact force directly to the
    * brick as external spatial wrenches.
    */
-  const systems::OutputPort<double>& get_output_port_contact_force() const {
-    return this->get_output_port(output_index_contact_force_);
+  const systems::OutputPort<double>& get_output_port_brick_control() const {
+    return this->get_output_port(output_index_brick_control_);
   }
 
  private:
@@ -226,15 +237,12 @@ class InstantaneousContactForceQPController
   int brick_revolute_x_position_index_;
   multibody::BodyIndex brick_body_index_;
 
-  int input_index_state_{-1};
+  int input_index_estimated_plant_state_{-1};
   int input_index_desired_brick_state_{-1};
   int input_index_desired_brick_acceleration_{-1};
-  int input_index_finger_contact_{-1};
-  int input_index_f1_contact_pos_{-1};
-  int input_index_f2_contact_pos_{-1};
-  int input_index_f3_contact_pos_{-1};
-  int output_index_control_{-1};
-  int output_index_contact_force_{-1};
+  int input_index_finger_face_assignments_{-1};
+  int output_index_fingers_control_{-1};
+  int output_index_brick_control_{-1};
 };
 }  // namespace planar_gripper
 }  // namespace examples

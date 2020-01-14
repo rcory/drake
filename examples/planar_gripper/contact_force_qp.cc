@@ -37,13 +37,13 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const BrickType brick_type,
     const Eigen::Ref<const Eigen::Vector2d>& p_WB_planned,
     const Eigen::Ref<const Eigen::Vector2d>& v_WB_planned,
-    const Eigen::Ref<const Eigen::Vector2d>& a_WB_planned,
-    double theta_planned, double thetadot_planned, double thetaddot_planned,
+    const Eigen::Ref<const Eigen::Vector2d>& a_WB_planned, double theta_planned,
+    double thetadot_planned, double thetaddot_planned,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
     const Eigen::Ref<const Vector6<double>>& brick_state,
     const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
-        finger_face_info,
+        finger_face_assignments,
     double weight_a, double weight_thetaddot_error, double weight_f_Cb,
     double mu, double I_B, double brick_mass, double rotational_damping,
     double translational_damping)
@@ -57,8 +57,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   std::map<Finger, Vector2<symbolic::Expression>> f_Cb_B;
   // Also compute the total contact torque.
   symbolic::Expression total_torque = 0;
-  finger_face_contacts_.reserve(finger_face_info.size());
-  for (const auto& finger_face : finger_face_info) {
+  finger_face_contacts_.reserve(finger_face_assignments.size());
+  for (const auto& finger_face_assignment : finger_face_assignments) {
     Vector2<symbolic::Variable> f_Cbi_B_edges =
         prog_->NewContinuousVariables<2>("f_Cb_B_edges");
     // The friction cone edge weights have to be non-negative.
@@ -67,15 +67,16 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     // Now compute the edges of the friction cone in the brick frame. The edges
     // only depends on the brick face.
     const Eigen::Matrix2d friction_cone_edges_B =
-        GetFrictionConeEdges(mu, finger_face.second.first);
+        GetFrictionConeEdges(mu, finger_face_assignment.second.first);
     // Compute the finger contact position Cbi
-    Vector2<double> p_BCbi = finger_face.second.second;
+    Vector2<double> p_BCbi = finger_face_assignment.second.second;
     Vector2<symbolic::Expression> f_Cbi_B =
         friction_cone_edges_B * f_Cbi_B_edges;
-    f_Cb_B.emplace(finger_face.first, f_Cbi_B);
+    f_Cb_B.emplace(finger_face_assignment.first, f_Cbi_B);
     total_torque += p_BCbi(0) * f_Cbi_B(1) - p_BCbi(1) * f_Cbi_B(0);
-    finger_face_contacts_.emplace_back(
-        finger_face.first, finger_face.second.first, f_Cbi_B_edges, mu, p_BCbi);
+    finger_face_contacts_.emplace_back(finger_face_assignment.first,
+                                       finger_face_assignment.second.first,
+                                       f_Cbi_B_edges, mu, p_BCbi);
   }
 
   // Add the damping term
@@ -166,36 +167,38 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
   DRAKE_DEMAND(weight_thetaddot_ >= 0);
   DRAKE_DEMAND(weight_f_Cb_B_ >= 0);
 
-  output_index_control_ =
+  output_index_fingers_control_ =
       this->DeclareAbstractOutputPort(
-              "control", &InstantaneousContactForceQPController::CalcControl)
+              "fingers_control", &InstantaneousContactForceQPController::CalcControl)
           .get_index();
 
-  output_index_contact_force_ =
+  output_index_brick_control_ =
       this->DeclareAbstractOutputPort(
-              "finger_contact_force",
+              "brick_control",
               &InstantaneousContactForceQPController::CalcSpatialContactForce)
           .get_index();
 
-  input_index_state_ =
-      this->DeclareInputPort(systems::kVectorValued,
+  input_index_estimated_plant_state_ =
+      this->DeclareInputPort("estimated_plant_state", systems::kVectorValued,
                              plant->num_positions() + plant->num_velocities())
           .get_index();
 
   input_index_desired_brick_state_ =
-      this->DeclareInputPort(systems::kVectorValued, 6).get_index();
-  input_index_desired_brick_acceleration_ =
-      this->DeclareInputPort(systems::kVectorValued, 3).get_index();
-  input_index_finger_contact_ =
-      this->DeclareAbstractInputPort(
-              "finger_contact", Value<std::unordered_map<Finger, BrickFace>>{})
+      this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 6)
           .get_index();
-  input_index_f1_contact_pos_ =
-      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
-  input_index_f2_contact_pos_ =
-      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
-  input_index_f3_contact_pos_ =
-      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
+  input_index_desired_brick_acceleration_ =
+      this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 3)
+          .get_index();
+
+  // This input port contains an unordered map of Finger to a pair of BrickFace
+  // and contact point location (either real contact point or reference contact
+  // point if the finger isn't touching).
+  input_index_finger_face_assignments_ =
+      this->DeclareAbstractInputPort(
+              "finger_face_assignments",
+              Value<std::unordered_map<
+                  Finger, std::pair<BrickFace, Eigen::Vector2d>>>{})
+          .get_index();
 
   if (brick_type == BrickType::PlanarBrick) {
     brick_translate_y_position_index_ =
@@ -210,47 +213,28 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
   brick_body_index_ = plant_->GetBodyByName("brick_link").index();
 }
 
+// The output of this method will be an unordered map of size equal to the
+// number of fingers in contact (not necessarily 3) and is dynamic. The info
+// for what fingers are in contact and where is contained in the input
+// finger_face_assignments.
 void InstantaneousContactForceQPController::CalcControl(
     const systems::Context<double>& context,
     std::unordered_map<Finger,
                        multibody::ExternallyAppliedSpatialForce<double>>*
         control) const {
   control->clear();
-  const Eigen::VectorBlock<const VectorX<double>> state =
+  const Eigen::VectorBlock<const VectorX<double>> plant_state =
       get_input_port_estimated_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_state =
       get_input_port_desired_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_acceleration =
       get_input_port_desired_brick_acceleration().Eval(context);
-  const std::unordered_map<Finger, BrickFace> finger_face_assignments =
-      get_input_port_finger_contact()
-          .Eval<std::unordered_map<Finger, BrickFace>>(context);
-  const Eigen::Vector2d f1_contact_pos =
-      get_input_port_f1_contact_pos().Eval(context);
-  const Eigen::Vector2d f2_contact_pos =
-      get_input_port_f2_contact_pos().Eval(context);
-  const Eigen::Vector2d f3_contact_pos =
-      get_input_port_f3_contact_pos().Eval(context);
-
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_info;
-  for (auto finger_face_assignment : finger_face_assignments) {
-    if (finger_face_assignment.first == Finger::kFinger1) {
-      finger_face_info.emplace(
-          finger_face_assignment.first,
-          std::make_pair(finger_face_assignment.second, f1_contact_pos));
-    } else if (finger_face_assignment.first == Finger::kFinger2) {
-      finger_face_info.emplace(
-          finger_face_assignment.first,
-          std::make_pair(finger_face_assignment.second, f2_contact_pos));
-    } else if (finger_face_assignment.first == Finger::kFinger3) {
-      finger_face_info.emplace(
-          finger_face_assignment.first,
-          std::make_pair(finger_face_assignment.second, f3_contact_pos));
-    } else {
-      throw std::logic_error("Unknown finger.");
-    }
-  }
+  const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+      finger_face_assignments =
+          get_input_port_finger_face_assignments()
+              .Eval<std::unordered_map<Finger,
+                                       std::pair<BrickFace, Eigen::Vector2d>>>(
+                  context);
 
   const Eigen::Vector2d p_WB_planned = desired_brick_state.head<2>();
   const Eigen::Vector2d v_WB_planned = desired_brick_state.segment<2>(3);
@@ -261,28 +245,25 @@ void InstantaneousContactForceQPController::CalcControl(
   Vector6<double> brick_state;
 
   if (brick_type_ == BrickType::PlanarBrick) {
-    brick_state << state(brick_translate_y_position_index_),
-        state(brick_translate_z_position_index_),
-        state(brick_revolute_x_position_index_),
-        state(plant_->num_positions() + brick_translate_y_position_index_),
-        state(plant_->num_positions() + brick_translate_z_position_index_),
-        state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_state << plant_state(brick_translate_y_position_index_),
+        plant_state(brick_translate_z_position_index_),
+        plant_state(brick_revolute_x_position_index_),
+        plant_state(plant_->num_positions() +
+                    brick_translate_y_position_index_),
+        plant_state(plant_->num_positions() +
+                    brick_translate_z_position_index_),
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   } else {
-    brick_state << 0,
-        0,
-        state(brick_revolute_x_position_index_),
-        0,
-        0,
-        state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_state << 0, 0, plant_state(brick_revolute_x_position_index_), 0, 0,
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
-
   InstantaneousContactForceQP qp(
-      brick_type_,
-      p_WB_planned, v_WB_planned, a_WB_planned, theta_planned, thetadot_planned,
-      thetaddot_planned, Kp_t_, Kd_t_, Kp_r_, Kd_r_, brick_state,
-      finger_face_info, weight_a_, weight_thetaddot_, weight_f_Cb_B_,
-      mu_, I_B_, mass_B_, rotational_damping_, translational_damping_);
+      brick_type_, p_WB_planned, v_WB_planned, a_WB_planned, theta_planned,
+      thetadot_planned, thetaddot_planned, Kp_t_, Kd_t_, Kp_r_, Kd_r_,
+      brick_state, finger_face_assignments, weight_a_, weight_thetaddot_,
+      weight_f_Cb_B_, mu_, I_B_, mass_B_, rotational_damping_,
+      translational_damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
   const std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
@@ -292,7 +273,7 @@ void InstantaneousContactForceQPController::CalcControl(
   const double sin_theta = std::sin(theta);
   Eigen::Matrix2d R_WB;
   R_WB << cos_theta, -sin_theta, sin_theta, cos_theta;
-  for (const auto& finger_contact : finger_face_info) {
+  for (const auto& finger_contact : finger_face_assignments) {
     multibody::ExternallyAppliedSpatialForce<double> spatial_force;
     spatial_force.body_index = brick_body_index_;
     const std::pair<Eigen::Vector2d, Eigen::Vector2d>& force_position =

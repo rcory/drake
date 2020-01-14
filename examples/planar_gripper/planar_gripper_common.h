@@ -27,12 +27,14 @@ enum class Finger {
 
 std::string to_string(Finger finger);
 int to_num(Finger finger);
+Finger to_Finger(int i);
 
 enum class BrickFace {
   kPosZ,
   kNegZ,
   kPosY,
   kNegY,
+  kClosest,  // Force controller chooses the closest face/point.
 };
 
 // The planar-gripper coordinate frame G (with origin Go) and finger layout are
@@ -65,9 +67,11 @@ enum class BrickFace {
  * coincides with the world coordinate frame W when welded via this method.
  * @tparam T The scalar type. Currently only supports double.
  * @param plant The plant containing the planar-gripper.
+ * @param X_WG A RigidTransform containing the pose of the gripper frame (G)
+ * w.r.t. the world.
  */
 template <typename T>
-void WeldGripperFrames(MultibodyPlant<T>* plant);
+void WeldGripperFrames(MultibodyPlant<T>* plant, math::RigidTransformd X_WG);
 
 /**
  * Parses a text file containing keyframe joint positions for the planar gripper
@@ -125,9 +129,6 @@ MatrixX<double> ReorderKeyframesForPlant(
 VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
                                    std::map<std::string, double> map_in);
 
-/// Returns the planar gripper frame G's transform w.r.t. the world frame W.
-const math::RigidTransformd X_WGripper();
-
 /// Returns a specific finger's weld angle from the +Gz axis
 /// (gripper frame, +z axis)
 double FingerWeldAngle(Finger finger);
@@ -172,24 +173,29 @@ std::vector<std::string> GetPreferredGripperStateOrdering();
    bool frames_input_{false};
  };
 
-/// Visualizes the spatial forces via Evan's spatial force visualization PR.
-class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+ /// Visualizes the spatial forces via Evan's spatial force visualization PR.
+ /// A system that takes an `ExternallyAppliedSpatialForce` as input, and
+ /// outputs a std::vector of type `SpatialForceOutput`, which is then used for
+ /// visualization. The latter omits the body index, and expresses the contact
+ /// point in the world frame, instead of the body frame. The force is expressed
+ /// in the world frame for both.
+ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
 
-  ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
-                              multibody::ModelInstanceIndex instance,
-                              double force_scale_factor = 10);
+   ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
+                               multibody::ModelInstanceIndex instance,
+                               double force_scale_factor = 10);
 
-  void CalcOutput(const systems::Context<double>& context,
-                  std::vector<multibody::SpatialForceOutput<double>>*
-                  spatial_forces_viz_output) const;
+   void CalcOutput(const systems::Context<double>& context,
+                   std::vector<multibody::SpatialForceOutput<double>>*
+                       spatial_forces_viz_output) const;
 
- private:
-  const multibody::MultibodyPlant<double>& plant_;
-  multibody::ModelInstanceIndex instance_;
-  std::unique_ptr<systems::Context<double>> plant_context_;
-  double force_scale_factor_;
+  private:
+   const multibody::MultibodyPlant<double>& plant_;
+   multibody::ModelInstanceIndex instance_;
+   std::unique_ptr<systems::Context<double>> plant_context_;
+   double force_scale_factor_;
 };
 
 /// Takes in a state vector from MBP state output port, and outputs a state

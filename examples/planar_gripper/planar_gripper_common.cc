@@ -43,20 +43,39 @@ int to_num(Finger finger) {
   switch (finger) {
     case Finger::kFinger1: {
       return 1;
+      break;
     }
     case Finger::kFinger2: {
       return 2;
+      break;
     }
     case Finger::kFinger3: {
       return 3;
+      break;
     }
     default:
       throw std::runtime_error("Finger not valid.");
   }
 }
 
+Finger to_Finger(int i) {
+  switch (i) {
+    case 1:
+      return Finger::kFinger1;
+      break;
+    case 2:
+      return Finger::kFinger2;
+      break;
+    case 3:
+      return Finger::kFinger3;
+      break;
+    default:
+      throw std::runtime_error("Finger not valid");
+  }
+}
+
 template <typename T>
-void WeldGripperFrames(MultibodyPlant<T>* plant) {
+void WeldGripperFrames(MultibodyPlant<T>* plant, math::RigidTransformd X_WG) {
   // The finger base links are all welded a fixed distance from the gripper
   // frame's origin (Go), lying on the the gripper frame's Y-Z plane. We denote
   // The gripper frame's Y and Z axes as Gy and Gz.
@@ -68,9 +87,6 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
   // Note: Before welding and with all finger joint angles being zero, all
   // finger base links sit at the world origin with the finger pointing along
   // the world -Z axis.
-
-  // We align the planar gripper coordinate frame G with the world frame W.
-  const RigidTransformd X_WG = X_WGripper();
 
   // Weld the first finger. Finger base links are arranged equidistant along the
   // perimeter of a circle. The first finger is welded kFinger1Angle radians
@@ -109,7 +125,8 @@ void WeldGripperFrames(MultibodyPlant<T>* plant) {
 }
 
 // Explicit instantiations.
-template void WeldGripperFrames(MultibodyPlant<double>* plant);
+template void WeldGripperFrames(MultibodyPlant<double>* plant,
+                                math::RigidTransformd X_WG);
 
 /// Build a keyframe matrix for joints in joint_ordering by extracting the
 /// appropriate columns from all_keyframes. The interpretation of columns in
@@ -276,10 +293,6 @@ VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
   return position_vector;
 }
 
-const RigidTransformd X_WGripper() {
-  return math::RigidTransformd::Identity();
-}
-
 double FingerWeldAngle(Finger finger) {
   switch (finger) {
     case Finger::kFinger1 :
@@ -406,11 +419,6 @@ systems::EventStatus FrameViz::PublishFramePose(
 }
 
 /// Visualizes the spatial forces via Evan's spatial force visualization PR.
-/// A system that takes an `ExternallyAppliedSpatialForce` as input, and outputs
-/// a `SpatialForceOutput`, which is then used for visualization. The latter
-/// omits the body index, and expresses the contact point in the world frame,
-/// instead of the body frame. The force is expressed in the world frame for
-/// both.
 ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
     const MultibodyPlant<double>& plant, multibody::ModelInstanceIndex instance,
     double force_scale_factor)

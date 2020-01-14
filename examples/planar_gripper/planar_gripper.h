@@ -165,6 +165,10 @@ using multibody::ModelInstanceIndex;
      plant_->set_stiction_tolerance(value);
    }
 
+   void set_X_WG(math::RigidTransformd X_WG) {
+     X_WG_ = X_WG;
+   }
+
    // Zero gravity always?
    void zero_gravity(bool value) {
      if (is_diagram_finalized_) {
@@ -174,11 +178,11 @@ using multibody::ModelInstanceIndex;
      zero_gravity_ = value;
    }
 
-   ModelInstanceIndex get_brick_index() {
+   ModelInstanceIndex get_brick_index() const {
      return brick_index_;
    }
 
-   ModelInstanceIndex get_planar_gripper_index() {
+   ModelInstanceIndex get_planar_gripper_index() const {
      return gripper_index_;
    }
 
@@ -205,6 +209,9 @@ using multibody::ModelInstanceIndex;
    double floor_coef_static_friction_{0};
    double floor_coef_kinetic_friction_{0};
    bool zero_gravity_{false};
+
+   // The planar gripper frame G's transform w.r.t. the world frame W.
+   math::RigidTransformd X_WG_;
  };
 
 

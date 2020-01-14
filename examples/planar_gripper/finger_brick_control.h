@@ -5,6 +5,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/contact_force_qp.h"
 
 namespace drake {
 namespace examples {
@@ -15,6 +16,7 @@ enum class QPType {
   GripperQP,
 };
 
+using lcm::DrakeLcm;
 using geometry::SceneGraph;
 using multibody::MultibodyPlant;
 using multibody::ModelInstanceIndex;
@@ -49,8 +51,9 @@ class ForceController : public systems::LeafSystem<double> {
  public:
   ForceController(const MultibodyPlant<double>& plant,
                   const SceneGraph<double>& scene_graph,
-                  ForceControlOptions options, ModelInstanceIndex gripper_index,
-                  ModelInstanceIndex brick_index);
+                  ForceControlOptions options,
+                  const ModelInstanceIndex gripper_index,
+                  const ModelInstanceIndex brick_index);
 
   ForceControlOptions get_options() const {
     return options_;
@@ -155,16 +158,15 @@ struct QPControlOptions{
   bool brick_only_{false};  // only control brick (no finger)
   double viz_force_scale_{0};  // scale factor for visualizing spatial force arrow.
 
-  // These two (yc, zc) only affect the brick-only simulation.
-  double yc_{0};  // y contact point, for brick only QP
-  double zc_{0};  // z contact point, for brick only QP
-
   // Brick specific parameters.
   double brick_damping_{0};  // brick's pin joint damping.
   double brick_inertia_{0};  // brick's rotational inertia.
 
-  // The brick's contact face.
-  BrickFace contact_face_{BrickFace::kPosZ};
+  // The brick's finger/contact-face assignments.
+  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+      finger_face_assignments_;
+
+  BrickType brick_type_{BrickType::PinBrick};
 };
 
 /// A method that connects the finger/brick QP controller to the force
@@ -178,10 +180,15 @@ void ConnectQPController(const MultibodyPlant<double>& plant,
                          systems::DiagramBuilder<double>* builder);
 
 void ConnectQPController(
-    PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
-    const std::unordered_map<Finger, ForceController&> finger_force_control_map,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const std::optional<std::unordered_map<Finger, ForceController&>>& finger_force_control_map,
     const QPType qp_type, const QPControlOptions qpoptions,
     systems::DiagramBuilder<double>* builder);
+
+ForceController* SetupForceController(const PlanarGripper& planar_gripper,
+                                      DrakeLcm& lcm,
+                                      const ForceControlOptions& foptions,
+                                      systems::DiagramBuilder<double>* builder);
 
 /**
  *
@@ -222,15 +229,6 @@ class FingersToPlantActuationMap : public systems::LeafSystem<double> {
   MatrixX<double> actuation_selector_matrix_inv_;
   const Finger finger_;
 };
-
-/// Creates the QP controller (finger/brick for now), and connects it to the
-/// force controller (this is for the lcm based finger/brick rotate).
-// TODO(rcory) Reconcile this with ConnectControllers in finger_brick_control.cc
-void ConnectAllControllers(PlanarGripper& planar_gripper,
-                           lcm::DrakeLcm& lcm,
-                           const ForceController& force_controller,
-                           const QPControlOptions qpoptions,
-                           systems::DiagramBuilder<double>* builder);
 
 }  // namespace planar_gripper
 }  // namespace examples
