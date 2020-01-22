@@ -86,9 +86,8 @@ int DoMain() {
   keyframes = ReorderKeyframesForPlant(control_plant, keyframes,
                                        &finger_joint_name_to_row_index_map);
   // Here we assume the gripper frame G is aligned with the world frame W, e.g.,
-  // as given by calling WeldGripperFrames(). We enforce this by checking here.
-  DRAKE_DEMAND(
-      X_WGripper().IsExactlyEqualTo(math::RigidTransform<double>::Identity()));
+  // as given by calling WeldGripperFrames().
+  // TODO(rcory) Figure out a way to enforce this.
 
   // Creates the time vector for the plan interpolator.
   Eigen::VectorXd times = Eigen::VectorXd::Zero(keyframes.cols());

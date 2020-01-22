@@ -488,7 +488,7 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "planar_finger_qp_test",
+    name = "qp_test",
     data = [
         "//examples/planar_gripper:1dof_brick.sdf",
         "//examples/planar_gripper:fixed_surface.sdf",

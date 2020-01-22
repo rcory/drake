@@ -45,9 +45,9 @@ using multibody::SpatialForce;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 1.5,
+DEFINE_double(simulation_time, 2.5,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-4,
+DEFINE_double(time_step, 1e-3,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
@@ -83,11 +83,6 @@ DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
-DEFINE_double(yc, 0,
-              "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, -0.05,
-              "z_br contact point location for brick only sim.");
-
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
@@ -99,6 +94,14 @@ DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitued penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
+DEFINE_string(contact_face, "PosZ",
+              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
+DEFINE_double(
+    yc, 0,
+    "Value of y-coordinate offset for z-face contact (for brick-only sim).");
+DEFINE_double(
+    zc, 0,
+    "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
 DEFINE_bool(assume_zero_brick_damping, false, "Override brick joint damping with zero.");
 
@@ -123,11 +126,7 @@ int do_main() {
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
   auto finger_index =
       Parser(&plant, &scene_graph).AddModelFromFile(full_name);
-  if (FLAGS_brick_only) {
-    WeldFingerFrame<double>(&plant, -1);
-  } else {
-    WeldFingerFrame<double>(&plant);
-  }
+  WeldFingerFrame<double>(&plant);
 
   //   Adds the object to be manipulated.
   auto object_file_name =
@@ -168,90 +167,98 @@ int do_main() {
                              .default_rotational_inertia()
                              .get_moments()(0);
 
-  // Connect the force controller
-  auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
-      1e-3, Value<ContactResults<double>>());
-
-  std::vector<SpatialForce<double>> init_spatial_vec{
-      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
-  auto zoh_reaction_forces = builder.AddSystem<systems::ZeroOrderHold<double>>(
-      1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
-
-  auto zoh_joint_accels = builder.AddSystem<systems::ZeroOrderHold<double>>(
-      1e-3, plant.num_velocities());
-
-  // Setup the force controller.
   const Finger kFingerToControl = Finger::kFinger1;
-  ForceControlOptions foptions;
-  foptions.kpfy_ = FLAGS_kpfy;
-  foptions.kpfz_ = FLAGS_kpfz;
-  foptions.kpy_ = FLAGS_kpy;
-  foptions.kdy_ = FLAGS_kdy;
-  foptions.kpz_ = FLAGS_kpz;
-  foptions.kdz_ = FLAGS_kdz;
-  foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
-  foptions.K_compliance_ = FLAGS_K_compliance;
-  foptions.D_damping_ = FLAGS_D_damping;
-  foptions.brick_damping_ = brick_damping;
-  foptions.brick_inertia_ = brick_inertia;
-  foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
-  foptions.finger_to_control_ = kFingerToControl;
-
-  auto force_controller = builder.AddSystem<ForceController>(
-      plant, scene_graph, foptions, finger_index, brick_index);
-  builder.Connect(plant.get_state_output_port(finger_index),
-                  force_controller->GetInputPort("gripper_x_act"));
-  builder.Connect(plant.get_state_output_port(finger_index),
-                  force_controller->get_finger_state_actual_input_port());
-  builder.Connect(plant.get_state_output_port(brick_index),
-                  force_controller->get_brick_state_actual_input_port());
-  builder.Connect(plant.get_contact_results_output_port(),
-                  zoh_contact_results->get_input_port());
-  builder.Connect(zoh_contact_results->get_output_port(),
-                  force_controller->get_contact_results_input_port());
-  builder.Connect(plant.get_joint_accelerations_output_port(),
-                  zoh_joint_accels->get_input_port());
-  builder.Connect(zoh_joint_accels->get_output_port(),
-                  force_controller->get_accelerations_actual_input_port());
-  builder.Connect(plant.get_reaction_forces_output_port(),
-                  zoh_reaction_forces->get_input_port());
-
+  ForceController* force_controller = nullptr;
   DrakeLcm lcm;
+  if (!FLAGS_brick_only) {
+    // Connect the force controller
+    auto zoh_contact_results = builder.AddSystem<systems::ZeroOrderHold<double>>(
+        1e-3, Value<ContactResults<double>>());
 
-  // Here we output the contact results forces as well as the force sensor weld
-  // joint reaction forces to the LCM scope.
-  auto force_demux_sys =
-      builder.AddSystem<ForceDemuxer>(plant, kFingerToControl);
-  builder.Connect(zoh_contact_results->get_output_port(),
-                  force_demux_sys->get_contact_results_input_port());
-  builder.Connect(zoh_reaction_forces->get_output_port(),
-                  force_demux_sys->get_reaction_forces_input_port());
-  builder.Connect(plant.get_state_output_port(),
-                  force_demux_sys->get_state_input_port());
-  systems::lcm::ConnectLcmScope(
-      force_demux_sys->get_contact_res_vec_output_port(), "CONTACT_RES_VEC",
-      &builder, &lcm);
-  systems::lcm::ConnectLcmScope(
-      force_demux_sys->get_reaction_vec_output_port(), "REACTION_FORCE_VEC",
-      &builder, &lcm);
+    std::vector<SpatialForce<double>> init_spatial_vec{
+        SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
+    auto zoh_reaction_forces = builder.AddSystem<systems::ZeroOrderHold<double>>(
+        1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 
-  // Provide the actual force sensor input to the force controller. This
-  // contains the reaction forces (total wrench) at the sensor weld joint.
-  builder.Connect(force_demux_sys->get_reaction_vec_output_port(),
-                  force_controller->get_force_sensor_input_port());
+    auto zoh_joint_accels = builder.AddSystem<systems::ZeroOrderHold<double>>(
+        1e-3, plant.num_velocities());
 
-  // Set the plant's actuation input.
-  builder.Connect(force_controller->get_torque_output_port(),
-                  plant.get_actuation_input_port(finger_index));
+    // Setup the force controller.
+    ForceControlOptions foptions;
+    foptions.kpfy_ = FLAGS_kpfy;
+    foptions.kpfz_ = FLAGS_kpfz;
+    foptions.kpy_ = FLAGS_kpy;
+    foptions.kdy_ = FLAGS_kdy;
+    foptions.kpz_ = FLAGS_kpz;
+    foptions.kdz_ = FLAGS_kdz;
+    foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
+    foptions.K_compliance_ = FLAGS_K_compliance;
+    foptions.D_damping_ = FLAGS_D_damping;
+    foptions.brick_damping_ = brick_damping;
+    foptions.brick_inertia_ = brick_inertia;
+    foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
+    foptions.finger_to_control_ = kFingerToControl;
 
-  // We don't regulate position for now (set these to zero).
-  // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
-  // ignores the x-components.
-  const Vector6<double> tip_state_des_vec = Vector6<double>::Zero();
-  auto const_pos_src =
-      builder.AddSystem<systems::ConstantVectorSource>(tip_state_des_vec);
-  builder.Connect(const_pos_src->get_output_port(),
-                  force_controller->get_tip_state_desired_input_port());
+    force_controller = builder.AddSystem<ForceController>(
+        plant, scene_graph, foptions, finger_index, brick_index);
+    builder.Connect(plant.get_state_output_port(finger_index),
+                    force_controller->GetInputPort("gripper_x_act"));
+    builder.Connect(plant.get_state_output_port(finger_index),
+                    force_controller->get_finger_state_actual_input_port());
+    builder.Connect(plant.get_state_output_port(brick_index),
+                    force_controller->get_brick_state_actual_input_port());
+    builder.Connect(plant.get_contact_results_output_port(),
+                    zoh_contact_results->get_input_port());
+    builder.Connect(zoh_contact_results->get_output_port(),
+                    force_controller->get_contact_results_input_port());
+    builder.Connect(plant.get_joint_accelerations_output_port(),
+                    zoh_joint_accels->get_input_port());
+    builder.Connect(zoh_joint_accels->get_output_port(),
+                    force_controller->get_accelerations_actual_input_port());
+    builder.Connect(plant.get_reaction_forces_output_port(),
+                    zoh_reaction_forces->get_input_port());
+
+    // Here we output the contact results forces as well as the force sensor weld
+    // joint reaction forces to the LCM scope.
+    auto force_demux_sys =
+        builder.AddSystem<ForceDemuxer>(plant, kFingerToControl);
+    builder.Connect(zoh_contact_results->get_output_port(),
+                    force_demux_sys->get_contact_results_input_port());
+    builder.Connect(zoh_reaction_forces->get_output_port(),
+                    force_demux_sys->get_reaction_forces_input_port());
+    builder.Connect(plant.get_state_output_port(),
+                    force_demux_sys->get_state_input_port());
+    systems::lcm::ConnectLcmScope(
+        force_demux_sys->get_contact_res_vec_output_port(), "CONTACT_RES_VEC",
+        &builder, &lcm);
+    systems::lcm::ConnectLcmScope(
+        force_demux_sys->get_reaction_vec_output_port(), "REACTION_FORCE_VEC",
+        &builder, &lcm);
+
+    // Provide the actual force sensor input to the force controller. This
+    // contains the reaction forces (total wrench) at the sensor weld joint.
+    builder.Connect(force_demux_sys->get_reaction_vec_output_port(),
+                    force_controller->get_force_sensor_input_port());
+
+    // Set the plant's actuation input.
+    builder.Connect(force_controller->get_torque_output_port(),
+                    plant.get_actuation_input_port(finger_index));
+
+    // We don't regulate position for now (set these to zero).
+    // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
+    // ignores the x-components.
+    const Vector6<double> tip_state_des_vec = Vector6<double>::Zero();
+    auto const_pos_src =
+        builder.AddSystem<systems::ConstantVectorSource>(tip_state_des_vec);
+    builder.Connect(const_pos_src->get_output_port(),
+                    force_controller->get_tip_state_desired_input_port());
+  } else {
+    // Set the plant's actuation input.
+    auto const_u_src = builder.AddSystem<systems::ConstantVectorSource>(
+        Eigen::VectorXd::Zero(plant.num_actuators()));
+    builder.Connect(const_u_src->get_output_port(),
+                    plant.get_actuation_input_port(finger_index));
+  }
 
   // Connect MBP snd SG.
   builder.Connect(
@@ -277,13 +284,38 @@ int do_main() {
   qpoptions.QP_mu_ = FLAGS_QP_mu;
   qpoptions.brick_only_ = FLAGS_brick_only;
   qpoptions.viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions.yc_ = FLAGS_yc;
-  qpoptions.zc_ = FLAGS_zc;
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
-  qpoptions.contact_face_ = BrickFace::kPosZ;
-  ConnectQPController(plant, scene_graph, lcm, *force_controller, brick_index,
-                      qpoptions, &builder);
+  qpoptions.brick_type_ = BrickType::PinBrick;
+
+  if (FLAGS_contact_face == "PosZ") {
+    qpoptions.finger_face_assignments_.emplace(
+        kFingerToControl,
+        std::make_pair(BrickFace::kPosZ, Eigen::Vector2d(FLAGS_yc, 0.05)));
+  } else if (FLAGS_contact_face == "NegZ") {
+    qpoptions.finger_face_assignments_.emplace(
+        kFingerToControl,
+        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+  } else if (FLAGS_contact_face == "PosY") {
+    qpoptions.finger_face_assignments_.emplace(
+        kFingerToControl,
+        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+  } else if (FLAGS_contact_face == "NegY") {
+    qpoptions.finger_face_assignments_.emplace(
+        kFingerToControl,
+        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
+  } else {
+    throw std::logic_error("Undefined contact face specified.");
+  }
+
+  if (!FLAGS_brick_only) {
+    DRAKE_DEMAND(force_controller != nullptr);
+    ConnectQPController(plant, scene_graph, lcm, *force_controller, brick_index,
+                        qpoptions, &builder);
+  } else {
+    ConnectQPController(plant, scene_graph, lcm, std::nullopt, brick_index,
+                        qpoptions, &builder);
+  }
 
   // publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(plant, lcm, 1.0 / 30.0, true);

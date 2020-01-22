@@ -103,10 +103,12 @@ DEFINE_bool(always_direct_force_control, false,
 DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
-DEFINE_double(yc, 0,
-              "Value of y-coordinate for z-face contact (for brick-only sim).");
-DEFINE_double(zc, 0,
-              "Value of z-coordinate for y-face contact (for brick-only sim.");
+DEFINE_double(
+    yc, 0,
+    "Value of y-coordinate offset for z-face contact (for brick-only sim).");
+DEFINE_double(
+    zc, 0,
+    "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
 // QP task parameters
 // finger 1: theta0=-2.679793, thetaf=-1.308997
@@ -124,6 +126,9 @@ DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
+
+// TODO(rcory) Deprecate this.
+DEFINE_string(QPType, "gripper", "The type of QP to use {finger, gripper}");
 
 void GetControllerOptions(const PlanarGripper& planar_gripper,
                           ForceControlOptions* foptions,
@@ -258,13 +263,26 @@ int DoMain() {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
     finger_force_control_map.emplace(foptions.finger_to_control_,
                                      *force_controller);
-//  ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
-//                      QPType::FingerQP, qpoptions, &builder);
-    ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
-                        QPType::GripperQP, qpoptions, &builder);
+    if (FLAGS_QPType == "finger") {
+      ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+                          QPType::FingerQP, qpoptions, &builder);
+    } else if (FLAGS_QPType == "gripper") {
+          ConnectQPController(*planar_gripper, drake_lcm,
+          finger_force_control_map,
+                              QPType::GripperQP, qpoptions, &builder);
+    } else {
+      throw std::logic_error("Unknown QPType flag");
+    }
   } else {
+    if (FLAGS_QPType == "finger") {
+      ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
+                          QPType::FingerQP, qpoptions, &builder);
+    } else if (FLAGS_QPType == "gripper") {
     ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
                         QPType::GripperQP, qpoptions, &builder);
+    } else {
+      throw std::logic_error("Unknown QPType flag");
+    }
   }
 
   // publish body frames.

@@ -169,7 +169,8 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
 
   output_index_fingers_control_ =
       this->DeclareAbstractOutputPort(
-              "fingers_control", &InstantaneousContactForceQPController::CalcControl)
+              "fingers_control",
+              &InstantaneousContactForceQPController::CalcControl)
           .get_index();
 
   output_index_brick_control_ =

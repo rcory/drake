@@ -9,7 +9,7 @@ namespace planar_gripper {
 using drake::multibody::ContactResults;
 
 template <typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double z_offset) {
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
   // The finger base link is welded a fixed distance from the world
   // origin, on the Y-Z plane.
   const double kGripperOriginToBaseDistance = 0.19;
@@ -32,14 +32,13 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double z_offset) {
           Eigen::Vector3d(0, 0, 0)) *
       math::RigidTransformd(
           math::RotationMatrixd(),
-          Eigen::Vector3d(0, 0, kGripperOriginToBaseDistance + z_offset));
+          Eigen::Vector3d(0, 0, kGripperOriginToBaseDistance));
   const multibody::Frame<T>& finger1_base_frame =
       plant->GetFrameByName("finger1_base");
   plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_WG * X_GF1);
 }
 
-template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant,
-                              double x_offset);
+template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant);
 
 geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,

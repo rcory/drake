@@ -1,3 +1,4 @@
+// TODO(rcory) This file will be deprecated.
 #include <memory>
 
 #include <gflags/gflags.h>
@@ -96,10 +97,12 @@ DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
 
-DEFINE_double(yc, 0,
-              "y_Br contact point location for brick only sim.");
-DEFINE_double(zc, -0.05,
-              "z_br contact point location for brick only sim.");
+DEFINE_double(
+    yc, 0,
+    "Value of y-coordinate offset for z-face contact (for brick-only sim).");
+DEFINE_double(
+    zc, 0,
+    "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
@@ -268,21 +271,30 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   qpoptions.QP_mu_ = FLAGS_QP_mu;
   qpoptions.brick_only_ = FLAGS_brick_only;
   qpoptions.viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions.yc_ = FLAGS_yc;
-  qpoptions.zc_ = FLAGS_zc;
   qpoptions.brick_damping_ = brick_damping;
   qpoptions.brick_inertia_ = brick_inertia;
+  qpoptions.brick_type_ = BrickType::PinBrick;
+
   if (FLAGS_contact_face == "PosZ") {
-    qpoptions.contact_face_ = BrickFace::kPosZ;
+    qpoptions.finger_face_assignments_.emplace(
+        foptions.finger_to_control_,
+        std::make_pair(BrickFace::kPosZ, Eigen::Vector2d(FLAGS_yc, 0.05)));
   } else if (FLAGS_contact_face == "NegZ") {
-    qpoptions.contact_face_ = BrickFace::kNegZ;
+    qpoptions.finger_face_assignments_.emplace(
+        foptions.finger_to_control_,
+        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
   } else if (FLAGS_contact_face == "PosY") {
-    qpoptions.contact_face_ = BrickFace::kPosY;
+    qpoptions.finger_face_assignments_.emplace(
+        foptions.finger_to_control_,
+        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
   } else if (FLAGS_contact_face == "NegY") {
-    qpoptions.contact_face_ = BrickFace::kNegY;
+    qpoptions.finger_face_assignments_.emplace(
+        foptions.finger_to_control_,
+        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
   } else {
     throw std::logic_error("Undefined contact face specified.");
   }
+
   std::unordered_map<Finger, ForceController&> finger_force_control_map;
   finger_force_control_map.emplace(kFingerToControl, *force_controller);
   ConnectQPController(planar_gripper, lcm, finger_force_control_map,

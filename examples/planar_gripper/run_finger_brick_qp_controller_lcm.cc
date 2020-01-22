@@ -1,6 +1,7 @@
 /// @file
 ///
 /// Implements an LCM based finger/brick QP controller.
+// TODO(rcory) This file is still a WIP.
 
 #include <memory>
 

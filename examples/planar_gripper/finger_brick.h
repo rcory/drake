@@ -10,7 +10,7 @@ namespace examples {
 namespace planar_gripper {
 
 template <typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, double x_offset = 0);
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant);
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,

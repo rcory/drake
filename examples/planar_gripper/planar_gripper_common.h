@@ -71,7 +71,8 @@ enum class BrickFace {
  * w.r.t. the world.
  */
 template <typename T>
-void WeldGripperFrames(MultibodyPlant<T>* plant, math::RigidTransformd X_WG);
+void WeldGripperFrames(MultibodyPlant<T>* plant,
+                       math::RigidTransformd X_WG = math::RigidTransformd());
 
 /**
  * Parses a text file containing keyframe joint positions for the planar gripper

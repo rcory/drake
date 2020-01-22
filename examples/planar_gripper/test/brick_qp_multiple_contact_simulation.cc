@@ -85,37 +85,29 @@ int DoMain() {
   // Connect the QP controller
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   qp_controller->get_input_port_estimated_state());
-  builder.Connect(qp_controller->get_output_port_contact_force(),
+  builder.Connect(qp_controller->get_output_port_brick_control(),
                   planar_gripper->GetInputPort("spatial_force"));
 
   // Specify the finger/contact face pairing.
-  std::unordered_map<Finger, BrickFace>
-      finger_face_assignment;
-  finger_face_assignment.emplace(Finger::kFinger1, BrickFace::kNegZ);
-  finger_face_assignment.emplace(Finger::kFinger2, BrickFace::kPosY);
-  finger_face_assignment.emplace(Finger::kFinger3, BrickFace::kNegY);
-  auto contact_face_source =
-      builder.AddSystem<systems::ConstantValueSource<double>>(
-          Value<std::unordered_map<Finger, BrickFace>>(finger_face_assignment));
-  builder.Connect(contact_face_source->get_output_port(0),
-                  qp_controller->get_input_port_finger_contact());
+  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+      finger_face_assignments;
 
-  // Specify the finger contact locations.
-  auto f1_contact_pos = Eigen::Vector2d(0, -0.023);
-  auto f2_contact_pos = Eigen::Vector2d(0.023, 0);
-  auto f3_contact_pos = Eigen::Vector2d(-0.023, 0);
-  auto f1_contact_src =
-      builder.AddSystem<systems::ConstantVectorSource<double>>(f1_contact_pos);
-  auto f2_contact_src =
-      builder.AddSystem<systems::ConstantVectorSource<double>>(f2_contact_pos);
-  auto f3_contact_src =
-      builder.AddSystem<systems::ConstantVectorSource<double>>(f3_contact_pos);
-  builder.Connect(f1_contact_src->get_output_port(),
-                  qp_controller->get_input_port_f1_contact_pos());
-  builder.Connect(f2_contact_src->get_output_port(),
-                  qp_controller->get_input_port_f2_contact_pos());
-  builder.Connect(f3_contact_src->get_output_port(),
-                  qp_controller->get_input_port_f3_contact_pos());
+  finger_face_assignments.emplace(
+      Finger::kFinger1,
+      std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(0, -0.023)));
+  finger_face_assignments.emplace(
+      Finger::kFinger2,
+      std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.023, 0)));
+  finger_face_assignments.emplace(
+      Finger::kFinger3,
+      std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.023, 0)));
+
+  auto finger_face_assignments_source = builder.AddSystem<
+      systems::ConstantValueSource<double>>(
+      Value<std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
+          finger_face_assignments));
+  builder.Connect(finger_face_assignments_source->get_output_port(0),
+                  qp_controller->get_input_port_finger_face_assignments());
 
   // thetaddot_planned is 0. Use a constant source.
   auto brick_acceleration_planned_source =
