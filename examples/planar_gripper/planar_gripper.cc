@@ -270,7 +270,7 @@ void PlanarGripper::Finalize() {
   if (use_position_control_) {
     // Create the gains for the inverse dynamics controller. These gains were
     // chosen arbitrarily.
-    Vector<double, kNumJoints> Kp, Kd, Ki;
+    Vector<double, kNumGripperJoints> Kp, Kd, Ki;
     Kp.setConstant(1500); Kd.setConstant(500); Ki.setConstant(500);
 
     auto id_controller =
@@ -376,6 +376,28 @@ void PlanarGripper::SetBrickPosition(
     throw std::logic_error("Brick can have either 3 or 1 positions.");
   }
 
+}
+
+double PlanarGripper::GetBrickDamping() const {
+  std::string joint_name = "brick_revolute_x_joint";
+  if (!plant_->HasJointNamed(joint_name)) {
+    throw std::logic_error(
+        "Joint " + joint_name + " does not exist in the MBP");
+  }
+  return plant_->GetJointByName<RevoluteJoint>(joint_name)
+      .damping();
+}
+
+Vector3d PlanarGripper::GetBrickMoments() const {
+  std::string frame_name = "brick_link";
+  if (!plant_->HasFrameNamed(frame_name)) {
+    throw std::logic_error(
+        "Frame " + frame_name + " does not exist in the MBP");
+  }
+  return dynamic_cast<const multibody::RigidBody<double>&>(
+             plant_->GetFrameByName(frame_name).body())
+      .default_rotational_inertia()
+      .get_moments();
 }
 
 }  // namespace planar_gripper

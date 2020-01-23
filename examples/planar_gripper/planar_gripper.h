@@ -67,7 +67,7 @@ using multibody::ModelInstanceIndex;
 
    /// Get the number of joints in the gripper (only -- does not include the
    /// brick).
-   int num_gripper_joints() const { return kNumJoints; }
+   int num_gripper_joints() const { return kNumGripperJoints; }
 
    /// Convenience method for getting all of the joint angles of the gripper.
    /// This does not include the brick.
@@ -185,6 +185,9 @@ using multibody::ModelInstanceIndex;
    ModelInstanceIndex get_planar_gripper_index() const {
      return gripper_index_;
    }
+
+   double GetBrickDamping() const;
+   Vector3d GetBrickMoments() const;
 
   private:
    void SetupPlant(std::string orientation, std::string brick_file_name);

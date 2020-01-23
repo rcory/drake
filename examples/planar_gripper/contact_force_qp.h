@@ -220,10 +220,10 @@ class InstantaneousContactForceQPController
   const BrickType brick_type_;
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;
-  Eigen::Matrix2d Kp_t_;
-  Eigen::Matrix2d Kd_t_;
-  double Kp_r_;
-  double Kd_r_;
+  Eigen::Matrix2d Kp_t_;  // Translational proportional QP gain.
+  Eigen::Matrix2d Kd_t_;  // Translational derivative QP gain.
+  double Kp_r_;  // Rotational proportional QP gain.
+  double Kd_r_;  // Rotational derivative QP gain.
   double weight_a_;
   double weight_thetaddot_;
   double weight_f_Cb_B_;

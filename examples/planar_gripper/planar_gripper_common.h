@@ -17,7 +17,7 @@ using Eigen::Vector3d;
 
 constexpr int kNumFingers = 3;
 constexpr int kNumJointsPerFinger = 2;
-constexpr int kNumJoints = kNumFingers * kNumJointsPerFinger;
+constexpr int kNumGripperJoints = kNumFingers * kNumJointsPerFinger;
 
 enum class Finger {
   kFinger1,

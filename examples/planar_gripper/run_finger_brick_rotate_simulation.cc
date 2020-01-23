@@ -232,7 +232,7 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   // only simulation it will complain about all its input ports note being
   // connected (which we don't do for brick only simulation).
   if (!FLAGS_brick_only) {
-    auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
+    auto fingers_to_plant = builder->AddSystem<FingerToPlantActuationMap>(
         planar_gripper.get_control_plant(), kFingerToControl);
     fingers_to_plant->set_name("fingers_to_plant_actuation_map");
     auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
@@ -406,7 +406,7 @@ int DoMain() {
     systems::Context<double>& planar_gripper_context =
         diagram->GetMutableSubsystemContext(*planar_gripper,
                                             diagram_context.get());
-    Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumJoints);
+    Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumGripperJoints);
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }

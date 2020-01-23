@@ -265,22 +265,25 @@ void ContactPointInBrickFrame::CalcOutput(
 // TODO(rcory) Remove this method (see header).
 ContactPointsToFingerFaceAssignments::ContactPointsToFingerFaceAssignments(
     std::vector<Finger> fingers) : fingers_(fingers){
-  for (auto iter = fingers.begin(); iter != fingers.end(); ++iter) {
-    if (*iter == Finger::kFinger1) {
+  for (auto & finger : fingers) {
+    if (finger == Finger::kFinger1) {
       this->DeclareVectorInputPort("finger1_contact_point",
                                    systems::BasicVector<double>(2));
       this->DeclareAbstractInputPort("finger1_contact_face",
                                      Value<BrickFace>());
-    } else if (*iter == Finger::kFinger2) {
+      this->DeclareAbstractInputPort("finger1_b_in_contact", Value<bool>());
+    } else if (finger == Finger::kFinger2) {
       this->DeclareVectorInputPort("finger2_contact_point",
                                    systems::BasicVector<double>(2));
       this->DeclareAbstractInputPort("finger2_contact_face",
                                      Value<BrickFace>());
-    } else if (*iter == Finger::kFinger3) {
+      this->DeclareAbstractInputPort("finger2_b_in_contact", Value<bool>());
+    } else if (finger == Finger::kFinger3) {
       this->DeclareVectorInputPort("finger3_contact_point",
                                    systems::BasicVector<double>(2));
       this->DeclareAbstractInputPort("finger3_contact_face",
                                      Value<BrickFace>());
+      this->DeclareAbstractInputPort("finger3_b_in_contact", Value<bool>());
     } else {
       throw std::logic_error("Unrecognized Finger.");
     }
@@ -296,14 +299,18 @@ void ContactPointsToFingerFaceAssignments::CalcOutput(
     std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
         finger_face_assignments) const {
   finger_face_assignments->clear();
-  for (auto iter = fingers_.begin(); iter != fingers_.end(); ++iter) {
-    Eigen::Vector2d finger_contact_pos =
-        GetInputPort(to_string(*iter) + "_contact_point")
-            .Eval(context);
-    BrickFace brick_face = GetInputPort(to_string(*iter) + "_contact_face")
-                               .Eval<BrickFace>(context);
-    finger_face_assignments->emplace(
-        *iter, std::make_pair(brick_face, finger_contact_pos));
+  for (auto finger : fingers_) {
+    bool b_in_contact =
+        GetInputPort(to_string(finger) + "_b_in_contact").Eval<bool>(context);
+    if (b_in_contact) {
+      Eigen::Vector2d finger_contact_pos =
+          GetInputPort(to_string(finger) + "_contact_point")
+              .Eval(context);
+      BrickFace brick_face = GetInputPort(to_string(finger) + "_contact_face")
+          .Eval<BrickFace>(context);
+      finger_face_assignments->emplace(
+          finger, std::make_pair(brick_face, finger_contact_pos));
+    }
   }
 }
 

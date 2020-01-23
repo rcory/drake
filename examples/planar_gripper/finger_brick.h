@@ -8,7 +8,8 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
-
+// TODO(rcory) I believe most of the functionality in this file can be moved
+//  over to planar_gripper.h/cc
 template <typename T>
 void WeldFingerFrame(multibody::MultibodyPlant<T>* plant);
 
@@ -72,7 +73,13 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
 /// std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>{}, where
 /// BrickFace would be kClosest (meaning it isn't used) and the Vector2d is the
 /// contact point. This is really only needed because the QP controller takes
-/// in the unordered_map format
+/// in the unordered_map format.
+/// This system declares 3*n input ports, where n is the number of fingers that
+/// are under force control.
+/// This system declares one output port, that contains the unordered_map
+/// (defined above) whose values describe *only fingers that are in contact*.
+/// Information for fingers not in contact is not included in the output.
+/// Note: If no fingers are in contact the output map will be empty.
 // TODO(rcory) Figure out a way to get rid of this translation.
 class ContactPointsToFingerFaceAssignments final
     : public systems::LeafSystem<double> {

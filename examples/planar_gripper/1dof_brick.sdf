@@ -90,8 +90,8 @@
          <effort> 0 </effort>
        </limit>
        <dynamics>
-<!--         <damping>.025</damping>-->
-         <damping>0.0001</damping>
+         <damping>.0008</damping>
+<!--         <damping>0.0001</damping>-->
        </dynamics>
        <use_parent_model_frame>1</use_parent_model_frame>
      </axis>

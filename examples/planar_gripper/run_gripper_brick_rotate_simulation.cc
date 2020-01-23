@@ -6,20 +6,15 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 #include "drake/geometry/geometry_visualization.h"
-#include "drake/geometry/scene_graph.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
-#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
-#include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/multibody/tree/revolute_joint.h"
-#include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/examples/planar_gripper/finger_brick_control.h"
-#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/lcm/connect_lcm_scope.h"
 
@@ -34,7 +29,7 @@ using multibody::ContactResults;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 2.75,
+DEFINE_double(simulation_time, 2.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
@@ -61,15 +56,15 @@ DEFINE_bool(visualize_contacts, true,
 // Initial finger joint angles.
 // (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
 // zero)
-DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
-DEFINE_string(contact_face, "NegZ",
-              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
-DEFINE_double(f1_base, -0.15 /*-0.35*/, "f1_base");  // shoulder joint
-DEFINE_double(f1_mid, 1.2 /* 1.3 */, "f1_mid");  // elbow joint
-DEFINE_double(f2_base, -0.15, "f2_base");
-DEFINE_double(f2_mid, 1.2 /* 0.84 */, "f2_mid");
+//DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
+//DEFINE_string(contact_face, "NegZ",
+//              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
+DEFINE_double(f1_base, -0.6, "f1_base");  // shoulder joint
+DEFINE_double(f1_mid, 1.4, "f1_mid");  // elbow joint
+DEFINE_double(f2_base, 0.75, "f2_base");
+DEFINE_double(f2_mid, -0.7, "f2_mid");
 DEFINE_double(f3_base, -0.15, "f3_base");
-DEFINE_double(f3_mid, 1.2 /* 0.84 */, "f3_mid");
+DEFINE_double(f3_mid, 1.2, "f3_mid");
 DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(G_ROT, 0,
               "Rotation of gripper frame (G) w.r.t. the world frame W around "
@@ -111,6 +106,11 @@ DEFINE_double(
     zc, 0,
     "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
+// Define which fingers are used for the brick rotation.
+DEFINE_bool(use_finger1, true, "Use finger1?");
+DEFINE_bool(use_finger2, true, "Use finger2?");
+DEFINE_bool(use_finger3, true, "Use finger3?");
+
 // QP task parameters
 // finger 1: theta0=-2.679793, thetaf=-1.308997
 // finger 2: theta0=1.509, thetaf=2.87979
@@ -128,23 +128,72 @@ DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
 
-// TODO(rcory) Deprecate this.
-DEFINE_string(QPType, "gripper", "The type of QP to use {finger, gripper}");
-
-void GetControllerOptions(const PlanarGripper& planar_gripper,
-                          ForceControlOptions* foptions,
-                          QPControlOptions* qpoptions) {
-  double brick_damping = 0;
-  auto& plant = planar_gripper.get_multibody_plant();
-  if (!FLAGS_assume_zero_brick_damping) {
-    brick_damping =
-        plant.GetJointByName<RevoluteJoint>("brick_revolute_x_joint")
-            .damping();
+/// Note: finger_face_assignments_ should only be used for brick only
+/// simulation. However, currently I (rcory) don't have a good way of computing
+/// the closest contact face for a given finger, so we instead use the
+/// hardcoded values here (used in DoConnectGripperQPController).
+/// Note: The 2d contact position vector below is strictly for brick-only sim.
+// TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
+//  finger/brick simulations.
+std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+GetFingerFaceAssignments() {
+  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+      finger_face_assignments;
+  if (FLAGS_use_finger1) {
+    finger_face_assignments.emplace(
+        Finger::kFinger1,
+        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
   }
-  double brick_inertia = dynamic_cast<const multibody::RigidBody<double>&>(
-      plant.GetFrameByName("brick_link").body())
-      .default_rotational_inertia()
-      .get_moments()(0);
+  if (FLAGS_use_finger2) {
+    finger_face_assignments.emplace(
+        Finger::kFinger2,
+        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+
+  }
+  if (FLAGS_use_finger3) {
+    finger_face_assignments.emplace(
+        Finger::kFinger3,
+        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+  }
+  return finger_face_assignments;
+}
+
+void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
+                            QPControlOptions* qpoptions) {
+  double brick_damping = 0;
+  if (!FLAGS_assume_zero_brick_damping) {
+    brick_damping = planar_gripper.GetBrickDamping();
+  }
+  // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
+  const int kIxx_index = 0;
+  double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
+
+  qpoptions->T_ = FLAGS_T;
+  qpoptions->theta0_ = FLAGS_theta0;
+  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->QP_Kp_ = FLAGS_QP_Kp;
+  qpoptions->QP_Kd_ = FLAGS_QP_Kd;
+  qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
+  qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
+  qpoptions->QP_mu_ = FLAGS_QP_mu;
+  qpoptions->brick_only_ = FLAGS_brick_only;
+  qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
+  qpoptions->brick_damping_ = brick_damping;
+  qpoptions->brick_inertia_ = brick_inertia;
+  qpoptions->brick_type_ = BrickType::PinBrick;
+  qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+}
+
+void GetForceControllerOptions(const PlanarGripper& planar_gripper,
+                               const Finger finger, const BrickFace brick_face,
+                               ForceControlOptions* foptions) {
+  double brick_damping = 0;
+  if (!FLAGS_assume_zero_brick_damping) {
+    brick_damping = planar_gripper.GetBrickDamping();
+  }
+  // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
+  const int kIxx_index = 0;
+  double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
 
   foptions->kpf_t_ = FLAGS_kpf_t;
   foptions->kpf_n_ = FLAGS_kpf_n;
@@ -160,60 +209,8 @@ void GetControllerOptions(const PlanarGripper& planar_gripper,
   foptions->brick_damping_ = brick_damping;
   foptions->brick_inertia_ = brick_inertia;
   foptions->always_direct_force_control_ = FLAGS_always_direct_force_control;
-  if (FLAGS_finger_to_control == 1) {
-    foptions->finger_to_control_ = Finger::kFinger1;
-  } else if (FLAGS_finger_to_control == 2) {
-    foptions->finger_to_control_ = Finger::kFinger2;
-  } else if (FLAGS_finger_to_control == 3) {
-    foptions->finger_to_control_ = Finger::kFinger3;
-  } else {
-    throw std::logic_error("Undefined Finger specified.");
-  }
-
-  // Creates the QP controller and connects to the force controller.
-  qpoptions->T_ = FLAGS_T;
-  qpoptions->theta0_ = FLAGS_theta0;
-  qpoptions->thetaf_ = FLAGS_thetaf;
-  qpoptions->QP_Kp_ = FLAGS_QP_Kp;
-  qpoptions->QP_Kd_ = FLAGS_QP_Kd;
-  qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
-  qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
-  qpoptions->QP_mu_ = FLAGS_QP_mu;
-  qpoptions->brick_only_ = FLAGS_brick_only;
-  qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions->brick_damping_ = brick_damping;
-  qpoptions->brick_inertia_ = brick_inertia;
-  qpoptions->brick_type_ = BrickType::PinBrick;
-
-  // Note: finger_face_assignments_ should only be used for brick only
-  // simulation. However, currently I (rcory) don't have a good way of computing
-  // the closest contact face for a given finger, so we instead use the
-  // hardcoded values here (used in DoConnectGripperQPController).
-  // TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
-  //  finger/brick simulations.
-  if (FLAGS_contact_face == "PosZ") {
-    foptions->brick_face_ = BrickFace::kPosZ;
-    qpoptions->finger_face_assignments_.emplace(
-        foptions->finger_to_control_,
-        std::make_pair(BrickFace::kPosZ, Eigen::Vector2d(FLAGS_yc, 0.05)));
-  } else if (FLAGS_contact_face == "NegZ") {
-    foptions->brick_face_ = BrickFace::kNegZ;
-    qpoptions->finger_face_assignments_.emplace(
-        foptions->finger_to_control_,
-        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
-  } else if (FLAGS_contact_face == "PosY") {
-    foptions->brick_face_ = BrickFace::kPosY;
-    qpoptions->finger_face_assignments_.emplace(
-        foptions->finger_to_control_,
-        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
-  } else if (FLAGS_contact_face == "NegY") {
-    foptions->brick_face_ = BrickFace::kNegY;
-    qpoptions->finger_face_assignments_.emplace(
-        foptions->finger_to_control_,
-        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
-  } else {
-    throw std::logic_error("Undefined contact face specified.");
-  }
+  foptions->finger_to_control_ = finger;
+  foptions->brick_face_ = brick_face;
 }
 
 int DoMain() {
@@ -260,34 +257,32 @@ int DoMain() {
 //  builder.Connect(planner_sub->get_output_port(),
 //                  planner_decoder->get_input_port(0));
 
-  ForceControlOptions foptions; QPControlOptions qpoptions;
-  GetControllerOptions(*planar_gripper, &foptions, &qpoptions);
-  if (!FLAGS_brick_only) {
-    ForceController* force_controller =
-        SetupForceController(*planar_gripper, drake_lcm, foptions, &builder);
-    std::unordered_map<Finger, ForceController&> finger_force_control_map;
-    finger_force_control_map.emplace(foptions.finger_to_control_,
-                                     *force_controller);
-    if (FLAGS_QPType == "finger") {
-      ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
-                          QPType::FingerQP, qpoptions, &builder);
-    } else if (FLAGS_QPType == "gripper") {
-          ConnectQPController(*planar_gripper, drake_lcm,
-          finger_force_control_map,
-                              QPType::GripperQP, qpoptions, &builder);
-    } else {
-      throw std::logic_error("Unknown QPType flag");
-    }
-  } else {
-    if (FLAGS_QPType == "finger") {
-      ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
-                          QPType::FingerQP, qpoptions, &builder);
-    } else if (FLAGS_QPType == "gripper") {
+  auto finger_face_assignments = GetFingerFaceAssignments();
+  QPControlOptions qpoptions;
+  GetQPPlannerOptions(*planar_gripper, &qpoptions);
+  if (FLAGS_brick_only) {
     ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
                         QPType::GripperQP, qpoptions, &builder);
-    } else {
-      throw std::logic_error("Unknown QPType flag");
+  } else {
+    std::unordered_map<Finger, ForceController&> finger_force_control_map;
+    for (auto& finger_face_assignment : finger_face_assignments) {
+      ForceControlOptions foptions;
+      Finger finger = finger_face_assignment.first;
+      BrickFace brick_face = finger_face_assignment.second.first;
+      GetForceControllerOptions(*planar_gripper, finger, brick_face, &foptions);
+      DRAKE_DEMAND(finger == foptions.finger_to_control_);
+      DRAKE_DEMAND(brick_face == foptions.brick_face_);
+      ForceController* force_controller =
+          SetupForceController(*planar_gripper, drake_lcm, foptions, &builder);
+      finger_force_control_map.emplace(finger, *force_controller);
     }
+    auto force_controllers_to_plant =
+        builder.AddSystem<ForceControllersToPlantActuationMap>(
+            planar_gripper->get_multibody_plant(), finger_force_control_map);
+    force_controllers_to_plant->ConnectForceControllersToPlant(*planar_gripper,
+                                                               &builder);
+    ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+                        QPType::GripperQP, qpoptions, &builder);
   }
 
   // publish body frames.
@@ -329,6 +324,9 @@ int DoMain() {
   builder.Connect(status_encoder->get_output_port(0),
                   status_pub->get_input_port());
 
+  systems::lcm::ConnectLcmScope(planar_gripper->GetOutputPort("brick_state"),
+                                "BRICK_STATE", &builder, lcm);
+
   auto diagram = builder.Build();
 
   // Set the initial conditions for the planar-gripper.
@@ -353,7 +351,7 @@ int DoMain() {
     systems::Context<double>& planar_gripper_context =
         diagram->GetMutableSubsystemContext(*planar_gripper,
                                             diagram_context.get());
-    Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumJoints);
+    Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumGripperJoints);
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
@@ -369,6 +367,8 @@ int DoMain() {
 
   planar_gripper->SetGripperPosition(&simulator_context,
                                      gripper_initial_positions);
+  planar_gripper->SetGripperVelocity(&simulator_context,
+                                     Eigen::VectorXd::Zero(kNumGripperJoints));
   planar_gripper->SetBrickPosition(simulator_context, Vector1d(FLAGS_theta0));
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);

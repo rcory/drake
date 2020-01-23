@@ -248,12 +248,12 @@ MatrixX<double> ReorderKeyframesForPlant(
         "The number of keyframe rows must match the size of "
         "finger_joint_name_to_row_index_map.");
   }
-  if (keyframes.rows() != kNumJoints) {
+  if (keyframes.rows() != kNumGripperJoints) {
     throw std::runtime_error(
         "The number of keyframe rows must match the number of planar-gripper "
         "joints");
   }
-  if (plant.num_positions() != kNumJoints) {
+  if (plant.num_positions() != kNumGripperJoints) {
     throw std::runtime_error(
         "The number of plant positions must exactly match the number of "
         "planar-gripper joints.");
@@ -272,18 +272,18 @@ MatrixX<double> ReorderKeyframesForPlant(
 
 VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
                                    std::map<std::string, double> map_in) {
-  if (map_in.size() != kNumJoints) {
+  if (map_in.size() != kNumGripperJoints) {
     throw std::runtime_error(
         "The number of keyframe rows must match the number of planar-gripper "
         "joints");
   }
-  if (plant.num_positions() != kNumJoints) {
+  if (plant.num_positions() != kNumGripperJoints) {
     throw std::runtime_error(
         "The number of plant positions must match exactly the number of "
         "planar-gripper joints.");
   }
 
-  VectorX<double> position_vector = VectorX<double>::Zero(kNumJoints);
+  VectorX<double> position_vector = VectorX<double>::Zero(kNumGripperJoints);
   for (auto iter = map_in.begin();
        iter != map_in.end(); ++iter) {
     auto joint_pos_start_index =

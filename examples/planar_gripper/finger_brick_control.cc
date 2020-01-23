@@ -582,7 +582,7 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
   }
 }
 
-/// This is a helper system to distribute the output of the multifinger QP
+/// This is a helper system to distribute the output of the multi-finger QP
 /// controller to the separate finger force controllers.
 class QPPlanToForceControllers : public systems::LeafSystem<double> {
  public:
@@ -610,7 +610,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
           desired_force_vec) const {
     desired_force_vec->clear();
     auto finger_force_map =
-        this->get_input_port(0)
+        this->GetInputPort("qp_fingers_control")
             .Eval<std::unordered_map<
                 Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
                 context);
@@ -637,7 +637,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
       desired_force_vec) const {
     desired_force_vec->clear();
     auto finger_force_map =
-        this->get_input_port(0)
+        this->GetInputPort("qp_fingers_control")
             .Eval<std::unordered_map<
                 Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
                 context);
@@ -663,7 +663,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
       desired_force_vec) const {
     desired_force_vec->clear();
     auto finger_force_map =
-        this->get_input_port(0)
+        this->GetInputPort("qp_fingers_control")
             .Eval<std::unordered_map<
                 Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
                 context);
@@ -764,9 +764,8 @@ void DoConnectGripperQPController(
     // Converts contact points (3 inputs) to an unordered_map of
     // finger_face_assignments (1 output).
     std::vector<Finger> fingers;
-    for (auto iter = finger_force_control_map->begin();
-         iter != finger_force_control_map->end(); ++iter) {
-      fingers.push_back(iter->first);
+    for (auto iter : *finger_force_control_map) {
+      fingers.push_back(iter.first);
     }
     auto contact_points_to_finger_face_assignments =
         builder->AddSystem<ContactPointsToFingerFaceAssignments>(fingers);
@@ -776,15 +775,13 @@ void DoConnectGripperQPController(
 
     // Adds system to calculate fingertip contact point.
     for (auto finger_force_control : *finger_force_control_map) {
-      drake::log()->info("start loop: {}",
-                         to_string(finger_force_control.first));
       auto contact_point_calc_sys =
           builder->AddSystem<ContactPointInBrickFrame>(
               plant, scene_graph, finger_force_control.first);
       builder->Connect(zoh_contact_results->get_output_port(),
-                       contact_point_calc_sys->get_input_port(0));
+                       contact_point_calc_sys->GetInputPort("contact_results"));
       builder->Connect(out_ports.at("plant_state"),
-                       contact_point_calc_sys->get_input_port(1));
+                       contact_point_calc_sys->GetInputPort("x"));
 
       // Feed the contact point and contact face information to the
       // ContactPointsToFingerFaceAssignments system.
@@ -793,7 +790,7 @@ void DoConnectGripperQPController(
             qp2force_sys->GetOutputPort("f1_force"),
             finger_force_control.second.get_force_desired_input_port());
         builder->Connect(
-            contact_point_calc_sys->get_output_port(0),
+            contact_point_calc_sys->GetOutputPort("p_BrCb"),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger1_contact_point"));
         const BrickFace face_val =
@@ -806,12 +803,16 @@ void DoConnectGripperQPController(
             face_src->get_output_port(0),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger1_contact_face"));
+        builder->Connect(
+            contact_point_calc_sys->GetOutputPort("b_in_contact"),
+            contact_points_to_finger_face_assignments->GetInputPort(
+                "finger1_b_in_contact"));
       } else if (finger_force_control.first == Finger::kFinger2) {
         builder->Connect(
             qp2force_sys->GetOutputPort("f2_force"),
             finger_force_control.second.get_force_desired_input_port());
         builder->Connect(
-            contact_point_calc_sys->get_output_port(0),
+            contact_point_calc_sys->GetOutputPort("p_BrCb"),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger2_contact_point"));
         const BrickFace face_val =
@@ -824,12 +825,16 @@ void DoConnectGripperQPController(
             face_src->get_output_port(0),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger2_contact_face"));
+        builder->Connect(
+            contact_point_calc_sys->GetOutputPort("b_in_contact"),
+            contact_points_to_finger_face_assignments->GetInputPort(
+                "finger2_b_in_contact"));
       } else if (finger_force_control.first == Finger::kFinger3) {
         builder->Connect(
             qp2force_sys->GetOutputPort("f3_force"),
             finger_force_control.second.get_force_desired_input_port());
         builder->Connect(
-            contact_point_calc_sys->get_output_port(0),
+            contact_point_calc_sys->GetOutputPort("p_BrCb"),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger3_contact_point"));
         const BrickFace face_val =
@@ -842,6 +847,10 @@ void DoConnectGripperQPController(
             face_src->get_output_port(0),
             contact_points_to_finger_face_assignments->GetInputPort(
                 "finger3_contact_face"));
+        builder->Connect(
+            contact_point_calc_sys->GetOutputPort("b_in_contact"),
+            contact_points_to_finger_face_assignments->GetInputPort(
+                "finger3_b_in_contact"));
       } else {
         throw std::runtime_error("Unknown Finger");
       }
@@ -851,7 +860,7 @@ void DoConnectGripperQPController(
 
       // Communicate the contact point to the force controller (if available).
       builder->Connect(
-          contact_point_calc_sys->get_output_port(0),
+          contact_point_calc_sys->GetOutputPort("p_BrCb"),
           finger_force_control.second.get_p_BrFingerTip_input_port());
 
       // Tells the force controller whether there is contact between the
@@ -865,7 +874,7 @@ void DoConnectGripperQPController(
       // removing.
       auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
       auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
-      builder->Connect(contact_point_calc_sys->get_output_port(0),
+      builder->Connect(contact_point_calc_sys->GetOutputPort("p_BrCb"),
                        v_BrCr->get_input_port());
       builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
       builder->Connect(
@@ -1295,25 +1304,10 @@ ForceController* SetupForceController(
   builder->Connect(force_demux_sys->get_reaction_vec_output_port(),
                    force_controller->get_force_sensor_input_port());
 
-    auto fingers_to_plant = builder->AddSystem<FingersToPlantActuationMap>(
-        planar_gripper.get_control_plant(), kFingerToControl);
-    fingers_to_plant->set_name("fingers_to_plant_actuation_map");
-    auto zero_u_src =  /* stand-in for GeneralizedForceToActuationOrdering */
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            VectorX<double>::Zero(6));
-    builder->Connect(zero_u_src->get_output_port(),
-                     fingers_to_plant->GetInputPort("u_in"));  /* 6x1 of zeros */
-    builder->Connect(force_controller->get_torque_output_port(),
-                     fingers_to_plant->GetInputPort("u_fn"));
-    builder->Connect(fingers_to_plant->GetOutputPort("u_out"),
-                     planar_gripper.GetInputPort("actuation"));
-    // Connect to the scope.
-    systems::lcm::ConnectLcmScope(fingers_to_plant->GetOutputPort("u_out"),
-                                  "ACTUATION_OUTPUT", builder, &lcm);
-    systems::lcm::ConnectLcmScope(force_controller->get_torque_output_port(),
-                                  "TORQUE_OUTPUT", builder, &lcm);
-    systems::lcm::ConnectLcmScope(planar_gripper.GetOutputPort("brick_state"),
-                                  "BRICK_STATE", builder, &lcm);
+  // Connect to the scope.
+  systems::lcm::ConnectLcmScope(
+      force_controller->get_torque_output_port(),
+      "TORQUE_OUTPUT_F" + std::to_string(to_num(kFingerToControl)), builder, &lcm);
 
   // We don't regulate position for now (set these to zero).
   // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
@@ -1361,7 +1355,7 @@ void PlantStateToFingerStateSelector::CalcOutput(
   output->get_mutable_value() = state_selector_matrix_ * plant_state;
 }
 
-FingersToPlantActuationMap::FingersToPlantActuationMap(
+FingerToPlantActuationMap::FingerToPlantActuationMap(
     const MultibodyPlant<double>& plant, const Finger finger) : finger_(finger) {
   std::vector<multibody::JointIndex> joint_index_vector;
 
@@ -1380,18 +1374,18 @@ FingersToPlantActuationMap::FingersToPlantActuationMap(
 
   this->DeclareVectorInputPort(
       "u_in",  /* in plant actuator ordering */
-      systems::BasicVector<double>(kNumJoints));
-;
+      systems::BasicVector<double>(kNumGripperJoints));
+
   this->DeclareVectorInputPort(
       "u_fn", /* override value for finger_n actuation {fn_base_u, fn_mid_u} */
       systems::BasicVector<double>(kNumJointsPerFinger));
 
   this->DeclareVectorOutputPort("u_out",
-                                systems::BasicVector<double>(kNumJoints),
-                                &FingersToPlantActuationMap::CalcOutput);
+                                systems::BasicVector<double>(kNumGripperJoints),
+                                &FingerToPlantActuationMap::CalcOutput);
 }
 
-void FingersToPlantActuationMap::CalcOutput(
+void FingerToPlantActuationMap::CalcOutput(
     const drake::systems::Context<double>& context,
     drake::systems::BasicVector<double>* output) const {
 
@@ -1410,6 +1404,80 @@ void FingersToPlantActuationMap::CalcOutput(
   // Set the output.
   auto u = actuation_selector_matrix_ * u_s;
   output->get_mutable_value() = u;
+}
+
+ForceControllersToPlantActuationMap::ForceControllersToPlantActuationMap(
+    const MultibodyPlant<double>& plant,
+    std::unordered_map<Finger, ForceController&> finger_force_control_map)
+    : finger_force_control_map_(finger_force_control_map) {
+  std::vector<multibody::JointIndex> joint_index_vector;
+
+  /// Build an actuation selector matrix Sᵤ such that `u = Sᵤ⋅uₛ`, where u is
+  /// the vector of actuation values for the full model (ordered by
+  /// JointActuatorIndex) and uₛ is a vector of actuation values for the
+  /// actuators acting on the joints listed by `joint_index_vector`
+  for (auto & iter : finger_force_control_map) {
+    Finger finger_m = iter.first;
+    joint_index_vector.push_back(
+        plant.GetJointByName(to_string(finger_m) + "_BaseJoint")
+            .index());
+    joint_index_vector.push_back(
+        plant.GetJointByName(to_string(finger_m) + "_MidJoint")
+            .index());
+
+    /* Input port n contains finger_m actuation {fm_base_u, fm_mid_u} */
+    InputPortIndex n = this->DeclareVectorInputPort(
+        to_string(finger_m) + "_u_in",
+        systems::BasicVector<double>(kNumJointsPerFinger)).get_index();
+    input_port_index_to_finger_map_[n] = finger_m;
+  }
+  actuation_selector_matrix_ =  /* Sᵤ */
+      plant.MakeActuatorSelectorMatrix(joint_index_vector);
+
+  // The single output containing MBP actuation values (in the plant's
+  // joint-actuator ordering).
+  this->DeclareVectorOutputPort(
+      "u_out", systems::BasicVector<double>(kNumGripperJoints),
+      &ForceControllersToPlantActuationMap::CalcOutput);
+}
+
+void ForceControllersToPlantActuationMap::CalcOutput(
+    const drake::systems::Context<double>& context,
+    drake::systems::BasicVector<double>* output) const {
+  const int u_in_size =
+      static_cast<int>(input_port_index_to_finger_map_.size()) *
+      kNumJointsPerFinger;
+  VectorX<double> u_in(u_in_size);
+
+  // Gather all the inputs
+  int u_in_index = 0;
+  for (auto & iter : input_port_index_to_finger_map_) {
+    /* insert {fm_base_u, fm_mid_u} */
+    u_in.segment<kNumJointsPerFinger>(u_in_index) =
+        this->EvalVectorInput(context, iter.first)->get_value();
+    u_in_index += 2;
+  }
+
+  // Set the output. Actuators not called out in the creation of Sᵤ are set to
+  // zero.
+  auto u_out = actuation_selector_matrix_ * u_in;
+  output->get_mutable_value() = u_out;
+}
+
+void ForceControllersToPlantActuationMap::ConnectForceControllersToPlant(
+    const PlanarGripper& planar_gripper,
+    systems::DiagramBuilder<double>* builder) const {
+
+  // Connect the force controllers
+  for (auto & iter : input_port_index_to_finger_map_) {
+    InputPortIndex input_port_index = iter.first;
+    Finger finger = iter.second;
+    ForceController& force_controller = finger_force_control_map_.at(finger);
+    builder->Connect(force_controller.get_torque_output_port(),
+                     this->get_input_port(input_port_index));
+  }
+  builder->Connect(this->GetOutputPort("u_out"),
+                   planar_gripper.GetInputPort("actuation"));
 }
 
 }  // namespace planar_gripper
