@@ -119,47 +119,6 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
   this->DeclareContinuousState(3);  // stores ∫ Δf dt
 }
 
-void ForceController::DoCalcTimeDerivatives(
-    const drake::systems::Context<double>& context,
-    drake::systems::ContinuousState<double>* derivatives) const {
-  auto external_spatial_forces_vec =
-      get_force_desired_input_port()
-          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
-              context);
-  DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
-  Eigen::Vector3d force_des_W = /* Note: we only care about forces in the y-z plane */
-      external_spatial_forces_vec[0].F_Bq_W.translational();
-
-  Eigen::Vector3d force_sensor_vec_W =
-      this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
-
-  // The derivative of the continuous state is the instantaneous force error (in
-  // world frame, W). We convert this to brick frame (Br) in CalcTauOutput.
-  systems::VectorBase<double>& derivatives_vector =
-      derivatives->get_mutable_vector();
-  // Check whether there is contact between the fingertip and the brick.
-  const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
-  Vector3d controlled_force_diff;
-  if (is_contact) {
-//    const double kIntegralRampGain = 10.0;
-    controlled_force_diff = (force_des_W - force_sensor_vec_W);
-//    drake::log()->info("force_des_W: \n{}", force_des_W);
-//    drake::log()->info("force_sensor_vec_W: \n{}", force_sensor_vec_W);
-//    drake::log()->info("controlled_force_diff: \n{}", controlled_force_diff);
-  } else {
-    // Intergral error, which is stored in the continuous state.
-    // Drive the integral error to zero when there is no contact (i.e., reset).
-    const systems::VectorBase<double>& state_vector =
-        context.get_continuous_state_vector();
-    const Eigen::VectorBlock<const VectorX<double>> state_block =
-        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
-            .get_value();
-    const double kIntegralLeakGain = 10.0;
-    controlled_force_diff = -kIntegralLeakGain * state_block;
-  }
-  derivatives_vector.SetFromVector(controlled_force_diff);
-}
-
 void ForceController::CalcTauOutput(
     const systems::Context<double>& context,
     systems::BasicVector<double>* output_vector) const {
@@ -383,11 +342,12 @@ void ForceController::CalcTauOutput(
     // the Jacobian.
     Eigen::Vector3d force_des_Br = R_BrW * force_des_W;
 
-    // Force control gains. Allow force control in both (brick frame) y and z.
-    Eigen::Matrix<double, 3, 3> Kf(3, 3);
-    Kf << 0, 0, 0,  /* don't care about x */
-        0, options_.kpfy_, 0,
-        0, 0, options_.kpfz_;
+    // Get the control gains.
+    Eigen::Matrix<double, 3, 3> Kp_force(3, 3);
+    Eigen::Matrix<double, 3, 3> Ki_force(3, 3);
+    Eigen::Matrix<double, 3, 3> Kp_position(3, 3);
+    Eigen::Matrix<double, 3, 3> Kd_position(3, 3);
+    GetGains(&Kp_force, &Ki_force, &Kp_position, &Kd_position);
 
     // Rotate the force reported by simulation to brick frame.
     Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
@@ -395,7 +355,7 @@ void ForceController::CalcTauOutput(
     // Regulate force (in brick frame)
     Eigen::Vector3d delta_f_Br = force_des_Br - force_act_Br;
     // auto fy_command = Kf * delta_f + force_des;  //TODO(rcory) bug?
-    Eigen::Vector3d force_error_command_Br = Kf * delta_f_Br;
+    Eigen::Vector3d force_error_command_Br = Kp_force * delta_f_Br;
 
     // TODO(rcory) More general.
     // auto fy_command = Kf Δf + Ki ∫ Δf dt - Kp p_e + f_d
@@ -406,23 +366,17 @@ void ForceController::CalcTauOutput(
     const Eigen::VectorBlock<const VectorX<double>> state_block =
         dynamic_cast<const systems::BasicVector<double>&>(state_vector)
             .get_value();
-
-    Eigen::Matrix<double, 3, 3> Ki(3, 3);
-    Ki << 0, 0, 0,  /* don't care about x */
-        0, options_.kify_, 0,
-        0, 0, options_.kifz_;
     Eigen::Vector3d force_error_integral_Br = R_BrW * state_block;
-    Eigen::Vector3d force_integral_command_Br = Ki * force_error_integral_Br;
+    Eigen::Vector3d force_integral_command_Br =
+        Ki_force * force_error_integral_Br;
 
     // Compute the errors.
     Eigen::Vector3d delta_pos_Br =
         contact_ref_state_desired_Br.head<3>() - p_BrC.tail<3>();
     Eigen::Vector3d delta_vel_Br =
         contact_ref_state_desired_Br.tail<3>() - v_Ftip_Br.head<3>();
-    Eigen::Matrix<double, 3, 3> Kp_pos(3, 3), Kd_pos(3, 3);
-    Kp_pos.setZero();  // don't regulate position.
-    Kd_pos << 0, 0, 0, 0, options_.kdy_, 0, 0, 0, options_.kdz_;  // regulate velocity in z (brick frame)
-    Vector3d position_error_command_Br = Kp_pos * delta_pos_Br + Kd_pos * delta_vel_Br;
+    Vector3d position_error_command_Br =
+        Kp_position * delta_pos_Br + Kd_position * delta_vel_Br;
 
 // ============ Begin inverse dynamics calcs. ===============
 #ifdef ADD_ACCELS
@@ -455,7 +409,7 @@ void ForceController::CalcTauOutput(
 // ============ End of inverse dynamics calcs. ===============
 
     // Adds Joint damping.
-    torque_calc += -options_.Kd_ * finger_state.segment<2>(2);
+    torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
 
 //    drake::log()->info("force_des_Br: \n{}", force_des_Br);
 //    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
@@ -545,6 +499,87 @@ void ForceController::CalcTauOutput(
   // The output for calculated torques.
   output_calc.head<2>() = torque_calc;
 //  drake::log()->info("torque_calc: \n{}", torque_calc);
+}
+
+void ForceController::DoCalcTimeDerivatives(
+    const drake::systems::Context<double>& context,
+    drake::systems::ContinuousState<double>* derivatives) const {
+  auto external_spatial_forces_vec =
+      get_force_desired_input_port()
+          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
+  Eigen::Vector3d force_des_W = /* Note: we only care about forces in the y-z plane */
+      external_spatial_forces_vec[0].F_Bq_W.translational();
+
+  Eigen::Vector3d force_sensor_vec_W =
+      this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
+
+  // The derivative of the continuous state is the instantaneous force error (in
+  // world frame, W). We convert this to brick frame (Br) in CalcTauOutput.
+  systems::VectorBase<double>& derivatives_vector =
+      derivatives->get_mutable_vector();
+  // Check whether there is contact between the fingertip and the brick.
+  const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
+  Vector3d controlled_force_diff;
+  if (is_contact) {
+    controlled_force_diff = (force_des_W - force_sensor_vec_W);
+//    drake::log()->info("force_des_W: \n{}", force_des_W);
+//    drake::log()->info("force_sensor_vec_W: \n{}", force_sensor_vec_W);
+//    drake::log()->info("controlled_force_diff: \n{}", controlled_force_diff);
+  } else {
+    // Intergral error, which is stored in the continuous state.
+    // Drive the integral error to zero when there is no contact (i.e., reset).
+    const systems::VectorBase<double>& state_vector =
+        context.get_continuous_state_vector();
+    const Eigen::VectorBlock<const VectorX<double>> state_block =
+        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+            .get_value();
+    const double kIntegralLeakGain = 10.0;
+    controlled_force_diff = -kIntegralLeakGain * state_block;
+  }
+  derivatives_vector.SetFromVector(controlled_force_diff);
+}
+
+void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
+                               EigenPtr<Matrix3<double>> Ki_force,
+                               EigenPtr<Matrix3<double>> Kp_position,
+                               EigenPtr<Matrix3<double>> Kd_position) const {
+  DRAKE_DEMAND(Kp_force != EigenPtr<Vector3d>(nullptr));
+  DRAKE_DEMAND(Ki_force != EigenPtr<Vector3d>(nullptr));
+  DRAKE_DEMAND(Kp_position != EigenPtr<Vector3d>(nullptr));
+  DRAKE_DEMAND(Kd_position != EigenPtr<Vector3d>(nullptr));
+
+  // Don't regulate position.
+  *Kp_position = MatrixX<double>::Zero(3, 3);
+
+  if (options_.brick_face_ == BrickFace::kPosZ ||
+      options_.brick_face_ == BrickFace::kNegZ) {
+    *Kp_force << 0, 0, 0,  /* don't care about x */
+        0, options_.kpf_t_, 0,
+        0, 0, options_.kpf_n_;
+
+    *Ki_force << 0, 0, 0,  /* don't care about x */
+        0, options_.kif_t_, 0,
+        0, 0, options_.kif_n_;
+
+    *Kd_position << 0, 0, 0,
+        0, options_.kd_t_, 0,
+        0, 0, options_.kd_n_;  // regulate velocity in z (brick frame)
+  } else {
+    *Kp_force << 0, 0, 0,  /* don't care about x */
+        0, options_.kpf_n_, 0,
+        0, 0, options_.kpf_t_;
+
+    *Ki_force << 0, 0, 0,  /* don't care about x */
+        0, options_.kif_n_, 0,
+        0, 0, options_.kif_t_;
+
+    *Kd_position << 0, 0, 0,
+        0, options_.kd_n_, 0,
+        0, 0, options_.kd_t_;  // regulate velocity in z (brick frame)
+
+  }
 }
 
 /// This is a helper system to distribute the output of the multifinger QP

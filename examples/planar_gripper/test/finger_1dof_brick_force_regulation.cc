@@ -185,19 +185,20 @@ int do_main() {
 
     // Setup the force controller.
     ForceControlOptions foptions;
-    foptions.kpfy_ = FLAGS_kpfy;
-    foptions.kpfz_ = FLAGS_kpfz;
-    foptions.kpy_ = FLAGS_kpy;
-    foptions.kdy_ = FLAGS_kdy;
-    foptions.kpz_ = FLAGS_kpz;
-    foptions.kdz_ = FLAGS_kdz;
-    foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
+    foptions.kpf_t_ = FLAGS_kpfy;
+    foptions.kpf_n_ = FLAGS_kpfz;
+    foptions.kp_t_ = FLAGS_kpy;
+    foptions.kd_t_ = FLAGS_kdy;
+    foptions.kp_n_ = FLAGS_kpz;
+    foptions.kd_n_ = FLAGS_kdz;
+    foptions.Kd_joint_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
     foptions.K_compliance_ = FLAGS_K_compliance;
     foptions.D_damping_ = FLAGS_D_damping;
     foptions.brick_damping_ = brick_damping;
     foptions.brick_inertia_ = brick_inertia;
     foptions.always_direct_force_control_ = FLAGS_always_direct_force_control;
     foptions.finger_to_control_ = kFingerToControl;
+    foptions.brick_face_ = BrickFace::kPosZ;
 
     force_controller = builder.AddSystem<ForceController>(
         plant, scene_graph, foptions, finger_index, brick_index);

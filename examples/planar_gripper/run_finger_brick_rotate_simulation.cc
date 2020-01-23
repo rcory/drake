@@ -78,16 +78,17 @@ DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_bool(zero_gravity, true, "Always zero gravity?");
 
 // Hybrid position/force control parameters.
-DEFINE_double(kd_j1, 0.2, "joint damping for joint 1.");
-DEFINE_double(kd_j2, 0.2, "joint damping for joint 2.");
-DEFINE_double(kpy, 0, "y-axis position gain (in brick frame).");
-DEFINE_double(kdy, 0, "y-axis derivative gain (in brick frame).");
-DEFINE_double(kpz, 0, "z-axis position gain (in brick frame).");
-DEFINE_double(kdz, 15e3, "z-axis derivative gain (in brick frame).");
-DEFINE_double(kpfy, 3e3, "y-axis proportional force gain (in brick frame).");
-DEFINE_double(kpfz, 5e3, "z-axis proportional force gain (in brick frame).");
-DEFINE_double(kify, 0, "y-axis integral force gain (in brick frame).");
-DEFINE_double(kifz, 0, "z-axis integral force gain (in brick frame).");
+DEFINE_double(kd_base_joint, 1.0, "joint damping for base joint.");
+DEFINE_double(kd_mid_joint, 1.0, "joint damping for mid joint.");
+DEFINE_double(kp_t, 0, "Tangential position gain (in brick frame).");
+DEFINE_double(kd_t, 0, "Tangential derivative gain (in brick frame).");
+DEFINE_double(kp_n, 0, "Normal position gain (in brick frame).");
+DEFINE_double(kd_n, 15e3, "Normal derivative gain (in brick frame).");
+DEFINE_double(kpf_t, 3e3,
+              "Tangential proportional force gain (in brick frame).");
+DEFINE_double(kpf_n, 5e3, "Normal proportional force gain (in brick frame).");
+DEFINE_double(kif_t, 1e2, "Tangential integral force gain (in brick frame).");
+DEFINE_double(kif_n, 1e2, "Normal integral force gain (in brick frame).");
 DEFINE_double(K_compliance, 2e3, "Impedance control stiffness.");
 DEFINE_double(D_damping, 1e3, "Impedance control damping.");
 DEFINE_bool(always_direct_force_control, false,
@@ -155,15 +156,15 @@ void SetupFeedbackController(PlanarGripper& planar_gripper,
   // Setup the force controller.
   const Finger kFingerToControl = Finger::kFinger3;
   ForceControlOptions foptions;
-  foptions.kpfy_ = FLAGS_kpfy;
-  foptions.kpfz_ = FLAGS_kpfz;
-  foptions.kify_ = FLAGS_kify;
-  foptions.kifz_ = FLAGS_kifz;
-  foptions.kpy_ = FLAGS_kpy;
-  foptions.kdy_ = FLAGS_kdy;
-  foptions.kpz_ = FLAGS_kpz;
-  foptions.kdz_ = FLAGS_kdz;
-  foptions.Kd_ << FLAGS_kd_j1, 0, 0, FLAGS_kd_j2;
+  foptions.kpf_t_ = FLAGS_kpf_t;
+  foptions.kpf_n_ = FLAGS_kpf_n;
+  foptions.kif_t_ = FLAGS_kif_t;
+  foptions.kif_n_ = FLAGS_kif_n;
+  foptions.kp_t_ = FLAGS_kp_t;
+  foptions.kd_t_ = FLAGS_kd_t;
+  foptions.kp_n_ = FLAGS_kp_n;
+  foptions.kd_n_ = FLAGS_kd_n;
+  foptions.Kd_joint_ << FLAGS_kd_base_joint, 0, 0, FLAGS_kd_mid_joint;
   foptions.K_compliance_ = FLAGS_K_compliance;
   foptions.D_damping_ = FLAGS_D_damping;
   foptions.brick_damping_ = brick_damping;

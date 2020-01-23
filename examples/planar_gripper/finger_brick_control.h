@@ -26,21 +26,25 @@ using systems::OutputPortIndex;
 using systems::OutputPort;
 
 struct ForceControlOptions{
-  double kpfy_{0};  // y-axis proportional force gain (in brick frame)
-  double kpfz_{0};  // z-axis proportional force gain (in brick frame)
-  double kify_{0};  // y-axis integral force gain (in brick frame)
-  double kifz_{0};  // z-axis integral force gain (in brick frame)
-  double kpy_{0};  // y-axis position gain (in brick frame)
-  double kdy_{0};  // y-axis derivative gain (in brick frame)
-  double kpz_{0};  // z-axis position gain (in brick frame)
-  double kdz_{0};  // z-axis derivative gain (in brick frame)
-  Eigen::Matrix2d Kd_{Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
+  double kpf_t_{0};  // Tangential proportional force gain (in brick frame)
+  double kpf_n_{0};  // Normal proportional force gain (in brick frame)
+  double kif_t_{0};  // Tangential integral force gain (in brick frame)
+  double kif_n_{0};  // Normal integral force gain (in brick frame)
+  double kp_t_{0};  // Tangential position gain (in brick frame)
+  double kd_t_{0};  // Tangential derivative gain (in brick frame)
+  double kp_n_{0};  // Normal position gain (in brick frame)
+  double kd_n_{0};  // Normal derivative gain (in brick frame)
+  Eigen::Matrix2d Kd_joint_{
+      Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
   double K_compliance_{0};  // impedance control stiffness
   double D_damping_{0};  // impedance control damping
   double brick_damping_{0};  // brick pin joint damping
   double brick_inertia_{0};  // brick's rotational inertia
   bool always_direct_force_control_{true};  // false for impedance control during non-contact
   Finger finger_to_control_{Finger::kFinger1};  // specifies which finger to control.
+
+  // TODO(rcory) Compute this on the fly instead.
+  BrickFace brick_face_;
 };
 
 // Force controller with pure gravity compensation (no dynamics compensation
@@ -49,6 +53,7 @@ struct ForceControlOptions{
 //  systems::controllers::StateFeedbackControllerInterface?
 class ForceController : public systems::LeafSystem<double> {
  public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceController);
   ForceController(const MultibodyPlant<double>& plant,
                   const SceneGraph<double>& scene_graph,
                   ForceControlOptions options,
@@ -119,6 +124,11 @@ class ForceController : public systems::LeafSystem<double> {
   void DoCalcTimeDerivatives(
       const systems::Context<double>& context,
       systems::ContinuousState<double>* derivatives) const override;
+
+  void GetGains(EigenPtr<Matrix3<double>> Kp_force,
+                EigenPtr<Matrix3<double>> Ki_force,
+                EigenPtr<Matrix3<double>> Kp_position,
+                EigenPtr<Matrix3<double>> Kd_position) const;
 
  private:
   const MultibodyPlant<double>& plant_;
