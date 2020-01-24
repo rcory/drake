@@ -53,12 +53,6 @@ DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
 
 // Gripper/brick rotate specific flags
-// Initial finger joint angles.
-// (for reference [-0.68, 1.21] sets the ftip at the center when box rot is
-// zero)
-//DEFINE_int32(finger_to_control, 3, "Finger to control: {1, 2, 3}.");
-//DEFINE_string(contact_face, "NegZ",
-//              "The brick face to make contact with: {PosZ, NegZ, PosY, NegY}.");
 DEFINE_double(f1_base, -0.6, "f1_base");  // shoulder joint
 DEFINE_double(f1_mid, 1.4, "f1_mid");  // elbow joint
 DEFINE_double(f2_base, 0.75, "f2_base");
@@ -112,14 +106,12 @@ DEFINE_bool(use_finger2, true, "Use finger2?");
 DEFINE_bool(use_finger3, true, "Use finger3?");
 
 // QP task parameters
-// finger 1: theta0=-2.679793, thetaf=-1.308997
-// finger 2: theta0=1.509, thetaf=2.87979
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
-DEFINE_double(QP_Kp, 150 /* 50 */, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 20 /* 5 */, "QP controller Kd gain"); /* 20 for brick only */
+DEFINE_double(QP_Kp, 150, "QP controller Kp gain");
+DEFINE_double(QP_Kd, 20, "QP controller Kd gain"); /* 20 for brick only */
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -261,8 +253,8 @@ int DoMain() {
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, &qpoptions);
   if (FLAGS_brick_only) {
-    ConnectQPController(*planar_gripper, drake_lcm, std::nullopt,
-                        QPType::GripperQP, qpoptions, &builder);
+    ConnectQPController(*planar_gripper, drake_lcm, std::nullopt, qpoptions,
+                        &builder);
   } else {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
     for (auto& finger_face_assignment : finger_face_assignments) {
@@ -282,7 +274,7 @@ int DoMain() {
     force_controllers_to_plant->ConnectForceControllersToPlant(*planar_gripper,
                                                                &builder);
     ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
-                        QPType::GripperQP, qpoptions, &builder);
+                        qpoptions, &builder);
   }
 
   // publish body frames.
@@ -338,26 +330,30 @@ int DoMain() {
   init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_f3_base;
   init_gripper_pos_map["finger3_MidJoint"] = FLAGS_f3_mid;
 
-  auto gripper_initial_positions = MakePositionVector(
-      planar_gripper->get_control_plant(), init_gripper_pos_map);
+  auto gripper_initial_positions =
+      planar_gripper->MakeGripperPositionVector(init_gripper_pos_map);
 
   // Create a context for the diagram.
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
+  systems::Context<double>& planar_gripper_context =
+      diagram->GetMutableSubsystemContext(*planar_gripper,
+                                          diagram_context.get());
+
+  planar_gripper->SetGripperPosition(&planar_gripper_context,
+                                     gripper_initial_positions);
+  planar_gripper->SetGripperVelocity(&planar_gripper_context,
+                                     Eigen::VectorXd::Zero(kNumGripperJoints));
+  planar_gripper->SetBrickPosition(&planar_gripper_context,
+                                   Vector1d(FLAGS_theta0));
 
   // If we are only simulating the brick, then ignore the force controller by
   // fixing the plant's actuation input port to zero.
   if (FLAGS_brick_only) {
-    systems::Context<double>& planar_gripper_context =
-        diagram->GetMutableSubsystemContext(*planar_gripper,
-                                            diagram_context.get());
     Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumGripperJoints);
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
-
-  systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  systems::Context<double>& simulator_context = simulator.get_mutable_context();
 
   // TODO(rcory) Uncomment this once we have the QP planner under LCM.
 //  planner_decoder->set_initial_position(
@@ -365,12 +361,7 @@ int DoMain() {
 //                                           &simulator_context),
 //      gripper_initial_positions);
 
-  planar_gripper->SetGripperPosition(&simulator_context,
-                                     gripper_initial_positions);
-  planar_gripper->SetGripperVelocity(&simulator_context,
-                                     Eigen::VectorXd::Zero(kNumGripperJoints));
-  planar_gripper->SetBrickPosition(simulator_context, Vector1d(FLAGS_theta0));
-
+  systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);

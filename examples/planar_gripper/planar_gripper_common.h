@@ -15,6 +15,7 @@ namespace planar_gripper {
 using drake::multibody::MultibodyPlant;
 using Eigen::Vector3d;
 
+// TODO(rcory) These values should be moved to PlanarGripper class.
 constexpr int kNumFingers = 3;
 constexpr int kNumJointsPerFinger = 2;
 constexpr int kNumGripperJoints = kNumFingers * kNumJointsPerFinger;
@@ -124,11 +125,6 @@ MatrixX<double> ReorderKeyframesForPlant(
     const MultibodyPlant<double>& plant,
     const MatrixX<double> keyframes,
     std::map<std::string, int>* finger_joint_name_to_row_index_map);
-
-/// Creates a position vector (in joint position index order) from the
-/// named joints and values in `map_in`.
-VectorX<double> MakePositionVector(const MultibodyPlant<double>& plant,
-                                   std::map<std::string, double> map_in);
 
 /// Returns a specific finger's weld angle from the +Gz axis
 /// (gripper frame, +z axis)

@@ -144,6 +144,23 @@ class ForceSensorEvaluator : public systems::LeafSystem<double> {
   std::vector<multibody::JointIndex> sensor_joint_indices_;
 };
 
+VectorX<double> PlanarGripper::MakeGripperPositionVector(
+    const std::map<std::string, double>& map_in) {
+  const int kNumGripperPositions = get_num_gripper_positions();
+  if (kNumGripperJoints != kNumGripperPositions) {
+    throw std::runtime_error(
+        "kNumGripperJoints does not match number of positions in "
+        "PlanarGripper's plant.");
+  }
+  if (static_cast<int>(map_in.size()) != kNumGripperPositions) {
+    throw std::runtime_error(
+        "The number initial condition joints must match the number of "
+        "planar-gripper "
+        "joints");
+  }
+  return MakePositionVector(map_in, kNumGripperPositions);
+}
+
 VectorX<double> PlanarGripper::GetGripperPosition(
     const systems::Context<double>& diagram_context) const {
   const auto& plant_context =
@@ -343,39 +360,67 @@ void PlanarGripper::SetGripperPosition(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& q) const {
-  const int num_gripper_positions =
-      plant_->num_positions(gripper_index_);
+  const int kNumGripperPositions = get_num_gripper_positions();
   DRAKE_DEMAND(state != nullptr);
-  DRAKE_DEMAND(q.size() == num_gripper_positions);
+  DRAKE_DEMAND(q.size() == kNumGripperPositions);
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
   auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
   plant_->SetPositions(plant_context, &plant_state, gripper_index_, q);
 }
 
-void PlanarGripper::SetBrickPosition(
-    drake::systems::Context<double>& diagram_context,
-    const Eigen::Ref<const drake::VectorX<double>>& q) {
-  auto& plant_context =
-      this->GetMutableSubsystemContext(*plant_, &diagram_context);
+VectorX<double> PlanarGripper::MakeBrickPositionVector(
+    const std::map<std::string, double>& map_in) {
+  const int kNumBrickPositions = get_num_brick_positions();
+  if (static_cast<int>(map_in.size()) != kNumBrickPositions) {
+    throw std::runtime_error(
+        "The number initial condition positions must match the number of "
+        "planar-gripper positions");
+  }
+  return MakePositionVector(map_in, kNumBrickPositions);
+}
 
-  if (q.size() == 3) {
-    // Set the planar brick's initial conditions.
-    const PrismaticJoint<double>& y_translate =
-        plant_->GetJointByName<PrismaticJoint>("brick_translate_y_joint");
-    const PrismaticJoint<double>& z_translate =
-        plant_->GetJointByName<PrismaticJoint>("brick_translate_z_joint");
-    const RevoluteJoint<double>& x_revolute =
-        plant_->GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
-    y_translate.set_translation(&plant_context, q(0));
-    z_translate.set_translation(&plant_context, q(1));
-    x_revolute.set_angle(&plant_context, q(2));
-  } else if (q.size() == 1) {
-    plant_->GetJointByName<RevoluteJoint>("brick_revolute_x_joint")
-        .set_angle(&plant_context, q(0));
-  } else {
-    throw std::logic_error("Brick can have either 3 or 1 positions.");
+VectorX<double> PlanarGripper::MakePositionVector(
+    const std::map<std::string, double>& map_in,
+    const int num_positions) const {
+  VectorX<double> position_vector = VectorX<double>::Zero(num_positions);
+
+  // TODO(rcory) use this code block once MBP supports getting position_start
+  //  index for a model instance position vector (not the full plant's position
+  //  vector).
+  //
+  // for (auto & iter : map_in) {
+  //   auto joint_pos_start_index =
+  //       plant_->GetJointByName(iter.first).position_start();
+  //   position_vector(joint_pos_start_index) = iter.second;
+  // }
+
+  std::map<int, std::string> index_joint_map;
+  for (auto & iter : map_in) {
+    auto joint_pos_start_index =
+        plant_->GetJointByName(iter.first).position_start();
+    index_joint_map[joint_pos_start_index] = iter.first;
   }
 
+  // Assume the index_joint_map is ordered according to joint position index,
+  // and assume that MBP's SetPositions(model_instance) takes in a position
+  // subvector in that ordering.
+  int vector_index = 0;
+  for (auto & iter : index_joint_map) {
+    position_vector(vector_index++) = map_in.at(iter.second);
+  }
+  return position_vector;
+}
+
+void PlanarGripper::SetBrickPosition(
+    drake::systems::Context<double>& diagram_context,
+    drake::systems::State<double>* state,
+    const Eigen::Ref<const VectorX<double>>& q) const {
+  const int kNumBrickPositions = get_num_brick_positions();
+  DRAKE_DEMAND(state != nullptr);
+  DRAKE_DEMAND(q.size() == kNumBrickPositions);
+  auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
+  auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
+  plant_->SetPositions(plant_context, &plant_state, brick_index_, q);
 }
 
 double PlanarGripper::GetBrickDamping() const {

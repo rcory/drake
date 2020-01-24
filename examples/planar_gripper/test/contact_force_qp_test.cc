@@ -1,6 +1,3 @@
-// TODO(rcory) Rename this to planar_gripper_qp_test (once I get rid of the
-//  PlanarFingerInstantaneousQP class and only keep InstantaneousContactForceQP).
-#include "drake/examples/planar_gripper/planar_finger_qp.h"
 #include "drake/examples/planar_gripper/contact_force_qp.h"
 
 #include <limits>
@@ -117,7 +114,6 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   const double Kd = 0.2;
   const double weight_thetaddot_error = 0.5;
   const double weight_f_Cb = 1.2;
-  BrickFace contact_face = BrickFace::kPosZ;
   double I_B =
       dynamic_cast<const multibody::RigidBody<double>&>(brick_frame.body())
           .default_rotational_inertia()
@@ -131,34 +127,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
       plant.GetJointByName<multibody::RevoluteJoint>("brick_revolute_x_joint")
           .damping();
   Eigen::Vector2d p_BCb(p_BFingerTip(1), p_BFingerTip(2) - finger_tip_radius);
-  PlanarFingerInstantaneousQP qp(
-      theta_planned, thetadot_planned, thetaddot_planned, Kp, Kd, theta,
-      thetadot, p_BCb, weight_thetaddot_error, weight_f_Cb,
-      contact_face, mu, I_B, damping);
 
-  auto qp_result = solvers::Solve(qp.prog());
-  EXPECT_TRUE(qp_result.is_success());
-
-  // Now check the result.
-  // First check if the contact force is within the friction cone.
-  Eigen::Vector2d f_Cb_B = qp.GetContactForceResult(qp_result);
-  drake::log()->info("f_Cb_B_1: \n{}", f_Cb_B);
-  EXPECT_LE(f_Cb_B(1), 0);
-  EXPECT_LE(std::abs(f_Cb_B(0)), -mu * f_Cb_B(1));
-
-  // Now check the cost. First compute the angular acceleration.
-  double thetaddot =
-      (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
-  double thetaddot_des = Kp * (theta_planned - theta) +
-                               Kd * (thetadot_planned - thetadot) +
-                               thetaddot_planned;
-  double cost_expected =
-      weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
-      weight_f_Cb * f_Cb_B.squaredNorm();
-  drake::log()->info("qp1 cost: {}", qp_result.get_optimal_cost());
-  EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-9);
-
-  //   Now do the same thing for ContactForceQP
   Vector6<double> brick_state;
   brick_state << 0, 0, theta, 0, 0, thetadot;
   std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
@@ -175,7 +144,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
       0, weight_thetaddot_error, weight_f_Cb,
       mu, I_B, 1, damping, 0);
 
-  qp_result = solvers::Solve(qp2.prog());
+  auto qp_result = solvers::Solve(qp2.prog());
   EXPECT_TRUE(qp_result.is_success());
 
   // Now check the result.
@@ -183,18 +152,18 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
       finger_contact_forces = qp2.GetContactForceResult(qp_result);
   EXPECT_EQ(finger_contact_forces.size(), 1);
-  f_Cb_B = finger_contact_forces[Finger::kFinger1].first;
+  Eigen::Vector2d f_Cb_B = finger_contact_forces[Finger::kFinger1].first;
   drake::log()->info("f_Cb_B_2: \n{}", f_Cb_B);
   EXPECT_LE(f_Cb_B(1), 0);
   EXPECT_LE(std::abs(f_Cb_B(0)), -mu * f_Cb_B(1));
 
   // Now check the cost. First compute the angular acceleration.
-  thetaddot =
+  double thetaddot =
       (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
-  thetaddot_des = Kp * (theta_planned - theta) +
+  double thetaddot_des = Kp * (theta_planned - theta) +
       Kd * (thetadot_planned - thetadot) +
       thetaddot_planned;
-  cost_expected =
+  double cost_expected =
       weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
           weight_f_Cb * f_Cb_B.squaredNorm();
   drake::log()->info("qp2 cost: {}", qp_result.get_optimal_cost());

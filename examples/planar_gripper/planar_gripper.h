@@ -69,6 +69,11 @@ using multibody::ModelInstanceIndex;
    /// brick).
    int num_gripper_joints() const { return kNumGripperJoints; }
 
+   /// Creates a position vector (in the simulation MBP joint position index
+   /// ordering) from the named joints and values in `map_in`.
+   VectorX<double> MakeGripperPositionVector(
+       const std::map<std::string, double>& map_in);
+
    /// Convenience method for getting all of the joint angles of the gripper.
    /// This does not include the brick.
    VectorX<double> GetGripperPosition(
@@ -111,11 +116,30 @@ using multibody::ModelInstanceIndex;
                         v);
    }
 
+   /// Creates a position vector (in MBP joint position index ordering)
+   /// from the named joints and values in `map_in`.
+   VectorX<double> MakeBrickPositionVector(
+       const std::map<std::string, double>& map_in);
+
+   /// Utility function for creating position vectors.
+   VectorX<double> MakePositionVector(
+       const std::map<std::string, double>& map_in,
+       const int num_positions) const;
+
    /// Convenience method for setting all of the joint angles of the brick.
    /// @p q must have size 3 (y, z, theta).
    // TODO(rcory) Implement the const Context version that sets State instead.
    void SetBrickPosition(systems::Context<double>& diagram_context,
-                           const Eigen::Ref<const VectorX<double>>& q);
+                         systems::State<double>* diagram_state,
+                         const Eigen::Ref<const VectorX<double>>& q) const;
+
+   /// Convenience method for setting all of the joint angles of brick.
+   /// @p q must have size 3 (y, z, theta).
+   void SetBrickPosition(systems::Context<double>* diagram_context,
+                           const Eigen::Ref<const VectorX<double>>& q) const {
+     SetBrickPosition(
+         *diagram_context, &diagram_context->get_mutable_state(), q);
+   }
 
    void AddFloor(MultibodyPlant<double>* plant,
                  const geometry::SceneGraph<double>& scene_graph);
@@ -184,6 +208,14 @@ using multibody::ModelInstanceIndex;
 
    ModelInstanceIndex get_planar_gripper_index() const {
      return gripper_index_;
+   }
+
+   int get_num_gripper_positions() const {
+     return plant_->num_positions(gripper_index_);
+   }
+
+   int get_num_brick_positions() const {
+     return plant_->num_positions(brick_index_);
    }
 
    double GetBrickDamping() const;

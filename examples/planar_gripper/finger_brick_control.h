@@ -11,11 +11,6 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
-enum class QPType {
-  FingerQP,
-  GripperQP,
-};
-
 using lcm::DrakeLcm;
 using geometry::SceneGraph;
 using multibody::MultibodyPlant;
@@ -179,21 +174,11 @@ struct QPControlOptions{
   BrickType brick_type_{BrickType::PinBrick};
 };
 
-/// A method that connects the finger/brick QP controller to the force
-/// controller.
-void ConnectQPController(
-    const MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
-    std::optional<std::reference_wrapper<const ForceController>>
-        force_controller,
-    const ModelInstanceIndex& brick_index, const QPControlOptions options,
-    systems::DiagramBuilder<double>* builder);
-
 void ConnectQPController(
     const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
-    const std::optional<std::unordered_map<Finger, ForceController&>>& finger_force_control_map,
-    const QPType qp_type, const QPControlOptions qpoptions,
-    systems::DiagramBuilder<double>* builder);
+    const std::optional<std::unordered_map<Finger, ForceController&>>&
+        finger_force_control_map,
+    const QPControlOptions qpoptions, systems::DiagramBuilder<double>* builder);
 
 ForceController* SetupForceController(const PlanarGripper& planar_gripper,
                                       DrakeLcm& lcm,

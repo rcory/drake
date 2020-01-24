@@ -142,13 +142,31 @@ int DoMain() {
 
   // Create the initial condition vector. Set initial joint velocities to zero.
   VectorX<double> gripper_initial_positions =
-      VectorX<double>::Zero(kNumJoints);
+      VectorX<double>::Zero(kNumGripperJoints);
   gripper_initial_positions =
-      keyframes.block(0, 0, kNumJoints, 1);
+      keyframes.block(0, 0, kNumGripperJoints, 1);
 
   // Create a context for the diagram.
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
+  systems::Context<double>& planar_gripper_context =
+      diagram->GetMutableSubsystemContext(*planar_gripper,
+                                          diagram_context.get());
+
+  planar_gripper->SetGripperPosition(&planar_gripper_context,
+                                     gripper_initial_positions);
+
+  std::map<std::string, double> init_brick_pos_map;
+  init_brick_pos_map["brick_translate_y_joint"] = brick_initial_2D_pose_G(0);
+  init_brick_pos_map["brick_translate_z_joint"] = brick_initial_2D_pose_G(1);
+  init_brick_pos_map["brick_revolute_x_joint"] = brick_initial_2D_pose_G(2);
+  if (FLAGS_orientation == "horizontal") {
+    init_brick_pos_map["brick_translate_x_joint"] = 0;
+  }
+  auto brick_initial_positions =
+      planar_gripper->MakeBrickPositionVector(init_brick_pos_map);
+  planar_gripper->SetBrickPosition(&planar_gripper_context,
+                                   brick_initial_positions);
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   systems::Context<double>& simulator_context = simulator.get_mutable_context();
@@ -156,10 +174,6 @@ int DoMain() {
       &diagram->GetMutableSubsystemContext(*command_decoder,
                                            &simulator_context),
       gripper_initial_positions);
-
-  planar_gripper->SetGripperPosition(&simulator_context,
-                                     gripper_initial_positions);
-  planar_gripper->SetBrickPosition(simulator_context, brick_initial_2D_pose_G);
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();

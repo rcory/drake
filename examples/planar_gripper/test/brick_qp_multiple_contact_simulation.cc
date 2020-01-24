@@ -194,20 +194,22 @@ int DoMain() {
   init_gripper_pos_map["finger3_BaseJoint"] = -1;
   init_gripper_pos_map["finger3_MidJoint"] = -1;
 
-  auto gripper_initial_positions = MakePositionVector(
-      planar_gripper->get_control_plant(), init_gripper_pos_map);
+  auto gripper_initial_positions =
+      planar_gripper->MakeGripperPositionVector(init_gripper_pos_map);
 
   // Create a context for the diagram.
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
+  systems::Context<double>& planar_gripper_context =
+      diagram->GetMutableSubsystemContext(*planar_gripper,
+                                          diagram_context.get());
+
+  planar_gripper->SetGripperPosition(&planar_gripper_context,
+                                     gripper_initial_positions);
+  planar_gripper->SetBrickPosition(&planar_gripper_context,
+                                   Eigen::Vector2d::Zero());
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  systems::Context<double>& simulator_context = simulator.get_mutable_context();
-
-  planar_gripper->SetGripperPosition(&simulator_context,
-                                     gripper_initial_positions);
-  planar_gripper->SetBrickPosition(simulator_context, Vector1d(0));
-
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);
