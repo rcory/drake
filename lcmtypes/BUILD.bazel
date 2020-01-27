@@ -225,10 +225,13 @@ drake_lcm_cc_library(
 )
 
 drake_lcm_cc_library(
-    name = "planar_manipuland_status",
+    name = "planar_manipuland",
     lcm_package = "drake",
     lcm_srcs = [
         "lcmt_planar_manipuland_status.lcm",
+        "lcmt_planar_manipuland_spatial_force.lcm",
+        "lcmt_planar_manipuland_spatial_forces.lcm",
+        "lcmt_planar_manipuland_desired.lcm",
     ],
 )
 
@@ -247,6 +250,16 @@ drake_lcm_cc_library(
     #        ":contact_information",
     #        ":planar_manipuland_status",
     #    ],
+)
+
+drake_lcm_cc_library(
+    name = "planar_gripper_qp",
+    lcm_package = "drake",
+    lcm_srcs = [
+        "lcmt_planar_gripper_finger_face_assignment.lcm",
+        "lcmt_planar_gripper_finger_face_assignments.lcm",
+        "lcmt_planar_plant_state.lcm",
+    ],
 )
 
 drake_lcm_cc_library(
@@ -385,8 +398,9 @@ LCMTYPES_CC = [
     ":joint_pd_override",
     ":manipulator_plan_move_end_effector",
     ":piecewise_polynomial",
-    ":planar_manipuland_status",
+    ":planar_manipuland",
     ":planar_gripper",
+    ":planar_gripper_qp",
     ":plan_eval_debug_info",
     ":point_pair_contact_info_for_viz",
     ":polynomial",

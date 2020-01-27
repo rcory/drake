@@ -25,10 +25,10 @@ enum class Finger {
   kFinger2,
   kFinger3,
 };
-
 std::string to_string(Finger finger);
 int to_num(Finger finger);
 Finger to_Finger(int i);
+Finger to_Finger(std::string finger_name);
 
 enum class BrickFace {
   kPosZ,
@@ -37,6 +37,8 @@ enum class BrickFace {
   kNegY,
   kClosest,  // Force controller chooses the closest face/point.
 };
+BrickFace to_BrickFace(std::string brick_face_name);
+std::string to_string(BrickFace brick_face);
 
 // The planar-gripper coordinate frame G (with origin Go) and finger layout are
 // defined as follows (assuming all finger joint angles are set to zero):

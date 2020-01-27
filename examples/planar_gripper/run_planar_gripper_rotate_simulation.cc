@@ -29,7 +29,7 @@ using multibody::ContactResults;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 2.0,
+DEFINE_double(simulation_time, 3.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
@@ -109,9 +109,14 @@ DEFINE_bool(use_finger3, true, "Use finger3?");
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
+DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 
-DEFINE_double(QP_Kp, 150, "QP controller Kp gain");
-DEFINE_double(QP_Kd, 20, "QP controller Kd gain"); /* 20 for brick only */
+DEFINE_bool(
+    use_lcm_QP, false,
+    "Use the LCM QP controller?. If this is false, we instantiate a local QP "
+    "controller system.");
+DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
+DEFINE_double(QP_Kd_ro, 20, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -161,10 +166,11 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
 
   qpoptions->T_ = FLAGS_T;
+  qpoptions->plan_dt = FLAGS_QP_plan_dt;
   qpoptions->theta0_ = FLAGS_theta0;
   qpoptions->thetaf_ = FLAGS_thetaf;
-  qpoptions->QP_Kp_ = FLAGS_QP_Kp;
-  qpoptions->QP_Kd_ = FLAGS_QP_Kd;
+  qpoptions->QP_Kp_ro_ = FLAGS_QP_Kp_ro;
+  qpoptions->QP_Kd_ro_ = FLAGS_QP_Kd_ro;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
   qpoptions->QP_mu_ = FLAGS_QP_mu;
@@ -241,20 +247,17 @@ int DoMain() {
   systems::lcm::LcmInterfaceSystem* lcm =
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>(&drake_lcm);
 
-  // TODO(rcory) Uncomment once we have the QP planner under LCM.
-//  auto planner_sub = builder.AddSystem(
-//      systems::lcm::LcmSubscriberSystem::Make<
-//          drake::lcmt_planar_gripper_plan>("PLANAR_GRIPPER_PLAN", lcm));
-//  auto planner_decoder = builder.AddSystem<GripperCommandDecoder>();
-//  builder.Connect(planner_sub->get_output_port(),
-//                  planner_decoder->get_input_port(0));
-
   auto finger_face_assignments = GetFingerFaceAssignments();
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, &qpoptions);
   if (FLAGS_brick_only) {
-    ConnectQPController(*planar_gripper, drake_lcm, std::nullopt, qpoptions,
-                        &builder);
+    if (FLAGS_use_lcm_QP) {
+      ConnectLCMQPController(*planar_gripper, drake_lcm, std::nullopt,
+                             qpoptions, &builder);
+    } else {
+      ConnectQPController(*planar_gripper, drake_lcm, std::nullopt, qpoptions,
+                          &builder);
+    }
   } else {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
     for (auto& finger_face_assignment : finger_face_assignments) {
@@ -273,8 +276,13 @@ int DoMain() {
             planar_gripper->get_multibody_plant(), finger_force_control_map);
     force_controllers_to_plant->ConnectForceControllersToPlant(*planar_gripper,
                                                                &builder);
-    ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
-                        qpoptions, &builder);
+    if (FLAGS_use_lcm_QP) {
+      ConnectLCMQPController(*planar_gripper, drake_lcm,
+                             finger_force_control_map, qpoptions, &builder);
+    } else {
+      ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+                          qpoptions, &builder);
+    }
   }
 
   // publish body frames.
@@ -302,7 +310,7 @@ int DoMain() {
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
-          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmStatusPeriod));
+          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
   auto state_remapper = builder.AddSystem<MapStateToUserOrderedState>(
       planar_gripper->get_multibody_plant(),
@@ -354,12 +362,6 @@ int DoMain() {
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
-
-  // TODO(rcory) Uncomment this once we have the QP planner under LCM.
-//  planner_decoder->set_initial_position(
-//      &diagram->GetMutableSubsystemContext(*planner_decoder,
-//                                           &simulator_context),
-//      gripper_initial_positions);
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);

@@ -142,18 +142,18 @@ InstantaneousContactForceQP::GetContactForceResult(
 InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const BrickType brick_type,
     const multibody::MultibodyPlant<double>* plant,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
+    const Eigen::Ref<const Eigen::Matrix2d>& Kp_tr,
+    const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro, double Kd_ro,
     double weight_a, double weight_thetaddot, double weight_f_Cb_B, double mu,
     double translational_damping, double rotational_damping, double I_B,
     double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
-      Kp_t_{Kp_t},
-      Kd_t_{Kd_t},
-      Kp_r_{Kp_r},
-      Kd_r_{Kd_r},
+      Kp_tr_{Kp_tr},
+      Kd_tr_{Kd_tr},
+      Kp_ro_{Kp_ro},
+      Kd_ro_{Kd_ro},
       weight_a_{weight_a},
       weight_thetaddot_{weight_thetaddot},
       weight_f_Cb_B_{weight_f_Cb_B},
@@ -161,8 +161,8 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       rotational_damping_(rotational_damping),
       mass_B_(mass_B),
       I_B_(I_B) {
-  DRAKE_DEMAND(Kp_r_ >= 0);
-  DRAKE_DEMAND(Kd_r_ >= 0);
+  DRAKE_DEMAND(Kp_ro_ >= 0);
+  DRAKE_DEMAND(Kd_ro_ >= 0);
   DRAKE_DEMAND(weight_a_ >= 0);
   DRAKE_DEMAND(weight_thetaddot_ >= 0);
   DRAKE_DEMAND(weight_f_Cb_B_ >= 0);
@@ -170,13 +170,13 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
   output_index_fingers_control_ =
       this->DeclareAbstractOutputPort(
               "fingers_control",
-              &InstantaneousContactForceQPController::CalcControl)
+              &InstantaneousContactForceQPController::CalcFingersControl)
           .get_index();
 
   output_index_brick_control_ =
       this->DeclareAbstractOutputPort(
               "brick_control",
-              &InstantaneousContactForceQPController::CalcSpatialContactForce)
+              &InstantaneousContactForceQPController::CalcBrickControl)
           .get_index();
 
   input_index_estimated_plant_state_ =
@@ -189,7 +189,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
           .get_index();
   input_index_desired_brick_acceleration_ =
       this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 3)
-          .get_index();
+          .get_index();  // {ay, az, w_x}
 
   // This input port contains an unordered map of Finger to a pair of BrickFace
   // and contact point location (either real contact point or reference contact
@@ -218,12 +218,12 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
 // number of fingers in contact (not necessarily 3) and is dynamic. The info
 // for what fingers are in contact and where is contained in the input
 // finger_face_assignments.
-void InstantaneousContactForceQPController::CalcControl(
+void InstantaneousContactForceQPController::CalcFingersControl(
     const systems::Context<double>& context,
     std::unordered_map<Finger,
                        multibody::ExternallyAppliedSpatialForce<double>>*
-        control) const {
-  control->clear();
+        fingers_control) const {
+  fingers_control->clear();
   const Eigen::VectorBlock<const VectorX<double>> plant_state =
       get_input_port_estimated_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_state =
@@ -236,6 +236,12 @@ void InstantaneousContactForceQPController::CalcControl(
               .Eval<std::unordered_map<Finger,
                                        std::pair<BrickFace, Eigen::Vector2d>>>(
                   context);
+
+  // If the map `finger_face_assignments` is empty, then there is nothing to
+  // compute. Just return empty in this case.
+  if (finger_face_assignments.empty()) {
+    return;
+  }
 
   const Eigen::Vector2d p_WB_planned = desired_brick_state.head<2>();
   const Eigen::Vector2d v_WB_planned = desired_brick_state.segment<2>(3);
@@ -261,7 +267,7 @@ void InstantaneousContactForceQPController::CalcControl(
 
   InstantaneousContactForceQP qp(
       brick_type_, p_WB_planned, v_WB_planned, a_WB_planned, theta_planned,
-      thetadot_planned, thetaddot_planned, Kp_t_, Kd_t_, Kp_r_, Kd_r_,
+      thetadot_planned, thetaddot_planned, Kp_tr_, Kd_tr_, Kp_ro_, Kd_ro_,
       brick_state, finger_face_assignments, weight_a_, weight_thetaddot_,
       weight_f_Cb_B_, mu_, I_B_, mass_B_, rotational_damping_,
       translational_damping_);
@@ -274,11 +280,11 @@ void InstantaneousContactForceQPController::CalcControl(
   const double sin_theta = std::sin(theta);
   Eigen::Matrix2d R_WB;
   R_WB << cos_theta, -sin_theta, sin_theta, cos_theta;
-  for (const auto& finger_contact : finger_face_assignments) {
+  for (const auto& finger_face_assignment : finger_face_assignments) {
     multibody::ExternallyAppliedSpatialForce<double> spatial_force;
     spatial_force.body_index = brick_body_index_;
     const std::pair<Eigen::Vector2d, Eigen::Vector2d>& force_position =
-        finger_contact_result.at(finger_contact.first);
+        finger_contact_result.at(finger_face_assignment.first);
 //    drake::log()->info("force: \n{}", force_position.first);
 //    drake::log()->info("position: \n{}", force_position.second);
     const Eigen::Vector2d p_BCb = force_position.second;
@@ -286,21 +292,21 @@ void InstantaneousContactForceQPController::CalcControl(
     const Eigen::Vector2d f_Cb_W = R_WB * force_position.first;
     spatial_force.F_Bq_W = multibody::SpatialForce<double>(
         Eigen::Vector3d::Zero(), Eigen::Vector3d(0, f_Cb_W(0), f_Cb_W(1)));
-    control->emplace(finger_contact.first, spatial_force);
+    fingers_control->emplace(finger_face_assignment.first, spatial_force);
   }
 }
 
-void InstantaneousContactForceQPController::CalcSpatialContactForce(
+void InstantaneousContactForceQPController::CalcBrickControl(
     const systems::Context<double>& context,
     std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
         contact_forces) const {
   std::unordered_map<Finger, multibody::ExternallyAppliedSpatialForce<double>>
-      control;
-  CalcControl(context, &control);
+      fingers_control;
+  CalcFingersControl(context, &fingers_control);
   contact_forces->clear();
-  contact_forces->reserve(control.size());
-  for (const auto& finger_contact_force : control) {
-    contact_forces->push_back(finger_contact_force.second);
+  contact_forces->reserve(fingers_control.size());
+  for (const auto& finger_control : fingers_control) {
+    contact_forces->push_back(finger_control.second);
   }
 }
 }  // namespace planar_gripper

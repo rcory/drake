@@ -56,14 +56,22 @@ class InstantaneousContactForceQP {
    * @param Kd_r The derivative gain of the brick rotational (angular) velocity.
    * @param brick_state The brick state include [p_y, p_z, θ, ṗ_y, ṗ_z, θ̇],
    * namely the brick position/orientation and its velocities.
-   * @param finger_face_info assigns a finger to a contact point on a
-   * given face of the brick. finger_face_info[finger] gives
-   * (face, p_BCb_B), where p_BCb_B is the y/z location of the contact point
-   * Cb on the brick frame.
+   * @param finger_face_assignments a std::unordered_map which assigns a Finger
+   * to a contact face on the brick (BrickFace) and to a contact point on the
+   * brick. finger_face_assignments[Finger] gives a std::pair(BrickFace,
+   * p_BoBq_B), where p_BoBq_B is the y/z location of the contact point Bq,
+   * measured from the brick's body origin Bo, expressed in the brick's body
+   * frame B.
    * @param weight_a The weight of the acceleration error in the cost.
-   * @param weight_thetaddot The weight of the angular acceleration error in the
-   * cost.
-   * @param weight_f_Cb_B The weight of the contact force in the cost.
+   * @param weight_thetaddot_error The weight of the angular acceleration error
+   * in the cost.
+   * @param weight_f_Cb The weight of the contact force in the cost.
+   * @param mu The brick/floor coefficient of static friction (stiction).
+   * @param I_B The brick's rotational moment of inertia around its axis of
+   * rotation.
+   * @param mass_B The mass of the brick.
+   * @param rotational_damping The rotational viscous damping coefficient.
+   * @param translational_damping The translational viscous damping coefficient.
    */
   InstantaneousContactForceQP(
       const BrickType brick_type,
@@ -75,7 +83,7 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
       const Eigen::Ref<const Vector6<double>>& brick_state,
       const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
-          finger_face_info,
+          finger_face_assignments,
       double weight_a, double weight_thetaddot_error, double weight_f_Cb,
       double mu, double I_B, double mass_B, double rotational_damping,
       double translational_damping);
@@ -119,10 +127,10 @@ class InstantaneousContactForceQPController
 
   /**
    * @param gripper_brick The gripper_brick system.
-   * @param Kp_t The proportional gain for the brick y/z translational position.
-   * @param Kd_t The derivative gain for the brick y/z translational position.
-   * @param Kp_r The proportional gain for the brick rotational position (angle).
-   * @param Kd_r The derivative gain for the brick rotational velocity.
+   * @param Kp_tr The proportional gain for the brick y/z translational position.
+   * @param Kd_tr The derivative gain for the brick y/z translational position.
+   * @param Kp_ro The proportional gain for the brick rotational position (angle).
+   * @param Kd_ro The derivative gain for the brick rotational velocity.
    * @param weight_a The weighting for the brick y/z acceleration in the cost.
    * @param weight_thetaddot The weighting for the brick thetaddot in the cost.
    * @param weight_f_Cb_B The weighting for the contact forces in the cost.
@@ -130,8 +138,8 @@ class InstantaneousContactForceQPController
   InstantaneousContactForceQPController(
       BrickType brick_type,
       const multibody::MultibodyPlant<double>* plant,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
+      const Eigen::Ref<const Eigen::Matrix2d>& Kp_tr,
+      const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro, double Kd_ro,
       double weight_a, double weight_thetaddot, double weight_f_Cb_B, double mu,
       double translational_damping, double rotational_damping, double I_B,
       double mass_B);
@@ -206,13 +214,13 @@ class InstantaneousContactForceQPController
   }
 
  private:
-  void CalcControl(
+  void CalcFingersControl(
       const systems::Context<double>& context,
       std::unordered_map<Finger,
                          multibody::ExternallyAppliedSpatialForce<double>>*
           output) const;
 
-  void CalcSpatialContactForce(
+  void CalcBrickControl(
       const systems::Context<double>& context,
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
           contact_forces) const;
@@ -220,10 +228,10 @@ class InstantaneousContactForceQPController
   const BrickType brick_type_;
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;
-  Eigen::Matrix2d Kp_t_;  // Translational proportional QP gain.
-  Eigen::Matrix2d Kd_t_;  // Translational derivative QP gain.
-  double Kp_r_;  // Rotational proportional QP gain.
-  double Kd_r_;  // Rotational derivative QP gain.
+  Eigen::Matrix2d Kp_tr_;  // Translational proportional QP gain.
+  Eigen::Matrix2d Kd_tr_;  // Translational derivative QP gain.
+  double Kp_ro_;  // Rotational proportional QP gain.
+  double Kd_ro_;  // Rotational derivative QP gain.
   double weight_a_;
   double weight_thetaddot_;
   double weight_f_Cb_B_;

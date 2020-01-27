@@ -62,15 +62,53 @@ Finger to_Finger(int i) {
   switch (i) {
     case 1:
       return Finger::kFinger1;
-      break;
     case 2:
       return Finger::kFinger2;
-      break;
     case 3:
       return Finger::kFinger3;
-      break;
     default:
       throw std::runtime_error("Finger not valid");
+  }
+}
+
+Finger to_Finger(std::string finger_name) {
+  if (finger_name == "finger1") {
+    return Finger::kFinger1;
+  } else if (finger_name == "finger2") {
+    return Finger::kFinger2;
+  } else if (finger_name == "finger3") {
+    return Finger::kFinger3;
+  } else {
+    throw std::runtime_error("Unknown finger name string");
+  }
+}
+
+BrickFace to_BrickFace(std::string brick_face_name) {
+  if (brick_face_name == "PosY") {
+    return BrickFace::kPosY;
+  } else if (brick_face_name == "NegY") {
+    return BrickFace::kNegY;
+  } else if (brick_face_name == "PosZ") {
+    return BrickFace::kPosZ;
+  } else if (brick_face_name == "NegZ") {
+    return BrickFace::kNegZ;
+  } else {
+    throw std::runtime_error("Unknown brick face name");
+  }
+}
+
+std::string to_string(BrickFace brick_face) {
+  switch (brick_face) {
+    case BrickFace::kPosY:
+      return "PosY";
+    case BrickFace::kNegY:
+      return "NegY";
+    case BrickFace::kPosZ:
+      return "PosZ";
+    case BrickFace::kNegZ:
+      return "NegZ";
+    default:
+      throw std::runtime_error("BrickFace not valid.");
   }
 }
 
@@ -407,7 +445,8 @@ ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
   this->DeclareAbstractInputPort(
       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
   this->DeclareVectorInputPort(
-      "x", systems::BasicVector<double>(2 /* brick state */));
+      "x", systems::BasicVector<double>(plant.num_multibody_states(
+               instance) /* model_instance state size*/));
 
   // This output port produces a SpatialForceOutput, which feeds the spatial
   // forces visualization plugin of DrakeVisualizer.
