@@ -274,6 +274,8 @@ class FingerToPlantActuationMap : public systems::LeafSystem<double> {
 /// MBP (and >= 1). If a force controller is not provided for any given finger
 /// (i.e., n is less than the number of fingers defined in the MBP), then the
 /// actuation input for those fingers will be set to zero.
+// TODO(rcory) Allow gravity compensation (only) for fingers not associated with
+//  a force controller.
 ///
 /// This system has a single output port, which produces actuation
 /// values for the entire gripper/brick MBP (in the plant's joint-actuator

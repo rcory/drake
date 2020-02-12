@@ -71,8 +71,8 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -149,8 +149,8 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -295,8 +295,8 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -373,8 +373,8 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -519,8 +519,8 @@
         <limit>
           <!-- Drake parses a zero effort joint as an un-actuated joint. -->
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>
@@ -597,8 +597,8 @@
         <xyz>1 0 0</xyz>
         <limit>
           <effort>75</effort>
-          <lower>-1.57</lower>
-          <upper>1.57</upper>
+          <lower>-2.57</lower>
+          <upper>2.57</upper>
         </limit>
         <dynamics>
           <damping>0.1</damping>

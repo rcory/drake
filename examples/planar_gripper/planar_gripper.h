@@ -101,7 +101,7 @@ using multibody::ModelInstanceIndex;
        const systems::Context<double>& diagram_context) const;
 
    /// Convenience method for setting all of the joint velocities of the Gripper.
-   /// @v must have size num_iiwa_joints().
+   /// @v must have size num_gripper_joints().
    /// @pre `state` must be the systems::State<double> object contained in
    /// `diagram_context`.
    void SetGripperVelocity(const systems::Context<double>& diagram_context,
@@ -109,7 +109,7 @@ using multibody::ModelInstanceIndex;
                         const Eigen::Ref<const VectorX<double>>& v) const;
 
    /// Convenience method for setting all of the joint velocities of the gripper.
-   /// @v must have size num_iiwa_joints().
+   /// @v must have size num_gripper_joints().
    void SetGripperVelocity(systems::Context<double>* diagram_context,
                         const Eigen::Ref<const VectorX<double>>& v) const {
      SetGripperVelocity(*diagram_context, &diagram_context->get_mutable_state(),
@@ -139,6 +139,22 @@ using multibody::ModelInstanceIndex;
                            const Eigen::Ref<const VectorX<double>>& q) const {
      SetBrickPosition(
          *diagram_context, &diagram_context->get_mutable_state(), q);
+   }
+
+   /// Convenience method for setting all of the joint velocities for the Brick.
+   /// @v must have size num_brick_joints().
+   /// @pre `state` must be the systems::State<double> object contained in
+   /// `diagram_context`.
+   void SetBrickVelocity(const systems::Context<double>& diagram_context,
+                           systems::State<double>* diagram_state,
+                           const Eigen::Ref<const VectorX<double>>& v) const;
+
+   /// Convenience method for setting all of the joint velocities for the Brick.
+   /// @v must have size num_brick_joints().
+   void SetBrickVelocity(systems::Context<double>* diagram_context,
+                           const Eigen::Ref<const VectorX<double>>& v) const {
+     SetBrickVelocity(*diagram_context, &diagram_context->get_mutable_state(),
+                        v);
    }
 
    void AddFloor(MultibodyPlant<double>* plant,

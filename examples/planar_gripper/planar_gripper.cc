@@ -423,6 +423,19 @@ void PlanarGripper::SetBrickPosition(
   plant_->SetPositions(plant_context, &plant_state, brick_index_, q);
 }
 
+void PlanarGripper::SetBrickVelocity(
+    const drake::systems::Context<double>& diagram_context,
+    systems::State<double>* state,
+    const Eigen::Ref<const drake::VectorX<double>>& v) const {
+  const int num_brick_velocities =
+      plant_->num_velocities(brick_index_);
+  DRAKE_DEMAND(state != nullptr);
+  DRAKE_DEMAND(v.size() == num_brick_velocities);
+  auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
+  auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
+  plant_->SetVelocities(plant_context, &plant_state, brick_index_, v);
+}
+
 double PlanarGripper::GetBrickDamping() const {
   std::string joint_name = "brick_revolute_x_joint";
   if (!plant_->HasJointNamed(joint_name)) {

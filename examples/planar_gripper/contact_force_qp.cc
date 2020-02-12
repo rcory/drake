@@ -192,8 +192,12 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
           .get_index();  // {ay, az, w_x}
 
   // This input port contains an unordered map of Finger to a pair of BrickFace
-  // and contact point location (either real contact point or reference contact
-  // point if the finger isn't touching).
+  // and contact point location. Typically if the finger is not in contact it
+  // shouldn't be included in this input map. However, the QP planner will
+  // happily compute forces/moments for any finger provided in this input (even
+  // if in reality it is not in contact), by assuming the fingertip position is
+  // a valid contact point on the brick (because this QP planner knows nothing
+  // about geometry).
   input_index_finger_face_assignments_ =
       this->DeclareAbstractInputPort(
               "finger_face_assignments",

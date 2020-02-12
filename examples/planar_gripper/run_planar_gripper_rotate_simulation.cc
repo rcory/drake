@@ -59,7 +59,6 @@ DEFINE_double(f2_base, 0.75, "f2_base");
 DEFINE_double(f2_mid, -0.7, "f2_mid");
 DEFINE_double(f3_base, -0.15, "f3_base");
 DEFINE_double(f3_mid, 1.2, "f3_mid");
-DEFINE_double(brick_thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(G_ROT, 0,
               "Rotation of gripper frame (G) w.r.t. the world frame W around "
               "the x-axis (deg).");
@@ -77,7 +76,7 @@ DEFINE_bool(zero_gravity, true, "Always zero gravity?");
 DEFINE_double(kd_base_joint, 1.0, "joint damping for base joint.");
 DEFINE_double(kd_mid_joint, 1.0, "joint damping for mid joint.");
 DEFINE_double(kp_t, 0, "Tangential position gain (in brick frame).");
-DEFINE_double(kd_t, 0, "Tangential derivative gain (in brick frame).");
+DEFINE_double(kd_t, 20e2, "Tangential derivative gain (in brick frame).");
 DEFINE_double(kp_n, 0, "Normal position gain (in brick frame).");
 DEFINE_double(kd_n, 15e3, "Normal derivative gain (in brick frame).");
 DEFINE_double(kpf_t, 3e3,
@@ -106,6 +105,7 @@ DEFINE_bool(use_finger2, true, "Use finger2?");
 DEFINE_bool(use_finger3, true, "Use finger3?");
 
 // QP task parameters
+DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
@@ -116,7 +116,7 @@ DEFINE_bool(
     "Use the LCM QP controller?. If this is false, we instantiate a local QP "
     "controller system.");
 DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
-DEFINE_double(QP_Kd_ro, 20, "QP controller rotational Kd gain");
+DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -247,7 +247,6 @@ int DoMain() {
   systems::lcm::LcmInterfaceSystem* lcm =
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>(&drake_lcm);
 
-  auto finger_face_assignments = GetFingerFaceAssignments();
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, &qpoptions);
   if (FLAGS_brick_only) {
@@ -260,7 +259,7 @@ int DoMain() {
     }
   } else {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
-    for (auto& finger_face_assignment : finger_face_assignments) {
+    for (auto& finger_face_assignment : qpoptions.finger_face_assignments_) {
       ForceControlOptions foptions;
       Finger finger = finger_face_assignment.first;
       BrickFace brick_face = finger_face_assignment.second.first;
@@ -354,6 +353,8 @@ int DoMain() {
                                      Eigen::VectorXd::Zero(kNumGripperJoints));
   planar_gripper->SetBrickPosition(&planar_gripper_context,
                                    Vector1d(FLAGS_theta0));
+  planar_gripper->SetBrickVelocity(&planar_gripper_context,
+                                   Vector1d(FLAGS_thetadot0));
 
   // If we are only simulating the brick, then ignore the force controller by
   // fixing the plant's actuation input port to zero.
