@@ -271,6 +271,7 @@ drake_cc_binary(
         "--target_realtime_rate=0",
     ],
     deps = [
+        ":finger_brick",
         ":finger_brick_control",
         ":planar_gripper",
         ":planar_gripper_common",

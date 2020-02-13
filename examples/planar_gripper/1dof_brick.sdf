@@ -91,7 +91,8 @@
        </limit>
        <dynamics>
          <damping>.0008</damping>
-<!--         <damping>.00001</damping>-->
+<!--         <damping>.0001</damping>-->
+<!--         <damping>.01</damping>-->
        </dynamics>
        <use_parent_model_frame>1</use_parent_model_frame>
      </axis>

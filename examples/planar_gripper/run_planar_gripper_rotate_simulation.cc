@@ -15,6 +15,7 @@
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/examples/planar_gripper/finger_brick_control.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/lcm/connect_lcm_scope.h"
 
@@ -363,6 +364,20 @@ int DoMain() {
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
+
+  // For debugging only
+  multibody::ExternallyAppliedSpatialForce<double> spatial_force;
+  spatial_force.body_index =
+      GetBrickBodyIndex(planar_gripper->get_multibody_plant());
+  spatial_force.p_BoBq_B = Eigen::Vector3d(0, 0.05, 0.05);
+  spatial_force.F_Bq_W = multibody::SpatialForce<double>(
+      Eigen::Vector3d::Zero(), Eigen::Vector3d(0, -.04, 0));
+  std::vector<multibody::ExternallyAppliedSpatialForce<double>>
+      spatial_force_vec{spatial_force};
+  planar_gripper_context.FixInputPort(
+      planar_gripper->GetInputPort("spatial_force").get_index(),
+      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+          spatial_force_vec));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
