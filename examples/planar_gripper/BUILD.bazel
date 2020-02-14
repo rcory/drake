@@ -335,6 +335,7 @@ drake_cc_binary(
     deps = [
         "//common:add_text_logging_gflags",
         "//common:find_resource",
+        "//examples/planar_gripper:finger_brick_control",
         "//geometry:geometry_visualization",
         "//multibody/parsing",
         "//multibody/plant",

@@ -40,17 +40,14 @@ using multibody::SpatialForce;
 // TODO(rcory) implement dynamic compensation.
 ForceController::ForceController(const MultibodyPlant<double>& plant,
                                  const SceneGraph<double>& scene_graph,
-                                 ForceControlOptions options,
-                                 const ModelInstanceIndex gripper_index,
-                                 const ModelInstanceIndex brick_index)
+                                 ForceControlOptions options)
     : plant_(plant),
       scene_graph_(scene_graph),
-      gripper_index_(gripper_index),
-      brick_index_(brick_index),
       options_(options) {
   // Make context with default parameters.
   plant_context_ = plant.CreateDefaultContext();
 
+  // TODO(rcory) Can this just be a 2d force vector?
   force_desired_input_port_ =
       this->DeclareAbstractInputPort(
               "force_desired", Value<std::vector<
@@ -62,16 +59,10 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
               "finger_state_actual",
               systems::BasicVector<double>(kNumJointsPerFinger * 2))
           .get_index();
-  gripper_state_actual_input_port_ =  // actual state of the entire plant
+  plant_state_actual_input_port_ =  // actual state of the entire plant
       this->DeclareVectorInputPort(
-              "gripper_state_actual",
-              systems::BasicVector<double>(
-                  plant.num_multibody_states(gripper_index)))
-          .get_index();
-  brick_state_actual_input_port_ =  // actual state of the brick: {pos, vel}.
-      this->DeclareVectorInputPort("brick_state_actual",
-                                   systems::BasicVector<double>(
-                                       plant.num_multibody_states(brick_index)))
+              "plant_state_actual",
+              systems::BasicVector<double>(plant.num_multibody_states()))
           .get_index();
   // Contains the desired state of the fingertip (x, y, z, xdot, ydot, zdot)
   // measured in the world (W) frame.
@@ -150,13 +141,9 @@ void ForceController::CalcTauOutput(
       this->EvalVectorInput(context, finger_state_actual_input_port_)
           ->get_value();
 
-  // The state vector of the planar-gripper model (all fingers, no brick).
-  VectorX<double> gripper_state =
-      this->EvalVectorInput(context, gripper_state_actual_input_port_)
-          ->get_value();
-
-  VectorX<double> brick_state = /* The state vector of the brick */
-      this->EvalVectorInput(context, brick_state_actual_input_port_)
+  // The state vector of the planar-gripper model (entire plant w/ brick).
+  VectorX<double> plant_state =
+      this->EvalVectorInput(context, plant_state_actual_input_port_)
           ->get_value();
 
   // 6-element vector of the desired contact state {position, velocity} in the
@@ -168,10 +155,10 @@ void ForceController::CalcTauOutput(
 
   // Get the contact point reference translational accelerations (yddot, zddot),
   // for inverse dynamics control.
-  auto a_BrCr = /* 2-element vector of the accels of the contact point ref. */
-      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
-          ->get_value();
-  unused(a_BrCr);
+//  auto a_BrCr = /* 2-element vector of the accels of the contact point ref. */
+//      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
+//          ->get_value();
+//  unused(a_BrCr);
 
   // TODO(rcory) Remove this input port once contact point estimation exists.
   const auto& contact_results =
@@ -182,16 +169,13 @@ void ForceController::CalcTauOutput(
 
   // Get the plant vdot for dynamics inverse dynamics.
   // TODO(rcory) I don't need this input anymore(?). Consider removing.
-  auto plant_vdot =
-      this->EvalVectorInput(context, accelerations_actual_input_port_)
-          ->get_value();
-  unused(plant_vdot);
+//  auto plant_vdot =
+//      this->EvalVectorInput(context, accelerations_actual_input_port_)
+//          ->get_value();
+//  unused(plant_vdot);
 
   // Set the plant's position and velocity within the context.
-  plant_.SetPositionsAndVelocities(plant_context_.get(), gripper_index_,
-                                   gripper_state);
-  plant_.SetPositionsAndVelocities(plant_context_.get(), brick_index_,
-                                   brick_state);
+  plant_.SetPositionsAndVelocities(plant_context_.get(), plant_state);
 
   // Define some important frames.
   const multibody::Frame<double>& tip_link_frame =
@@ -483,7 +467,7 @@ void ForceController::CalcTauOutput(
 #endif
 
   // The output for calculated torques.
-  output_calc.head<2>() = torque_calc;
+  output_calc = torque_calc;
 //  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
@@ -1058,8 +1042,7 @@ ForceController* SetupForceController(
 
   // Connect the force controller
   auto force_controller = builder->AddSystem<ForceController>(
-      plant, scene_graph, foptions, planar_gripper.get_planar_gripper_index(),
-      planar_gripper.get_brick_index());
+      plant, scene_graph, foptions);
   auto plant_to_finger_state_sel =
       builder->AddSystem<PlantStateToFingerStateSelector>(
           planar_gripper.get_multibody_plant(), kFingerToControl);
@@ -1067,13 +1050,11 @@ ForceController* SetupForceController(
                    plant_to_finger_state_sel->GetInputPort("plant_state"));
   builder->Connect(plant_to_finger_state_sel->GetOutputPort("finger_state"),
                    force_controller->get_finger_state_actual_input_port());
-  builder->Connect(planar_gripper.GetOutputPort("gripper_state"),
-                   force_controller->GetInputPort("gripper_state_actual"));
+  builder->Connect(planar_gripper.GetOutputPort("plant_state"),
+                   force_controller->GetInputPort("plant_state_actual"));
   // TODO(rcory) Make sure we are passing in the proper gripper state, once
   //  horizontal with gravity on is supported (due to additional "x" prismatic
   //  joint).
-  builder->Connect(planar_gripper.GetOutputPort("brick_state"),
-                   force_controller->get_brick_state_actual_input_port());
   builder->Connect(planar_gripper.GetOutputPort("contact_results"),
                    zoh_contact_results->get_input_port());
   builder->Connect(zoh_contact_results->get_output_port(),

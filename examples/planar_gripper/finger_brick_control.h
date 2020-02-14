@@ -51,9 +51,7 @@ class ForceController : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceController);
   ForceController(const MultibodyPlant<double>& plant,
                   const SceneGraph<double>& scene_graph,
-                  ForceControlOptions options,
-                  const ModelInstanceIndex gripper_index,
-                  const ModelInstanceIndex brick_index);
+                  ForceControlOptions options);
 
   ForceControlOptions get_options() const {
     return options_;
@@ -65,10 +63,6 @@ class ForceController : public systems::LeafSystem<double> {
 
   const InputPort<double>& get_finger_state_actual_input_port() const {
     return this->get_input_port(finger_state_actual_input_port_);
-  }
-
-  const InputPort<double>& get_brick_state_actual_input_port() const {
-    return this->get_input_port(brick_state_actual_input_port_);
   }
 
   const InputPort<double>& get_tip_state_desired_input_port() const {
@@ -133,8 +127,7 @@ class ForceController : public systems::LeafSystem<double> {
   std::unique_ptr<systems::Context<double>> plant_context_;
   InputPortIndex force_desired_input_port_{};
   InputPortIndex finger_state_actual_input_port_{};
-  InputPortIndex gripper_state_actual_input_port_{};
-  InputPortIndex brick_state_actual_input_port_{};
+  InputPortIndex plant_state_actual_input_port_{};
   InputPortIndex tip_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   InputPortIndex force_sensor_input_port_{};
@@ -144,8 +137,6 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex p_BrFingerTip_input_port_{};
   InputPortIndex is_contact_input_port_{};
   OutputPortIndex torque_output_port_{};
-  ModelInstanceIndex gripper_index_{};
-  ModelInstanceIndex brick_index_{};
   ForceControlOptions options_;
 };
 
