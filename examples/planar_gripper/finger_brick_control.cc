@@ -68,7 +68,7 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
   // measured in the world (W) frame.
   // Note: We ignore the x-components in the controller since the task is
   // planar.
-  tip_state_desired_input_port_ =
+  contact_state_desired_input_port_ =
       this->DeclareVectorInputPort(
               "tip_state_desired", systems::BasicVector<double>(6))
           .get_index();
@@ -101,8 +101,8 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
               &ForceController::CalcTauOutput)
           .get_index();
 
-  p_BrFingerTip_input_port_ =
-      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
+  p_BrCb_input_port_ =
+      this->DeclareInputPort("p_BrCb", systems::kVectorValued, 2).get_index();
 
   is_contact_input_port_ =
       this->DeclareAbstractInputPort("is_in_contact",
@@ -116,6 +116,8 @@ void ForceController::CalcTauOutput(
     systems::BasicVector<double>* output_vector) const {
   auto output_calc = output_vector->get_mutable_value();
   output_calc.setZero();
+
+//  drake::log()->info("Finger: {}", to_string(options_.finger_to_control_));
 
   // The finger to control.
   std::string finger_num = to_string(options_.finger_to_control_);
@@ -150,7 +152,7 @@ void ForceController::CalcTauOutput(
   // brick frame (x_des, y_des, z_des, xdot_des, ydot_des, zdot_des). Note that
   // the controller ignores the x-component since the task is in the y-z plane.
   Vector6<double> contact_state_desired_Br =
-      this->EvalVectorInput(context, tip_state_desired_input_port_)
+      this->EvalVectorInput(context, contact_state_desired_input_port_)
           ->get_value();
 
   // Get the contact point reference translational accelerations (yddot, zddot),
@@ -221,8 +223,8 @@ void ForceController::CalcTauOutput(
   // this reference is the actual contact point (lying inside the contact
   // intersection for the point contact model). When not in contact this
   // reference is the fingertip sphere center.
-  Eigen::Vector3d p_LtFTip = Eigen::Vector3d::Zero();  /* ftip in tip link frame */
-  Eigen::Vector3d p_WC = Eigen::Vector3d::Zero();
+  Eigen::Vector3d p_LtC = Eigen::Vector3d::Zero();  /* contact point ref. in tip link frame */
+  Eigen::Vector3d p_WC = Eigen::Vector3d::Zero();  /* contact point ref. in world frame */
 
   // Check whether there is contact between the fingertip and the brick.
   const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
@@ -231,14 +233,14 @@ void ForceController::CalcTauOutput(
   // contact results object and it lies inside the intersection of the
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
-    p_WC = contact_results.point_pair_contact_info(0).contact_point();
+    p_WC = GetFingerContactPoint(contact_results, options_.finger_to_control_);
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
-                               tip_link_frame, &p_LtFTip);
+                               tip_link_frame, &p_LtC);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
-    p_LtFTip = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
+    p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
                                               options_.finger_to_control_);
-    plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtFTip,
+    plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtC,
                                plant_.world_frame(), &p_WC);
   }
 
@@ -253,30 +255,30 @@ void ForceController::CalcTauOutput(
   // reference (lies in the intersection of geometry when there is contact),
   // w.r.t. the finger base frame. When there is no contact, it is the fingertip
   // sphere center, w.r.t the base frame.
-  MatrixX<double> Jv_V_BaseFtip(3, plant_.num_velocities());
+  MatrixX<double> Jv_V_BaC(3, plant_.num_velocities());
   plant_.CalcJacobianTranslationalVelocity(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
-      p_LtFTip, base_frame, base_frame, &Jv_V_BaseFtip);
+      p_LtC, base_frame, base_frame, &Jv_V_BaC);
 
   // Extract the 2 x 2 planar only (y-z) translational Jacobian that corresponds
   // to finger joints only (ignore the brick joint).
   Eigen::Matrix<double, 2, 2> J_planar_Ba(2, 2);
   J_planar_Ba.block<2, 1>(0, 0) =
-      Jv_V_BaseFtip.block<2, 1>(1, base_joint_index);
-  J_planar_Ba.block<2, 1>(0, 1) = Jv_V_BaseFtip.block<2, 1>(1, mid_joint_index);
+      Jv_V_BaC.block<2, 1>(1, base_joint_index);
+  J_planar_Ba.block<2, 1>(0, 1) = Jv_V_BaC.block<2, 1>(1, mid_joint_index);
 
   // Get the fingertip velocity in the brick frame.
   MatrixX<double> Jv_V_BrickFtip(3, plant_.num_velocities());
   plant_.CalcJacobianTranslationalVelocity(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
-      p_LtFTip, brick_frame, brick_frame, &Jv_V_BrickFtip);
-  Eigen::Vector3d v_Ftip_Br =
+      p_LtC, brick_frame, brick_frame, &Jv_V_BrickFtip);
+  Eigen::Vector3d v_BrC =
       Jv_V_BrickFtip * plant_.GetVelocities(*plant_context_);
 
 //#define ADD_ACCELS
 //#define SKIP_FORCE_CONT
 #ifdef SKIP_FORCE_CONT
-  unused(v_Ftip_Br);
+  unused(v_BrC);
   unused(p_BrC);
   unused(R_BaBr);
   unused(contact_state_desired_Br);
@@ -334,11 +336,7 @@ void ForceController::CalcTauOutput(
 
     // Regulate force (in brick frame)
     Eigen::Vector3d delta_f_Br = force_des_Br - force_act_Br;
-    // auto fy_command = Kf * delta_f + force_des;  //TODO(rcory) bug?
     Eigen::Vector3d force_error_command_Br = Kp_force * delta_f_Br;
-
-    // TODO(rcory) More general.
-    // auto fy_command = Kf Δf + Ki ∫ Δf dt - Kp p_e + f_d
 
     // Integral error, which is stored in the continuous state.
     const systems::VectorBase<double>& state_vector =
@@ -352,9 +350,9 @@ void ForceController::CalcTauOutput(
 
     // Compute the errors.
     Eigen::Vector3d delta_pos_Br =
-        contact_state_desired_Br.head<3>() - p_BrC.tail<3>();
+        contact_state_desired_Br.head<3>() - p_BrC;
     Eigen::Vector3d delta_vel_Br =
-        contact_state_desired_Br.tail<3>() - v_Ftip_Br.head<3>();
+        contact_state_desired_Br.tail<3>() - v_BrC;
     Vector3d position_error_command_Br =
         Kp_position * delta_pos_Br + Kd_position * delta_vel_Br;
 
@@ -391,11 +389,20 @@ void ForceController::CalcTauOutput(
     // Adds Joint damping.
     torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
 
+//    drake::log()->info("delta_pos_Br: \n{}", delta_pos_Br);
+//    drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
+//    drake::log()->info("contact_state_des: \n{}", contact_state_desired_Br);
+//    drake::log()->info("is_contact: \n{}", is_contact);
+//    drake::log()->info("p_BrC: \n{}", p_BrC);
+//    drake::log()->info("p_WC: \n{}", p_WC);
+//    drake::log()->info("v_BrC: \n{}", v_BrC);
+
 //    drake::log()->info("force_des_Br: \n{}", force_des_Br);
 //    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
 //    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
 //    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
 //    drake::log()->info("force_error_integral_Br: \n{}", force_error_integral_Br);
+//    drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
 //    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
@@ -411,10 +418,31 @@ void ForceController::CalcTauOutput(
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
 //    drake::log()->info("torque_calc in DFC: {}", torque_calc.transpose());
   } else {  // Second Case: impedance control back to the brick's surface.
-    // First, obtain the closest point on the brick from the fingertip sphere.
+    // First, obtain the closest point on the brick from the fingertip sphere
+    // center.
 //    drake::log()->info("In impedance force control.");
+
+    // Since we're not in contact, the p_BrCb input port holds the point on the
+    // brick that is closest to the fingertip sphere center.
     Eigen::Vector2d p_BrC_des =
-        get_p_BrFingerTip_input_port().Eval(context);
+        get_p_BrCb_input_port().Eval(context);
+
+//    Eigen::Vector3d p_BaC_des = Eigen::Vector3d::Zero();
+//    p_BaC_des.tail<2>() = R_BaBr * p_BrC_des;
+//    Eigen::Vector3d p_BaC = Eigen::Vector3d::Zero();
+//    p_BaC = R_BaBr * p_BrC;
+
+//    // Compute the desired contact point velocity.
+//    // TODO(rcory) take in the brick's model instance.
+//    ModelInstanceIndex brick_instance = plant_.GetModelInstanceByName("brick");
+//    Vector1d brick_rotational_velocity =
+//        plant_.GetVelocities(*plant_context_, brick_instance);
+//    Eigen::Vector3d omega(brick_rotational_velocity(0), 0, 0);
+//    unused(omega);
+//    Eigen::Vector3d r = Eigen::Vector3d::Zero();
+//    r.tail<2>() = p_BrC_des;
+//    Eigen::Vector3d v_BrC_des = r.cross(omega);
+//    drake::log()->info("v_BrC_des: \n{}", v_BrC_des);
 
 //    drake::log()->info("finger_state: \n{}", finger_state);
 //    drake::log()->info("brick_state: \n{}", brick_state);
@@ -422,7 +450,7 @@ void ForceController::CalcTauOutput(
 //    drake::log()->info("p_BrFingerTip: \n{}", p_BrC_des);
 //    drake::log()->info("p_BrC: \n{}", p_BrC);
 //    drake::log()->info("v_Ftip_Ba: \n{}", v_Ftip_Ba);
-//    drake::log()->info("v_Ftip_Br: \n{}", v_Ftip_Br);
+//    drake::log()->info("v_BrC: \n{}", v_BrC);
 
     // Regulate the fingertip position back to the surface w/ impedance control
     // implement simple spring and damping laws for now (-kx - dxdot), i.e.,
@@ -430,11 +458,18 @@ void ForceController::CalcTauOutput(
     const double K = options_.K_compliance_; // spring const
     const double D = options_.D_damping_; // damper
     double y_force_desired_Br =
-        K * (p_BrC_des[0] - p_BrC(1)) - D * v_Ftip_Br(1);
+        K * (p_BrC_des[0] - p_BrC(1)) - D * v_BrC(1);
     double z_force_desired_Br =
-        K * (p_BrC_des[1] - p_BrC(2)) - D * v_Ftip_Br(2);
+        K * (p_BrC_des[1] - p_BrC(2)) - D * v_BrC(2);
     Vector3<double> imp_force_desired_Br(0, y_force_desired_Br,
                                          z_force_desired_Br);
+
+//    double y_force_desired_Ba =
+//        K * (p_BaC_des[0] - p_BaC(1)) + D * (R_BaBr * v_BrC(1));
+//    double z_force_desired_Ba =
+//        K * (p_BaC_des[1] - p_BaC(2)) + D * (v_BrC_des(2) - v_BrC(2));
+//    Vector3<double> imp_force_desired_Ba(0, y_force_desired_Ba,
+//                                         z_force_desired_Ba);
 
     Vector3<double> imp_force_desired_Ba = R_BaBr * imp_force_desired_Br;
     torque_calc += J_planar_Ba.transpose() * imp_force_desired_Ba.tail(2);
@@ -550,6 +585,29 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
         0, 0, options_.kd_t_;
 
   }
+}
+
+Vector3d ForceController::GetFingerContactPoint(
+    const ContactResults<double>& contact_results, const Finger finger) const {
+  std::string body_name = to_string(finger) + "_tip_link";
+  multibody::BodyIndex fingertip_link_index =
+      plant_.GetBodyByName(body_name).index();
+  Vector3d contact_point;
+  bool bfound = false;
+  for (int i = 0; i < contact_results.num_point_pair_contacts(); i++) {
+    auto& point_pair_info = contact_results.point_pair_contact_info(i);
+    if (point_pair_info.bodyA_index() == fingertip_link_index ||
+        point_pair_info.bodyB_index() == fingertip_link_index) {
+      contact_point = point_pair_info.contact_point();
+      bfound = true;
+      break;
+    }
+  }
+  if (!bfound) {
+    throw std::runtime_error("Could not find " + body_name +
+                             " in contact results.");
+  }
+  return contact_point;
 }
 
 /// This is a helper system to distribute the output of the multi-finger QP
@@ -829,7 +887,7 @@ void DoConnectGripperQPController(
       // Communicate the contact point to the force controller (if available).
       builder->Connect(
           contact_point_calc_sys->GetOutputPort("p_BrCb"),
-          finger_force_control.second.get_p_BrFingerTip_input_port());
+          finger_force_control.second.get_p_BrCb_input_port());
 
       // Tells the force controller whether there is contact between the
       // fingertip and the brick.
@@ -1100,7 +1158,7 @@ ForceController* SetupForceController(
   auto const_pos_src =
       builder->AddSystem<systems::ConstantVectorSource>(tip_state_des_vec);
   builder->Connect(const_pos_src->get_output_port(),
-                   force_controller->get_tip_state_desired_input_port());
+                   force_controller->get_contact_state_desired_input_port());
 
   return force_controller;
 }

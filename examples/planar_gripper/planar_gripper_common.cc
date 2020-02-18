@@ -373,18 +373,21 @@ void PublishFramesToLcm(const std::string& channel_name,
 /// Publishes pre-defined body frames once.
 void PublishBodyFrames(systems::Context<double>& plant_context,
                        const multibody::MultibodyPlant<double>& plant,
-                       lcm::DrakeLcm& lcm) {
+                       lcm::DrakeLcm& lcm, bool brick_only) {
   std::vector<std::string> body_names;
   std::vector<RigidTransformd> poses;
 
   // list the body names that we want to visualize.
   body_names.push_back("brick_link");
-  body_names.push_back("finger1_base");
-  if (plant.HasBodyNamed("finger2_base")) {
-    body_names.push_back("finger2_base");
-  }
-  if (plant.HasBodyNamed("finger3_base")) {
-    body_names.push_back("finger3_base");
+
+  if (!brick_only) {
+    body_names.push_back("finger1_base");
+    if (plant.HasBodyNamed("finger2_base")) {
+      body_names.push_back("finger2_base");
+    }
+    if (plant.HasBodyNamed("finger3_base")) {
+      body_names.push_back("finger3_base");
+    }
   }
 
   for (size_t i = 0; i < body_names.size(); i++) {
@@ -429,7 +432,7 @@ systems::EventStatus FrameViz::PublishFramePose(
     const drake::systems::Context<double>& context) const {
   auto state = this->EvalVectorInput(context, 0)->get_value();
   plant_.SetPositionsAndVelocities(plant_context_.get(), state);
-  PublishBodyFrames(*plant_context_, plant_, lcm_);
+  PublishBodyFrames(*plant_context_, plant_, lcm_, true /* brick only */);
   return systems::EventStatus::Succeeded();
 }
 

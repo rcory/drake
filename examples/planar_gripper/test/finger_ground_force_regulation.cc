@@ -95,20 +95,20 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
                                                      plant_.num_velocities()))
           .get_index();
 
+  p_BrFingerTip_input_port_ =
+      this->DeclareInputPort("p_BrFingerTip", systems::kVectorValued, 2).get_index();
+
+  is_contact_input_port_ =
+      this->DeclareAbstractInputPort("is_in_contact",
+                                     Value<bool>{}).get_index();
+
   torque_output_port_ =
       this->DeclareVectorOutputPort(
               "tau", systems::BasicVector<double>(kNumJointsPerFinger),
               &ForceController::CalcTauOutput)
           .get_index();
 
-  p_BrFingerTip_input_port_ =
-      this->DeclareInputPort(systems::kVectorValued, 2).get_index();
-
-  is_contact_input_port_ =
-      this->DeclareAbstractInputPort("is_in_contact",
-                                     Value<bool>{}).get_index();
-
-  this->DeclareContinuousState(3);  // stores ∫ Δf dt
+  this->DeclareContinuousState(3);  // stores ∫ f_err dt
 }
 
 void ForceController::CalcTauOutput(

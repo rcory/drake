@@ -54,8 +54,8 @@ DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
 
 // Gripper/brick rotate specific flags
-DEFINE_double(f1_base, -0.6, "f1_base");  // shoulder joint
-DEFINE_double(f1_mid, 1.4, "f1_mid");  // elbow joint
+DEFINE_double(f1_base, -0.55, "f1_base");  // shoulder joint
+DEFINE_double(f1_mid, 1.5, "f1_mid");  // elbow joint
 DEFINE_double(f2_base, 0.75, "f2_base");
 DEFINE_double(f2_mid, -0.7, "f2_mid");
 DEFINE_double(f3_base, -0.15, "f3_base");
@@ -365,19 +365,19 @@ int DoMain() {
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
 
-  // For debugging only
-  multibody::ExternallyAppliedSpatialForce<double> spatial_force;
-  spatial_force.body_index =
-      GetBrickBodyIndex(planar_gripper->get_multibody_plant());
-  spatial_force.p_BoBq_B = Eigen::Vector3d(0, 0.05, 0.05);
-  spatial_force.F_Bq_W = multibody::SpatialForce<double>(
-      Eigen::Vector3d::Zero(), Eigen::Vector3d(0, -.04*0, 0));
-  std::vector<multibody::ExternallyAppliedSpatialForce<double>>
-      spatial_force_vec{spatial_force};
-  planar_gripper_context.FixInputPort(
-      planar_gripper->GetInputPort("spatial_force").get_index(),
-      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
-          spatial_force_vec));
+//  // For debugging only
+//  multibody::ExternallyAppliedSpatialForce<double> spatial_force;
+//  spatial_force.body_index =
+//      GetBrickBodyIndex(planar_gripper->get_multibody_plant());
+//  spatial_force.p_BoBq_B = Eigen::Vector3d(0, 0.05, 0.05);
+//  spatial_force.F_Bq_W = multibody::SpatialForce<double>(
+//      Eigen::Vector3d::Zero(), Eigen::Vector3d(0, -.04*0, 0));
+//  std::vector<multibody::ExternallyAppliedSpatialForce<double>>
+//      spatial_force_vec{spatial_force};
+//  planar_gripper_context.FixInputPort(
+//      planar_gripper->GetInputPort("spatial_force").get_index(),
+//      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+//          spatial_force_vec));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);

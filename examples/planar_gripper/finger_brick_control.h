@@ -46,6 +46,47 @@ struct ForceControlOptions{
 // yet).
 // TODO(rcory) Should this class inherit from
 //  systems::controllers::StateFeedbackControllerInterface?
+
+/// A system that represents a force controller that can be in one of two
+/// possible modes: 1) Direct-force control mode and 2) Impedance control mode.
+///
+/// The system input/output ports are described by the following:
+/// @system{ ForceController,
+///   @input_port{force_desired}
+///   @input_port{finger_state_actual}
+///   @input_port{plant_state_actual}
+///   @input_port{tip_state_desired}
+///   @input_port{contact_point_ref_accel} (unused)
+///   @input_port{contact_results}
+///   @input_port{force_sensor_wrench}
+///   @input_port{plant_vdot} (unused)
+///   @input_port{p_BrFingerTip}
+///   @input_port{is_in_contact}
+///   @output_port{tau}
+/// }
+///
+/// Case 1: Direct-force control mode (condition: finger is in contact).
+///
+/// Consider the robot dynamics
+///   M(q)vdot + C(q,v)v = τ_g(q) + τ_external + τ_commanded,
+/// where q == position, v == velocity, τ == torque, and τ_external represents
+/// the generalized forces due to contact.
+///
+/// The direct-force controller produces τ_commanded as:
+///  τ_commanded =  -τ_g(q) - (Kd * q) - (Jₜᵀ * f_command),
+///  where f_command =
+///         f_desired + (Kpf * Δf) + (Kpp * Δx) + (Kdp * Δẋ) + (Kif * ∫ Δf dt).
+///
+/// Jₜ: is the translational (only) jacobian of the contact point w.r.t. the
+///     base finger frame (Ba).
+/// f_desired: is a feedforward desired contact force.
+/// Kp*: represent a positive definite gain matrix.
+/// Δf = (f_desired - f_actual).
+/// Δx = (x_desired - x_actual), where x is the contact point vector.
+///
+///
+/// Case 2: Impedance control mode (condition: finger is NOT in contact).
+
 class ForceController : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ForceController);
@@ -65,8 +106,8 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(finger_state_actual_input_port_);
   }
 
-  const InputPort<double>& get_tip_state_desired_input_port() const {
-    return this->get_input_port(tip_state_desired_input_port_);
+  const InputPort<double>& get_contact_state_desired_input_port() const {
+    return this->get_input_port(contact_state_desired_input_port_);
   }
 
   const InputPort<double>& get_contact_results_input_port() const {
@@ -94,12 +135,14 @@ class ForceController : public systems::LeafSystem<double> {
   }
 
   /**
-   * This port takes in the current finger tip sphere center (y, z) position in
-   * the brick frame. Notice that we ignore the x position since it is a planar
-   * system.
+   * This port takes in the current finger tip sphere / brick contact point.
+   * This may be an actual contact point (if there is contact) or the closest
+   * point on the brick to the fingertip sphere center, which serves as a
+   * desired contact point. Notice that we ignore the x position since it is a
+   * planar system.
    */
-  const systems::InputPort<double>& get_p_BrFingerTip_input_port() const {
-    return this->get_input_port(p_BrFingerTip_input_port_);
+  const systems::InputPort<double>& get_p_BrCb_input_port() const {
+    return this->get_input_port(p_BrCb_input_port_);
   }
 
   const OutputPort<double>& get_torque_output_port() const {
@@ -120,6 +163,10 @@ class ForceController : public systems::LeafSystem<double> {
                 EigenPtr<Matrix3<double>> Kd_position) const;
 
  private:
+  Vector3d GetFingerContactPoint(
+      const multibody::ContactResults<double>& contact_results,
+      const Finger finger) const;
+
   const MultibodyPlant<double>& plant_;
   const SceneGraph<double>& scene_graph_;
   // This context is used solely for setting generalized positions and
@@ -128,13 +175,13 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex force_desired_input_port_{};
   InputPortIndex finger_state_actual_input_port_{};
   InputPortIndex plant_state_actual_input_port_{};
-  InputPortIndex tip_state_desired_input_port_{};
+  InputPortIndex contact_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   InputPortIndex force_sensor_input_port_{};
   InputPortIndex accelerations_actual_input_port_{};
   InputPortIndex geometry_query_input_port_{};
   InputPortIndex contact_point_ref_accel_input_port_{};
-  InputPortIndex p_BrFingerTip_input_port_{};
+  InputPortIndex p_BrCb_input_port_{};
   InputPortIndex is_contact_input_port_{};
   OutputPortIndex torque_output_port_{};
   ForceControlOptions options_;

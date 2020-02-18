@@ -35,6 +35,10 @@
     <xacro:property name="tip_cylinder_length" value="0.0035" />
     <xacro:property name="tip_cylinder_radius" value="0.01" />
     <xacro:property name="tip_sphere_radius" value="0.015" />
+    <xacro:property name="base_joint_limit" value="1.570796" />
+    <xacro:property name="mid_joint_limit" value="1.570796" />
+    <xacro:property name="base_joint_damping" value="0" />
+    <xacro:property name="mid_joint_damping" value="0" />
 
     <xacro:macro name="finger" params="fnum">
       <link name="finger${fnum}_base">
@@ -103,11 +107,11 @@
           <limit>
             <!-- Drake parses a zero effort joint as an un-actuated joint. -->
             <effort>75</effort>
-            <lower>-1.57</lower>
-            <upper>1.57</upper>
+            <lower>-${base_joint_limit}</lower>
+            <upper>${base_joint_limit}</upper>
           </limit>
           <dynamics>
-            <damping>0.1</damping>
+            <damping>${base_joint_damping}</damping>
           </dynamics>
           <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
@@ -181,11 +185,11 @@
           <xyz>1 0 0</xyz>
           <limit>
             <effort>75</effort>
-            <lower>-1.57</lower>
-            <upper>1.57</upper>
+            <lower>-${mid_joint_limit}</lower>
+            <upper>${mid_joint_limit}</upper>
           </limit>
           <dynamics>
-            <damping>0.1</damping>
+            <damping>${mid_joint_damping}</damping>
           </dynamics>
           <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
