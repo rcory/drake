@@ -74,7 +74,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0.8 0 1.0</diffuse>
+        <diffuse>0 0.8 0 0.2</diffuse>
       </material>
     </visual>
     <visual name='brick_visual_2'>
@@ -85,7 +85,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0 0.8 1.0</diffuse>
+        <diffuse>0 0 0.8 0.2</diffuse>
       </material>
     </visual>
     <collision name='box_collision'>

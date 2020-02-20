@@ -283,7 +283,8 @@ int DoMain() {
   WeldGripperFrames<double>(&control_plant);
 
   // Adds a thin floor that can provide friction against the brick.
-  AddFloor(&plant, scene_graph);
+//  AddFloor(&plant, scene_graph);
+  unused(AddFloor);
 
   // Finalize the simulation and control plants.
   plant.Finalize();
