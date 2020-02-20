@@ -102,18 +102,18 @@
       </visual>
       <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-      <collision name="link2_collision">
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <length>0.0598</length>
-            <radius>0.011</radius>
-          </cylinder>
-        </geometry>
-        <material>
-          <diffuse>1 0 1 1</diffuse>
-        </material>
-      </collision>
+<!--      <collision name="link2_collision">-->
+<!--        <pose>0 0 -0.0299 0 0 0</pose>-->
+<!--        <geometry>-->
+<!--          <cylinder>-->
+<!--            <length>0.0598</length>-->
+<!--            <radius>0.011</radius>-->
+<!--          </cylinder>-->
+<!--        </geometry>-->
+<!--        <material>-->
+<!--          <diffuse>1 0 1 1</diffuse>-->
+<!--        </material>-->
+<!--      </collision>-->
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
         <geometry>
@@ -205,9 +205,13 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
-        <material>
-          <diffuse>1 1 1 1</diffuse>
-        </material>
+        <drake:proximity_properties>
+          <drake:soft_hydroelastic/>
+          <drake:mesh_resolution_hint>0.015</drake:mesh_resolution_hint>
+          <drake:elastic_modulus>1e5</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>0</drake:hunt_crossley_dissipation>
+          <drake:mu_dynamic>1</drake:mu_dynamic>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name="finger1_sensor_weldjoint" type="fixed">
@@ -312,18 +316,18 @@
       </visual>
       <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-      <collision name="link2_collision">
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <length>0.0598</length>
-            <radius>0.011</radius>
-          </cylinder>
-        </geometry>
-        <material>
-          <diffuse>1 0 1 1</diffuse>
-        </material>
-      </collision>
+<!--      <collision name="link2_collision">-->
+<!--        <pose>0 0 -0.0299 0 0 0</pose>-->
+<!--        <geometry>-->
+<!--          <cylinder>-->
+<!--            <length>0.0598</length>-->
+<!--            <radius>0.011</radius>-->
+<!--          </cylinder>-->
+<!--        </geometry>-->
+<!--        <material>-->
+<!--          <diffuse>1 0 1 1</diffuse>-->
+<!--        </material>-->
+<!--      </collision>-->
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
         <geometry>
@@ -415,9 +419,13 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
-        <material>
-          <diffuse>1 1 1 1</diffuse>
-        </material>
+        <drake:proximity_properties>
+          <drake:soft_hydroelastic/>
+          <drake:mesh_resolution_hint>0.015</drake:mesh_resolution_hint>
+          <drake:elastic_modulus>1e5</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>0</drake:hunt_crossley_dissipation>
+          <drake:mu_dynamic>1</drake:mu_dynamic>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name="finger2_sensor_weldjoint" type="fixed">
@@ -522,18 +530,15 @@
       </visual>
       <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-      <collision name="link2_collision">
-        <pose>0 0 -0.0299 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <length>0.0598</length>
-            <radius>0.011</radius>
-          </cylinder>
-        </geometry>
-        <material>
-          <diffuse>1 0 1 1</diffuse>
-        </material>
-      </collision>
+<!--      <collision name="link2_collision">-->
+<!--        <pose>0 0 -0.0299 0 0 0</pose>-->
+<!--        <geometry>-->
+<!--          <cylinder>-->
+<!--            <length>0.0598</length>-->
+<!--            <radius>0.011</radius>-->
+<!--          </cylinder>-->
+<!--        </geometry>-->
+<!--      </collision>-->
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
         <geometry>
@@ -625,9 +630,13 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
-        <material>
-          <diffuse>1 1 1 1</diffuse>
-        </material>
+        <drake:proximity_properties>
+          <drake:soft_hydroelastic/>
+          <drake:mesh_resolution_hint>0.015</drake:mesh_resolution_hint>
+          <drake:elastic_modulus>1e5</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>0</drake:hunt_crossley_dissipation>
+          <drake:mu_dynamic>1</drake:mu_dynamic>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name="finger3_sensor_weldjoint" type="fixed">

@@ -382,7 +382,7 @@ class HydroelasticContactVisualizer(object):
         # TODO(SeanCurtis-TRI): Make these variables settable through a dialog
         #  box.
         self.magnitude_mode = ContactVisModes.kFixedLength
-        self.global_scale = 0.3
+        self.global_scale = 1
         self.min_magnitude = 1e-4
 
         menu_bar = applogic.getMainWindow().menuBar()
@@ -545,8 +545,8 @@ class HydroelasticContactVisualizer(object):
                 moment = np.array([surface.moment_C_W[0],
                                    surface.moment_C_W[1],
                                    surface.moment_C_W[2]])
-                force_mag = np.linalg.norm(force)
-                moment_mag = np.linalg.norm(moment)
+                force_mag = 1 #np.linalg.norm(force)
+                moment_mag = 1 #np.linalg.norm(moment)
 
                 # Draw the force arrow if it's of sufficient magnitude.
                 if force_mag > self.min_magnitude:
@@ -558,8 +558,8 @@ class HydroelasticContactVisualizer(object):
 
                     d.addArrow(start=point,
                                end=point + auto_force_scale * force * scale,
-                               tubeRadius=0.005,
-                               headRadius=0.01, color=[1, 0, 0])
+                               tubeRadius=0.002,
+                               headRadius=0.004, color=[1, 0, 0])
 
                 # Draw the moment arrow if it's of sufficient magnitude.
                 if moment_mag > self.min_magnitude:
@@ -571,8 +571,8 @@ class HydroelasticContactVisualizer(object):
 
                     d.addArrow(start=point,
                                end=point + auto_moment_scale * moment * scale,
-                               tubeRadius=0.005,
-                               headRadius=0.01, color=[0, 0, 1])
+                               tubeRadius=0.002,
+                               headRadius=0.004, color=[0, 0, 1])
 
             # Iterate over all quadrature points, drawing traction and slip
             # velocity vectors.

@@ -69,6 +69,8 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/systems/analysis/implicit_euler_integrator.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
@@ -88,12 +90,14 @@ using Eigen::Vector3d;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 4.5,
+DEFINE_double(simulation_time, 20,
               "Desired duration of the simulation in seconds.");
-DEFINE_double(time_step, 1e-3,
+DEFINE_double(time_step, 0,
             "If greater than zero, the plant is modeled as a system with "
             "discrete updates and period equal to this time_step. "
             "If 0, the plant is modeled as a continuous system.");
+DEFINE_double(max_step_size, 1e-3,
+              "Max step size for continuous time integration.");
 DEFINE_double(penetration_allowance, 1e-3,
               "The contact penetration allowance.");
 DEFINE_double(floor_coef_static_friction, 0.5,
@@ -107,12 +111,14 @@ DEFINE_double(brick_floor_penetration, 1e-5,
 DEFINE_string(orientation, "vertical",
               "The orientation of the planar gripper. Options are {vertical, "
               "horizontal}.");
-DEFINE_bool(visualize_contacts, false,
+DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
 DEFINE_bool(
     use_position_control, true,
     "If true (default) we simulate position control via inverse dynamics "
     "control. If false we actuate torques directly.");
+
+DEFINE_double(stiction_tolerance, 1e-5, "");
 
 /// Adds a floor to the simulation, modeled as a thin cylinder.
 void AddFloor(MultibodyPlant<double>* plant,
@@ -286,11 +292,15 @@ int DoMain() {
 //  AddFloor(&plant, scene_graph);
   unused(AddFloor);
 
+  // Set the contact model.
+  plant.set_contact_model(multibody::ContactModel::kHydroelasticsOnly);
+
   // Finalize the simulation and control plants.
   plant.Finalize();
   control_plant.Finalize();
 
   plant.set_penetration_allowance(FLAGS_penetration_allowance);
+  plant.set_stiction_tolerance(FLAGS_stiction_tolerance);
   plant.mutable_gravity_field().set_gravity_vector(gravity);
   control_plant.mutable_gravity_field().set_gravity_vector(gravity);
 
@@ -351,6 +361,9 @@ int DoMain() {
   }
 
   geometry::ConnectDrakeVisualizer(&builder, scene_graph, lcm);
+
+  systems::lcm::ConnectLcmScope(plant.get_state_output_port(), "PLANT_STATE",
+                                &builder, lcm);
 
   // Publish contact results for visualization.
   if (FLAGS_visualize_contacts) {
@@ -431,6 +444,16 @@ int DoMain() {
   x_revolute.set_angle(&plant_context, brick_initial_2D_pose_G(2));
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
+
+  //  simulator.reset_integrator<systems::RungeKutta2Integrator<double>>(
+  //      FLAGS_max_step_size);
+
+  systems::IntegratorBase<double>* integrator{nullptr};
+  integrator =
+      &simulator.reset_integrator<systems::ImplicitEulerIntegrator<double>>();
+  integrator->set_maximum_step_size(FLAGS_max_step_size);
+
+
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);
 
