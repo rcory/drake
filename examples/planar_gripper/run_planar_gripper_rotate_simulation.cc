@@ -137,18 +137,18 @@ std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
 GetFingerFaceAssignments() {
   std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
       finger_face_assignments;
-  if (FLAGS_use_finger1) {
+  if (FLAGS_use_finger1 || FLAGS_brick_only) {
     finger_face_assignments.emplace(
         Finger::kFinger1,
         std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
   }
-  if (FLAGS_use_finger2) {
+  if (FLAGS_use_finger2 || FLAGS_brick_only) {
     finger_face_assignments.emplace(
         Finger::kFinger2,
         std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
 
   }
-  if (FLAGS_use_finger3) {
+  if (FLAGS_use_finger3 || FLAGS_brick_only) {
     finger_face_assignments.emplace(
         Finger::kFinger3,
         std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
