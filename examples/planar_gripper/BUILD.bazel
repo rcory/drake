@@ -79,11 +79,19 @@ drake_cc_library(
     srcs = ["planar_manipuland_lcm.cc"],
     hdrs = ["planar_manipuland_lcm.h"],
     deps = [
-        #        "//lcmtypes:planar_manipuland_qp_plan",
-        "//lcmtypes:planar_manipuland_status",
+        "//lcmtypes:planar_manipuland",
         "//systems/framework:event_collection",
         "//systems/framework:leaf_system",
     ],
+)
+
+drake_cc_library(
+  name = "planar_gripper_udp",
+  srcs = ["planar_gripper_udp.cc"],
+  hdrs = ["planar_gripper_udp.h"],
+  deps = [
+      ":planar_gripper_common",
+  ],
 )
 
 drake_cc_library(
@@ -415,6 +423,14 @@ drake_cc_googletest(
         "//multibody/plant",
         "//solvers:solve",
         "//systems/framework:diagram",
+    ],
+)
+
+drake_cc_googletest(
+    name = "planar_gripper_udp_test",
+    deps = [
+        ":planar_gripper_udp",
+        "//common/test_utilities:eigen_matrix_compare",
     ],
 )
 
