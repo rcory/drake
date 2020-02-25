@@ -3,7 +3,7 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
-int FingerFaceAssignment::DoMessageSize() const {
+int FingerFaceAssignment::DoGetMessageSize() const {
   return sizeof(uint32_t) + sizeof(Finger) + sizeof(BrickFace) +
          sizeof(double) * 2;
 }
@@ -48,10 +48,10 @@ bool operator==(const FingerFaceAssignment& f1,
          f1.brick_face == f2.brick_face && f1.p_BoBq_B == f2.p_BoBq_B;
 }
 
-int FingerFaceAssignments::DoMessageSize() const {
+int FingerFaceAssignments::DoGetMessageSize() const {
   int size = sizeof(uint32_t) + sizeof(uint32_t);
   for (const auto& finger_face_assignment : finger_face_assignments) {
-    size += finger_face_assignment.message_size();
+    size += finger_face_assignment.GetMessageSize();
   }
   return size;
 }
@@ -63,7 +63,7 @@ void FingerFaceAssignments::DoDeserialize(const uint8_t* msg) {
   this->finger_face_assignments.resize(this->num_fingers);
   for (int i = 0; i < static_cast<int>(this->num_fingers); ++i) {
     finger_face_assignments[i].Deserialize(msg + start);
-    start += finger_face_assignments[i].message_size();
+    start += finger_face_assignments[i].GetMessageSize();
   }
 }
 
@@ -73,7 +73,7 @@ void FingerFaceAssignments::DoSerialize(uint8_t* msg) const {
   SerializeBytes(msg, sizeof(uint32_t), &(this->num_fingers), &start);
   for (int i = 0; i < static_cast<int>(num_fingers); ++i) {
     this->finger_face_assignments[i].Serialize(msg + start);
-    start += this->finger_face_assignments[i].message_size();
+    start += this->finger_face_assignments[i].GetMessageSize();
   }
 }
 
@@ -90,7 +90,7 @@ bool operator==(const FingerFaceAssignments& f1,
   return equal;
 }
 
-int PlanarManipulandDesired::DoMessageSize() const {
+int PlanarManipulandDesired::DoGetMessageSize() const {
   return sizeof(uint32_t) * 3 + sizeof(double) * (num_states + num_accels);
 }
 
@@ -126,7 +126,7 @@ bool operator==(const PlanarManipulandDesired& f1,
          f1.desired_accel == f2.desired_accel;
 }
 
-int PlanarManipulandSpatialForce::DoMessageSize() const {
+int PlanarManipulandSpatialForce::DoGetMessageSize() const {
   return sizeof(uint32_t) + sizeof(Finger) + sizeof(double) * 5;
 }
 
@@ -161,10 +161,10 @@ PlanarManipulandSpatialForces::PlanarManipulandSpatialForces(int m_num_forces)
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces()
     : PlanarManipulandSpatialForces(0) {}
 
-int PlanarManipulandSpatialForces::DoMessageSize() const {
+int PlanarManipulandSpatialForces::DoGetMessageSize() const {
   int size = sizeof(uint32_t) * 2;
   for (const auto& force : forces) {
-    size += force.message_size();
+    size += force.GetMessageSize();
   }
   return size;
 }
@@ -176,7 +176,7 @@ void PlanarManipulandSpatialForces::DoDeserialize(const uint8_t* msg) {
   this->forces.resize(this->num_forces);
   for (int i = 0; i < static_cast<int>(this->num_forces); ++i) {
     forces[i].Deserialize(msg + start);
-    start += forces[i].message_size();
+    start += forces[i].GetMessageSize();
   }
 }
 
@@ -186,7 +186,7 @@ void PlanarManipulandSpatialForces::DoSerialize(uint8_t* msg) const {
   SerializeBytes(msg, sizeof(uint32_t), &(this->num_forces), &start);
   for (int i = 0; i < static_cast<int>(num_forces); ++i) {
     this->forces[i].Serialize(msg + start);
-    start += this->forces[i].message_size();
+    start += this->forces[i].GetMessageSize();
   }
 }
 
@@ -207,7 +207,7 @@ PlanarPlantState::PlanarPlantState(int m_num_states)
 
 PlanarPlantState::PlanarPlantState() : PlanarPlantState(0) {}
 
-int PlanarPlantState::DoMessageSize() const {
+int PlanarPlantState::DoGetMessageSize() const {
   return sizeof(uint32_t) * 2 + sizeof(double) * num_states;
 }
 

@@ -16,13 +16,13 @@ struct UdpMessage {
 
   virtual ~UdpMessage() {}
 
-  int message_size() const { return DoMessageSize(); }
+  int GetMessageSize() const { return DoGetMessageSize(); }
 
   void Deserialize(const uint8_t* msg) { DoDeserialize(msg); }
   void Serialize(uint8_t* msg) const { DoSerialize(msg); }
 
  private:
-  virtual int DoMessageSize() const = 0;
+  virtual int DoGetMessageSize() const = 0;
 
   virtual void DoDeserialize(const uint8_t* msg) = 0;
 
@@ -44,7 +44,7 @@ struct FingerFaceAssignment : public UdpMessage {
   Eigen::Vector2d p_BoBq_B;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
@@ -70,7 +70,7 @@ struct FingerFaceAssignments : public UdpMessage {
   std::vector<FingerFaceAssignment> finger_face_assignments;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
@@ -97,7 +97,7 @@ struct PlanarManipulandDesired : public UdpMessage {
   Eigen::VectorXd desired_accel;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
@@ -126,7 +126,7 @@ struct PlanarManipulandSpatialForce : public UdpMessage {
   double torque_Bq_W;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
@@ -151,7 +151,7 @@ struct PlanarManipulandSpatialForces : public UdpMessage {
   std::vector<PlanarManipulandSpatialForce> forces;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
@@ -175,7 +175,7 @@ struct PlanarPlantState : public UdpMessage {
   Eigen::VectorXd plant_state;
 
  private:
-  virtual int DoMessageSize() const final;
+  virtual int DoGetMessageSize() const final;
 
   virtual void DoDeserialize(const uint8_t* msg) final;
 
