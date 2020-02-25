@@ -34,11 +34,14 @@ GTEST_TEST(FingerFaceAssignmentsTest, Test) {
   dut.finger_face_assignments[1].finger = Finger::kFinger2;
   dut.finger_face_assignments[1].brick_face = BrickFace::kPosY;
   dut.finger_face_assignments[1].p_BoBq_B = Eigen::Vector2d(-2., -3.0);
+  dut.in_contact[0] = true;
+  dut.in_contact[1] = false;
 
   EXPECT_EQ(dut.GetMessageSize(),
             sizeof(uint32_t) + sizeof(uint32_t) +
                 dut.finger_face_assignments[0].GetMessageSize() +
-                dut.finger_face_assignments[1].GetMessageSize());
+                dut.finger_face_assignments[1].GetMessageSize() +
+                sizeof(bool) * 2);
   std::vector<uint8_t> message(dut.GetMessageSize());
   dut.Serialize(message.data());
 
@@ -90,10 +93,12 @@ GTEST_TEST(PlanarManipulandSpatialForcesTest, Test) {
   dut.forces[1].p_BoBq_B << 0.6, 0.7;
   dut.forces[1].force_Bq_W << 0.8, 0.9;
   dut.forces[1].torque_Bq_W = 1.;
+  dut.in_contact[0] = true;
+  dut.in_contact[1] = false;
 
-  EXPECT_EQ(dut.GetMessageSize(), sizeof(uint32_t) * 2 +
-                                      dut.forces[0].GetMessageSize() +
-                                      dut.forces[1].GetMessageSize());
+  EXPECT_EQ(dut.GetMessageSize(),
+            sizeof(uint32_t) * 2 + dut.forces[0].GetMessageSize() +
+                dut.forces[1].GetMessageSize() + sizeof(bool) * 2);
 
   std::vector<uint8_t> message(dut.GetMessageSize());
   dut.Serialize(message.data());
