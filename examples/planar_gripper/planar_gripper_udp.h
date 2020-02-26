@@ -300,6 +300,18 @@ class QPControlUdpReceiverSystem : public systems::LeafSystem<double> {
   systems::AbstractStateIndex finger_control_state_index_{};
   systems::AbstractStateIndex brick_control_state_index_{};
 };
+
+// A system that subscribes to the QP planner and publishes to the QP planner.
+class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperQPControllerUDP)
+  PlanarGripperQPControllerUDP(int num_multibody_states,
+                               multibody::BodyIndex brick_index,
+                               int num_fingers, int num_brick_states,
+                               int num_brick_accels, int local_port,
+                               int remote_port, unsigned long remote_address,
+                               double publish_period);
+};
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

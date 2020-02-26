@@ -528,6 +528,38 @@ void QPControlUdpReceiverSystem::OutputBrickControl(
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
       brick_control_state_index_);
 }
+
+PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
+    int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
+    int num_brick_states, int num_brick_accels, int local_port, int remote_port,
+    unsigned long remote_address, double publish_period) {
+  systems::DiagramBuilder<double> builder;
+  // The UDP receiver receives from pusher of the remote QP controller, and
+  // outputs signal to local simulation.
+  auto qp_control_receiver = builder.AddSystem<QPControlUdpReceiverSystem>(
+      local_port, num_fingers, brick_index);
+  builder.ExportOutput(
+      qp_control_receiver->get_qp_fingers_control_output_port(),
+      "qp_fingers_control");
+  builder.ExportOutput(qp_control_receiver->get_qp_brick_control_output_port(),
+                       "qp_brick_control");
+
+  // The UDP pulisher takes signal from local simulation, and publish them to
+  // remote QP controller.
+  auto sim_to_qp_publisher = builder.AddSystem<SimToQPUdpPublisherSystem>(
+      publish_period, local_port, remote_port, remote_address,
+      num_multibody_states, num_fingers, num_brick_states, num_brick_accels);
+  builder.ExportInput(sim_to_qp_publisher->get_plant_state_input_port(),
+                      "qp_estimated_plant_state");
+  builder.ExportInput(
+      sim_to_qp_publisher->get_finger_face_assignment_input_port(),
+      "qp_finger_face_assignments");
+  builder.ExportInput(sim_to_qp_publisher->get_desired_brick_state_input_port(),
+                      "qp_desired_brick_state");
+  builder.ExportInput(sim_to_qp_publisher->get_desired_brick_accel_input_port(),
+                      "qp_desired_brick_accel");
+  builder.BuildInto(this);
+}
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

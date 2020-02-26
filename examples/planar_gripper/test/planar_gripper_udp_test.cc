@@ -78,6 +78,18 @@ GTEST_TEST(PlanarManipulandSpatialForceTest, Test) {
   PlanarManipulandSpatialForce reconstructed_dut{};
   reconstructed_dut.Deserialize(message.data());
   EXPECT_EQ(dut, reconstructed_dut);
+
+  const multibody::ExternallyAppliedSpatialForce<double> spatial_force =
+      dut.ToSpatialForce(multibody::BodyIndex(1));
+  EXPECT_EQ(spatial_force.body_index, multibody::BodyIndex(1));
+  EXPECT_TRUE(
+      CompareMatrices(spatial_force.p_BoBq_B,
+                      Eigen::Vector3d(0, dut.p_BoBq_B(0), dut.p_BoBq_B(1))));
+  EXPECT_TRUE(CompareMatrices(
+      spatial_force.F_Bq_W.translational(),
+      Eigen::Vector3d(0, dut.force_Bq_W(0), dut.force_Bq_W(1))));
+  EXPECT_TRUE(CompareMatrices(spatial_force.F_Bq_W.rotational(),
+                              Eigen::Vector3d(dut.torque_Bq_W, 0, 0)));
 }
 
 GTEST_TEST(PlanarManipulandSpatialForcesTest, Test) {
