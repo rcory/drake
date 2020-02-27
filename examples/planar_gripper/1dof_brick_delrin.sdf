@@ -6,14 +6,14 @@
   <link name="brick_link">
     <inertial>
       <pose frame=''>0 0 0 0 0 0 </pose>
-      <mass>0.028</mass>
+      <mass>1.0</mass>
         <inertia>
-          <ixx>1.17e-5</ixx>
+          <ixx>1.666667e-3</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>1.9e-5</iyy>
+          <iyy>1.241667e-3</iyy>
           <iyz>0</iyz>
-          <izz>1.9e-5</izz>
+          <izz>1.241667e-3</izz>
         </inertia>
     </inertial>
     <visual name='brick_visual_1'>
@@ -90,7 +90,7 @@
          <effort> 0 </effort>
        </limit>
        <dynamics>
-         <damping>.0008</damping>
+         <damping>.008</damping>
 <!--         <damping>.0001</damping>-->
 <!--         <damping>.01</damping>-->
        </dynamics>
