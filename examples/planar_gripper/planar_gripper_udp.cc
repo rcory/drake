@@ -192,7 +192,7 @@ bool operator==(const PlanarManipulandSpatialForce& f1,
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces(int m_num_forces)
     : num_forces{static_cast<uint32_t>(m_num_forces)},
       forces{num_forces},
-      in_contact(m_num_forces){};
+      in_contact(m_num_forces, false){};
 
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces()
     : PlanarManipulandSpatialForces(0) {}
@@ -318,7 +318,7 @@ SimToQPUdpPublisherSystem::SimToQPUdpPublisherSystem(
               systems::BasicVector<double>(num_plant_states))
           .get_index();
 
-  finger_face_assignment_input_port_ =
+  finger_face_assignments_input_port_ =
       this->DeclareAbstractInputPort(
               "qp_finger_face_assignments",
               Value<std::unordered_map<
@@ -351,7 +351,7 @@ std::vector<uint8_t> SimToQPUdpPublisherSystem::Serialize(
   FingerFaceAssignments finger_face_assignments(num_fingers_);
   finger_face_assignments.utime = utime;
   const auto finger_face_assignments_input =
-      this->get_input_port(finger_face_assignment_input_port_)
+      this->get_input_port(finger_face_assignments_input_port_)
           .Eval<std::unordered_map<Finger,
                                    std::pair<BrickFace, Eigen::Vector2d>>>(
               context);
@@ -534,7 +534,7 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
     int num_brick_states, int num_brick_accels, int local_port, int remote_port,
     unsigned long remote_address, double publish_period) {
   systems::DiagramBuilder<double> builder;
-  // The UDP receiver receives from pusher of the remote QP controller, and
+  // The UDP receiver receives from publisher of the remote QP controller, and
   // outputs signal to local simulation.
   auto qp_control_receiver = builder.AddSystem<QPControlUdpReceiverSystem>(
       local_port, num_fingers, brick_index);
@@ -552,7 +552,7 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
   builder.ExportInput(sim_to_qp_publisher->get_plant_state_input_port(),
                       "qp_estimated_plant_state");
   builder.ExportInput(
-      sim_to_qp_publisher->get_finger_face_assignment_input_port(),
+      sim_to_qp_publisher->get_finger_face_assignments_input_port(),
       "qp_finger_face_assignments");
   builder.ExportInput(sim_to_qp_publisher->get_desired_brick_state_input_port(),
                       "qp_desired_brick_state");

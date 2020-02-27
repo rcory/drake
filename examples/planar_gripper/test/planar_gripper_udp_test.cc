@@ -25,6 +25,8 @@ GTEST_TEST(FingerFaceAssignmentTest, Test) {
 
 GTEST_TEST(FingerFaceAssignmentsTest, Test) {
   FingerFaceAssignments dut{2};
+  EXPECT_FALSE(dut.in_contact[0]);
+  EXPECT_FALSE(dut.in_contact[1]);
   dut.utime = 100;
   dut.finger_face_assignments[0].utime = dut.utime;
   dut.finger_face_assignments[0].finger = Finger::kFinger1;
@@ -94,6 +96,8 @@ GTEST_TEST(PlanarManipulandSpatialForceTest, Test) {
 
 GTEST_TEST(PlanarManipulandSpatialForcesTest, Test) {
   PlanarManipulandSpatialForces dut(2);
+  EXPECT_FALSE(dut.in_contact[0]);
+  EXPECT_FALSE(dut.in_contact[1]);
   dut.utime = 100;
   dut.forces[0].utime = dut.utime;
   dut.forces[0].finger = Finger::kFinger1;

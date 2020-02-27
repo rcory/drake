@@ -14,7 +14,7 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 // This is rather arbitrary, for now.
-constexpr double kGripperUdpStatusPeriod = 0.01;
+constexpr double kGripperUdpStatusPeriod = 0.002;
 
 struct UdpMessage {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(UdpMessage)
@@ -66,7 +66,7 @@ struct FingerFaceAssignments : public UdpMessage {
   FingerFaceAssignments(int m_num_fingers)
       : num_fingers{static_cast<uint32_t>(m_num_fingers)},
         finger_face_assignments(m_num_fingers),
-        in_contact(m_num_fingers) {}
+        in_contact(m_num_fingers, false) {}
 
   FingerFaceAssignments() : FingerFaceAssignments(0) {}
 
@@ -214,9 +214,9 @@ class SimToQPUdpPublisherSystem : public systems::LeafSystem<double> {
     return this->get_input_port(plant_state_input_port_);
   }
 
-  const systems::InputPort<double>& get_finger_face_assignment_input_port()
+  const systems::InputPort<double>& get_finger_face_assignments_input_port()
       const {
-    return this->get_input_port(finger_face_assignment_input_port_);
+    return this->get_input_port(finger_face_assignments_input_port_);
   }
 
   const systems::InputPort<double>& get_desired_brick_state_input_port() const {
@@ -243,7 +243,7 @@ class SimToQPUdpPublisherSystem : public systems::LeafSystem<double> {
   int num_brick_accels_;
 
   systems::InputPortIndex plant_state_input_port_;
-  systems::InputPortIndex finger_face_assignment_input_port_;
+  systems::InputPortIndex finger_face_assignments_input_port_;
   systems::InputPortIndex desired_brick_state_input_port_;
   systems::InputPortIndex desired_brick_accel_input_port_;
 };
