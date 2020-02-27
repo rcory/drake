@@ -91,6 +91,7 @@ drake_cc_library(
   hdrs = ["planar_gripper_udp.h"],
   deps = [
       ":planar_gripper_common",
+      "//multibody/plant:externally_applied_spatial_force",
   ],
 )
 

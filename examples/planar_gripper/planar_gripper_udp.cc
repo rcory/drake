@@ -1,5 +1,11 @@
 #include "drake/examples/planar_gripper/planar_gripper_udp.h"
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include "drake/systems/framework/abstract_values.h"
+
 namespace drake {
 namespace examples {
 namespace planar_gripper {
@@ -49,7 +55,7 @@ bool operator==(const FingerFaceAssignment& f1,
 }
 
 int FingerFaceAssignments::DoGetMessageSize() const {
-  int size = sizeof(uint32_t) + sizeof(uint32_t);
+  int size = sizeof(uint32_t) + sizeof(uint32_t) + sizeof(bool) * num_fingers;
   for (const auto& finger_face_assignment : finger_face_assignments) {
     size += finger_face_assignment.GetMessageSize();
   }
@@ -65,6 +71,13 @@ void FingerFaceAssignments::DoDeserialize(const uint8_t* msg) {
     finger_face_assignments[i].Deserialize(msg + start);
     start += finger_face_assignments[i].GetMessageSize();
   }
+  this->in_contact.resize(this->num_fingers);
+  for (int i = 0; i < static_cast<int>(this->num_fingers); ++i) {
+    bool flag;
+    memcpy(&flag, msg + start, sizeof(bool));
+    in_contact[i] = flag;
+    start += sizeof(bool);
+  }
 }
 
 void FingerFaceAssignments::DoSerialize(uint8_t* msg) const {
@@ -74,6 +87,11 @@ void FingerFaceAssignments::DoSerialize(uint8_t* msg) const {
   for (int i = 0; i < static_cast<int>(num_fingers); ++i) {
     this->finger_face_assignments[i].Serialize(msg + start);
     start += this->finger_face_assignments[i].GetMessageSize();
+  }
+  for (int i = 0; i < static_cast<int>(this->num_fingers); ++i) {
+    bool flag = in_contact[i];
+    memcpy(msg + start, &flag, sizeof(bool));
+    start += sizeof(bool);
   }
 }
 
@@ -86,6 +104,7 @@ bool operator==(const FingerFaceAssignments& f1,
   for (int i = 0; i < static_cast<int>(f1.num_fingers); ++i) {
     equal = equal &&
             (f1.finger_face_assignments[i] == f2.finger_face_assignments[i]);
+    equal = equal && f1.in_contact[i] == f2.in_contact[i];
   }
   return equal;
 }
@@ -148,6 +167,21 @@ void PlanarManipulandSpatialForce::DoSerialize(uint8_t* msg) const {
   SerializeBytes(msg, sizeof(double), &(this->torque_Bq_W), &start);
 }
 
+multibody::ExternallyAppliedSpatialForce<double>
+PlanarManipulandSpatialForce::ToSpatialForce(
+    multibody::BodyIndex body_index) const {
+  multibody::ExternallyAppliedSpatialForce<double> applied_spatial_force;
+  applied_spatial_force.body_index = body_index;
+  applied_spatial_force.p_BoBq_B(0) = 0;  // x
+  applied_spatial_force.p_BoBq_B.tail<2>() = p_BoBq_B;
+  Eigen::Vector3d force;
+  force << 0, force_Bq_W;
+  Eigen::Vector3d torque = Eigen::Vector3d::Zero();
+  torque(0) = torque_Bq_W;  // tau_x
+  applied_spatial_force.F_Bq_W = multibody::SpatialForce<double>(torque, force);
+  return applied_spatial_force;
+}
+
 bool operator==(const PlanarManipulandSpatialForce& f1,
                 const PlanarManipulandSpatialForce& f2) {
   return f1.utime == f2.utime && f1.finger == f2.finger &&
@@ -156,13 +190,15 @@ bool operator==(const PlanarManipulandSpatialForce& f1,
 }
 
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces(int m_num_forces)
-    : num_forces{static_cast<uint32_t>(m_num_forces)}, forces{num_forces} {};
+    : num_forces{static_cast<uint32_t>(m_num_forces)},
+      forces{num_forces},
+      in_contact(m_num_forces, false){};
 
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces()
     : PlanarManipulandSpatialForces(0) {}
 
 int PlanarManipulandSpatialForces::DoGetMessageSize() const {
-  int size = sizeof(uint32_t) * 2;
+  int size = sizeof(uint32_t) * 2 + sizeof(bool) * num_forces;
   for (const auto& force : forces) {
     size += force.GetMessageSize();
   }
@@ -178,6 +214,13 @@ void PlanarManipulandSpatialForces::DoDeserialize(const uint8_t* msg) {
     forces[i].Deserialize(msg + start);
     start += forces[i].GetMessageSize();
   }
+  this->in_contact.resize(this->num_forces);
+  for (int i = 0; i < static_cast<int>(this->num_forces); ++i) {
+    bool flag;
+    memcpy(&flag, msg + start, sizeof(bool));
+    in_contact[i] = flag;
+    start += sizeof(bool);
+  }
 }
 
 void PlanarManipulandSpatialForces::DoSerialize(uint8_t* msg) const {
@@ -187,6 +230,11 @@ void PlanarManipulandSpatialForces::DoSerialize(uint8_t* msg) const {
   for (int i = 0; i < static_cast<int>(num_forces); ++i) {
     this->forces[i].Serialize(msg + start);
     start += this->forces[i].GetMessageSize();
+  }
+  for (int i = 0; i < static_cast<int>(this->num_forces); ++i) {
+    bool flag = in_contact[i];
+    memcpy(msg + start, &flag, sizeof(bool));
+    start += sizeof(bool);
   }
 }
 
@@ -198,6 +246,7 @@ bool operator==(const PlanarManipulandSpatialForces& f1,
   }
   for (int i = 0; i < static_cast<int>(f1.num_forces); ++i) {
     result = result && f1.forces[i] == f2.forces[i];
+    result = result && f1.in_contact[i] == f2.in_contact[i];
   }
   return result;
 }
@@ -231,6 +280,285 @@ void PlanarPlantState::DoSerialize(uint8_t* msg) const {
 bool operator==(const PlanarPlantState& f1, const PlanarPlantState& f2) {
   return f1.utime == f2.utime && f1.num_states == f2.num_states &&
          f1.plant_state == f2.plant_state;
+}
+
+SimToQPUdpPublisherSystem::SimToQPUdpPublisherSystem(
+    double publish_period, int local_port, int remote_port,
+    unsigned long remote_address, int num_plant_states, int num_fingers,
+    int num_brick_states, int num_brick_accels)
+    : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
+      remote_port_{remote_port},
+      remote_address_{remote_address},
+      num_plant_states_{num_plant_states},
+      num_fingers_{num_fingers},
+      num_brick_states_{num_brick_states},
+      num_brick_accels_{num_brick_accels} {
+  struct sockaddr_in myaddr;
+  myaddr.sin_family = AF_INET;
+  myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  myaddr.sin_port = htons(local_port);
+  int status =
+      bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
+           sizeof(myaddr));
+  if (status < 0) {
+    throw std::runtime_error("Cannot bind the UDP file descriptor.");
+  }
+
+  this->DeclareForcedPublishEvent(
+      &SimToQPUdpPublisherSystem::PublishInputAsUdpMessage);
+
+  const double offset = 0.0;
+  this->DeclarePeriodicPublishEvent(
+      publish_period, offset,
+      &SimToQPUdpPublisherSystem::PublishInputAsUdpMessage);
+
+  plant_state_input_port_ =
+      this->DeclareVectorInputPort(
+              "qp_estimated_plant_state",
+              systems::BasicVector<double>(num_plant_states))
+          .get_index();
+
+  finger_face_assignments_input_port_ =
+      this->DeclareAbstractInputPort(
+              "qp_finger_face_assignments",
+              Value<std::unordered_map<
+                  Finger, std::pair<BrickFace, Eigen::Vector2d>>>{})
+          .get_index();
+
+  desired_brick_state_input_port_ =
+      this->DeclareVectorInputPort(
+              "qp_desired_brick_state",
+              systems::BasicVector<double>(num_brick_states_))
+          .get_index();
+  desired_brick_accel_input_port_ =
+      this->DeclareVectorInputPort(
+              "qp_desired_brick_accel",
+              systems::BasicVector<double>(num_brick_accels_))
+          .get_index();
+}
+
+std::vector<uint8_t> SimToQPUdpPublisherSystem::Serialize(
+    const systems::Context<double>& context) const {
+  // Construct PlanarPlantState
+  PlanarPlantState plant_state(num_plant_states_);
+  const uint32_t utime = context.get_time() * 1e6;
+  plant_state.utime = utime;
+  const systems::BasicVector<double>* plant_state_input =
+      this->EvalVectorInput(context, plant_state_input_port_);
+  plant_state.plant_state = plant_state_input->CopyToVector();
+
+  // Construct FingerFaceAssignments.
+  FingerFaceAssignments finger_face_assignments(num_fingers_);
+  finger_face_assignments.utime = utime;
+  const auto finger_face_assignments_input =
+      this->get_input_port(finger_face_assignments_input_port_)
+          .Eval<std::unordered_map<Finger,
+                                   std::pair<BrickFace, Eigen::Vector2d>>>(
+              context);
+  int finger_face_index = 0;
+  for (const auto& finger_face_assignment : finger_face_assignments_input) {
+    finger_face_assignments.finger_face_assignments[finger_face_index].utime =
+        utime;
+    finger_face_assignments.finger_face_assignments[finger_face_index].finger =
+        finger_face_assignment.first;
+    finger_face_assignments.finger_face_assignments[finger_face_index]
+        .brick_face = finger_face_assignment.second.first;
+    finger_face_assignments.finger_face_assignments[finger_face_index]
+        .p_BoBq_B = finger_face_assignment.second.second;
+    finger_face_index++;
+  }
+
+  // Construct PlanarManipulandDesired
+  PlanarManipulandDesired planar_manipuland_desired(num_brick_states_,
+                                                    num_brick_accels_);
+  planar_manipuland_desired.utime = utime;
+  planar_manipuland_desired.desired_state =
+      this->EvalVectorInput(context, desired_brick_state_input_port_)
+          ->CopyToVector();
+  planar_manipuland_desired.desired_accel =
+      this->EvalVectorInput(context, desired_brick_accel_input_port_)
+          ->CopyToVector();
+
+  // Sequentially serialize plant_state, finger_face_assignments and
+  // planar_manipuland_desired into a message.
+  std::vector<uint8_t> msg(plant_state.GetMessageSize() +
+                           finger_face_assignments.GetMessageSize() +
+                           planar_manipuland_desired.GetMessageSize());
+  plant_state.Serialize(msg.data());
+  int msg_start = plant_state.GetMessageSize();
+  finger_face_assignments.Serialize(msg.data() + msg_start);
+  msg_start += finger_face_assignments.GetMessageSize();
+  planar_manipuland_desired.Serialize(msg.data() + msg_start);
+  msg_start += planar_manipuland_desired.GetMessageSize();
+
+  return msg;
+}
+
+systems::EventStatus SimToQPUdpPublisherSystem::PublishInputAsUdpMessage(
+    const systems::Context<double>& context) const {
+  const std::vector<uint8_t> output_msg = this->Serialize(context);
+  struct sockaddr_in servaddr;
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_port = htons(remote_port_);
+  servaddr.sin_addr.s_addr = htonl(remote_address_);
+  int status =
+      sendto(file_descriptor_, output_msg.data(), output_msg.size(), 0,
+             reinterpret_cast<struct sockaddr*>(&servaddr), sizeof(servaddr));
+  if (status < 0) {
+    throw std::runtime_error("Cannot send the UDP message.");
+  }
+  return systems::EventStatus::Succeeded();
+}
+
+QPControlUdpReceiverSystem::QPControlUdpReceiverSystem(
+    int local_port, int num_fingers, multibody::BodyIndex brick_body_index)
+    : num_fingers_{num_fingers},
+      file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
+      brick_body_index_{brick_body_index} {
+  // The implementation of this class follows
+  // https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html
+  if (file_descriptor_ < 0) {
+    throw std::runtime_error(
+        " QPControlUdpReceiverSystem: cannot create a socket.");
+  }
+  struct sockaddr_in myaddr;
+  myaddr.sin_family = AF_INET;
+  // bind the socket to any valid IP address
+  myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  myaddr.sin_port = htons(local_port);
+  if (bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
+           sizeof(myaddr)) < 0) {
+    throw std::runtime_error(
+        "QPControlUdpReceiverSystem: cannot bind the socket");
+  }
+
+  finger_control_state_index_ = this->DeclareAbstractState(
+      std::make_unique<Value<std::unordered_map<
+          Finger, multibody::ExternallyAppliedSpatialForce<double>>>>());
+  brick_control_state_index_ = this->DeclareAbstractState(
+      std::make_unique<Value<
+          std::vector<multibody::ExternallyAppliedSpatialForce<double>>>>());
+
+  this->DeclarePeriodicUnrestrictedUpdateEvent(
+      kGripperUdpStatusPeriod, 0.,
+      &QPControlUdpReceiverSystem::ProcessMessageAndStoreToAbstractState);
+
+  qp_finger_control_output_port_ =
+      this->DeclareAbstractOutputPort(
+              "qp_fingers_control",
+              &QPControlUdpReceiverSystem::OutputFingersControl)
+          .get_index();
+  qp_brick_control_output_port_ =
+      this->DeclareAbstractOutputPort(
+              "qp_brick_control",
+              &QPControlUdpReceiverSystem::OutputBrickControl)
+          .get_index();
+
+  // Compute the number of bytes in each UDP packet.
+  PlanarManipulandSpatialForces qp_finger_control_forces(num_fingers);
+  PlanarManipulandSpatialForces qp_brick_control_forces(num_fingers);
+  udp_message_size_ = qp_finger_control_forces.GetMessageSize() +
+                      qp_brick_control_forces.GetMessageSize();
+}
+
+systems::EventStatus
+QPControlUdpReceiverSystem::ProcessMessageAndStoreToAbstractState(
+    const systems::Context<double>&, systems::State<double>* state) const {
+  std::vector<uint8_t> buffer(udp_message_size_);
+  struct sockaddr_in remaddr;
+  socklen_t addrlen = sizeof(remaddr);
+  const int recvlen =
+      recvfrom(file_descriptor_, buffer.data(), buffer.size(), 0,
+               reinterpret_cast<struct sockaddr*>(&remaddr), &addrlen);
+  systems::AbstractValues& abstract_state = state->get_mutable_abstract_state();
+  if (recvlen > 0) {
+    // First deserialize the UDP message.
+    PlanarManipulandSpatialForces qp_finger_control_udp(num_fingers_);
+    int start = 0;
+    qp_finger_control_udp.Deserialize(buffer.data());
+    start += qp_finger_control_udp.GetMessageSize();
+    PlanarManipulandSpatialForces qp_brick_control_udp(num_fingers_);
+    qp_brick_control_udp.Deserialize(buffer.data() + start);
+    start += qp_brick_control_udp.GetMessageSize();
+    DRAKE_ASSERT(start == udp_message_size_);
+    // Now convert PlanarManipulandSpatialForces struct to state.
+    auto& finger_control_state =
+        abstract_state.get_mutable_value(finger_control_state_index_)
+            .get_mutable_value<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>();
+    auto& brick_control_state =
+        abstract_state.get_mutable_value(brick_control_state_index_)
+            .get_mutable_value<std::vector<
+                multibody::ExternallyAppliedSpatialForce<double>>>();
+    for (int i = 0; i < num_fingers_; ++i) {
+      if (qp_finger_control_udp.in_contact[i]) {
+        const multibody::ExternallyAppliedSpatialForce<double>
+            applied_spatial_force =
+                qp_finger_control_udp.forces[i].ToSpatialForce(
+                    brick_body_index_);
+        finger_control_state.emplace(qp_finger_control_udp.forces[i].finger,
+                                     applied_spatial_force);
+      }
+      if (qp_brick_control_udp.in_contact[i]) {
+        brick_control_state.push_back(
+            qp_brick_control_udp.forces[i].ToSpatialForce(brick_body_index_));
+      }
+    }
+  }
+  return systems::EventStatus::Succeeded();
+}
+
+void QPControlUdpReceiverSystem::OutputFingersControl(
+    const systems::Context<double>& context,
+    std::unordered_map<Finger,
+                       multibody::ExternallyAppliedSpatialForce<double>>*
+        fingers_control) const {
+  fingers_control->clear();
+  *fingers_control = context.get_abstract_state<std::unordered_map<
+      Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+      finger_control_state_index_);
+}
+
+void QPControlUdpReceiverSystem::OutputBrickControl(
+    const systems::Context<double>& context,
+    std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+        brick_control) const {
+  brick_control->clear();
+  *brick_control = context.get_abstract_state<
+      std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+      brick_control_state_index_);
+}
+
+PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
+    int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
+    int num_brick_states, int num_brick_accels, int local_port, int remote_port,
+    unsigned long remote_address, double publish_period) {
+  systems::DiagramBuilder<double> builder;
+  // The UDP receiver receives from publisher of the remote QP controller, and
+  // outputs signal to local simulation.
+  auto qp_control_receiver = builder.AddSystem<QPControlUdpReceiverSystem>(
+      local_port, num_fingers, brick_index);
+  builder.ExportOutput(
+      qp_control_receiver->get_qp_fingers_control_output_port(),
+      "qp_fingers_control");
+  builder.ExportOutput(qp_control_receiver->get_qp_brick_control_output_port(),
+                       "qp_brick_control");
+
+  // The UDP pulisher takes signal from local simulation, and publish them to
+  // remote QP controller.
+  auto sim_to_qp_publisher = builder.AddSystem<SimToQPUdpPublisherSystem>(
+      publish_period, local_port, remote_port, remote_address,
+      num_multibody_states, num_fingers, num_brick_states, num_brick_accels);
+  builder.ExportInput(sim_to_qp_publisher->get_plant_state_input_port(),
+                      "qp_estimated_plant_state");
+  builder.ExportInput(
+      sim_to_qp_publisher->get_finger_face_assignments_input_port(),
+      "qp_finger_face_assignments");
+  builder.ExportInput(sim_to_qp_publisher->get_desired_brick_state_input_port(),
+                      "qp_desired_brick_state");
+  builder.ExportInput(sim_to_qp_publisher->get_desired_brick_accel_input_port(),
+                      "qp_desired_brick_accel");
+  builder.BuildInto(this);
 }
 }  // namespace planar_gripper
 }  // namespace examples
