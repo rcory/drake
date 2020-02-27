@@ -23,7 +23,7 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
-DEFINE_double(simulation_time, 4.0, "Amount of time to simulate.");
+DEFINE_double(simulation_time, 3.0, "Amount of time to simulate.");
 DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
@@ -38,9 +38,10 @@ DEFINE_double(
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
+DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 
 DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
-DEFINE_double(QP_Kd_ro, 20, "QP controller rotational Kd gain");
+DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -95,6 +96,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
 
   qpoptions->T_ = FLAGS_T;
+  qpoptions->plan_dt = FLAGS_QP_plan_dt;
   qpoptions->theta0_ = FLAGS_theta0;
   qpoptions->thetaf_ = FLAGS_thetaf;
   qpoptions->QP_Kp_ro_ = FLAGS_QP_Kp_ro;
