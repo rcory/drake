@@ -529,6 +529,157 @@ void QPControlUdpReceiverSystem::OutputBrickControl(
       brick_control_state_index_);
 }
 
+QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
+                                                   int num_plant_states,
+                                                   int num_fingers,
+                                                   int num_brick_states,
+                                                   int num_brick_accels)
+    : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
+      num_plant_states_{num_plant_states},
+      num_fingers_{num_fingers},
+      num_brick_states_{num_brick_states},
+      num_brick_accels_{num_brick_accels} {
+  // The implementation of this class follows
+  // https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html
+  if (file_descriptor_ < 0) {
+    throw std::runtime_error(
+        " QPControlUdpReceiverSystem: cannot create a socket.");
+  }
+  struct sockaddr_in myaddr;
+  myaddr.sin_family = AF_INET;
+  // bind the socket to any valid IP address
+  myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  myaddr.sin_port = htons(local_port);
+  if (bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
+           sizeof(myaddr)) < 0) {
+    throw std::runtime_error(
+        "QPtoSimUdpReceiverSystem: cannot bind the socket");
+  }
+
+  plant_state_index_ = this->DeclareDiscreteState(num_plant_states_);
+  finger_face_state_index_ = this->DeclareAbstractState(
+      std::make_unique<Value<std::unordered_map<
+          Finger, std::pair<BrickFace, Eigen::Vector2d>>>>());
+  brick_state_index_ = this->DeclareDiscreteState(num_brick_states_);
+  brick_accel_index_ = this->DeclareDiscreteState(num_brick_accels_);
+
+  this->DeclarePeriodicUnrestrictedUpdateEvent(
+      kGripperUdpStatusPeriod, 0., &QPtoSimUdpReceiverSystem::UpdateState);
+
+  plant_state_output_port_ =
+      this->DeclareVectorOutputPort(
+              "qp_estimated_plant_state",
+              systems::BasicVector<double>(num_plant_states_),
+              &QPtoSimUdpReceiverSystem::OutputEstimatedPlantState)
+          .get_index();
+  finger_face_output_port_ =
+      this->DeclareAbstractOutputPort(
+              "qp_finger_face_assignments",
+              &QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments)
+          .get_index();
+
+  this->DeclareVectorOutputPort(
+      "qp_desired_brick_state", systems::BasicVector<double>(num_brick_states_),
+      &QPtoSimUdpReceiverSystem::OutputBrickDesiredState);
+
+  // Compute the udp message size.
+  PlanarPlantState plant_state_udp(num_plant_states_);
+  FingerFaceAssignments finger_face_udp(num_fingers_);
+  PlanarManipulandDesired manipuland_des_udp(num_brick_states_,
+                                             num_brick_accels_);
+  udp_message_size_ = plant_state_udp.GetMessageSize() +
+                      finger_face_udp.GetMessageSize() +
+                      manipuland_des_udp.GetMessageSize();
+}
+
+systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
+    const systems::Context<double>&, systems::State<double>* state) const {
+  std::vector<uint8_t> buffer(udp_message_size_);
+  struct sockaddr_in remaddr;
+  socklen_t addrlen = sizeof(remaddr);
+  const int recvlen =
+      recvfrom(file_descriptor_, buffer.data(), buffer.size(), 0,
+               reinterpret_cast<struct sockaddr*>(&remaddr), &addrlen);
+  if (recvlen > 0) {
+    // First deserialize the UDP message.
+    PlanarPlantState plant_state_udp(num_plant_states_);
+    int start = 0;
+    plant_state_udp.Deserialize(buffer.data());
+    start += plant_state_udp.GetMessageSize();
+    FingerFaceAssignments finger_face_udp(num_fingers_);
+    finger_face_udp.Deserialize(buffer.data() + start);
+    start += finger_face_udp.GetMessageSize();
+    PlanarManipulandDesired manipuland_des_udp(num_brick_states_,
+                                               num_brick_accels_);
+    manipuland_des_udp.Deserialize(buffer.data() + start);
+    start += manipuland_des_udp.GetMessageSize();
+    DRAKE_ASSERT(start == udp_message_size_);
+
+    // Now convert the deserialized UDP message to state.
+    Eigen::Ref<Eigen::VectorXd> plant_state =
+        state->get_mutable_discrete_state(plant_state_index_)
+            .get_mutable_value();
+    plant_state = plant_state_udp.plant_state;
+
+    auto& assignments = state->get_mutable_abstract_state<
+        std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
+        finger_face_state_index_);
+    for (int i = 0; i < num_fingers_; ++i) {
+      if (finger_face_udp.in_contact[i]) {
+        assignments.emplace(
+            finger_face_udp.finger_face_assignments[i].finger,
+            std::make_pair(
+                finger_face_udp.finger_face_assignments[i].brick_face,
+                finger_face_udp.finger_face_assignments[i].p_BoBq_B));
+      }
+    }
+
+    Eigen::Ref<Eigen::VectorXd> brick_state =
+        state->get_mutable_discrete_state(brick_state_index_)
+            .get_mutable_value();
+    brick_state = manipuland_des_udp.desired_state;
+    Eigen::Ref<Eigen::VectorXd> brick_accel =
+        state->get_mutable_discrete_state(brick_accel_index_)
+            .get_mutable_value();
+    brick_accel = manipuland_des_udp.desired_accel;
+  }
+  return systems::EventStatus::Succeeded();
+}
+
+void QPtoSimUdpReceiverSystem::OutputEstimatedPlantState(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* plant_state) const {
+  Eigen::VectorBlock<Eigen::VectorXd> output_vec =
+      plant_state->get_mutable_value();
+  output_vec = context.get_discrete_state(plant_state_index_).get_value();
+}
+
+void QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments(
+    const systems::Context<double>& context,
+    std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
+        finger_face_assignments) const {
+  finger_face_assignments->clear();
+  *finger_face_assignments = context.get_abstract_state<
+      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
+      finger_face_state_index_);
+}
+
+void QPtoSimUdpReceiverSystem::OutputBrickDesiredState(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* qp_desired_brick_state) const {
+  Eigen::VectorBlock<Eigen::VectorXd> output_vec =
+      qp_desired_brick_state->get_mutable_value();
+  output_vec = context.get_discrete_state(brick_state_index_).get_value();
+}
+
+void QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* qp_desired_brick_accel) const {
+  Eigen::VectorBlock<Eigen::VectorXd> output_vec =
+      qp_desired_brick_accel->get_mutable_value();
+  output_vec = context.get_discrete_state(brick_accel_index_).get_value();
+}
+
 PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
     int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
     int num_brick_states, int num_brick_accels, int local_port, int remote_port,

@@ -288,10 +288,6 @@ class QPControlUdpReceiverSystem : public systems::LeafSystem<double> {
   int num_fingers_;
   int file_descriptor_{};
   multibody::BodyIndex brick_body_index_;
-  // The mutex that guards buffer_;
-  mutable std::mutex received_message_mutex_;
-
-  std::vector<uint8_t> buffer_;
 
   int udp_message_size_;
 
@@ -299,6 +295,74 @@ class QPControlUdpReceiverSystem : public systems::LeafSystem<double> {
   systems::OutputPortIndex qp_brick_control_output_port_{};
   systems::AbstractStateIndex finger_control_state_index_{};
   systems::AbstractStateIndex brick_control_state_index_{};
+};
+
+/**
+ * This class receives UDP message from QP, and wire the deserialized signal
+ * to simulation.
+ */
+class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
+ public:
+  QPtoSimUdpReceiverSystem(int local_port, int num_plant_states,
+                           int num_fingers, int num_brick_states,
+                           int num_brick_accels);
+  ~QPtoSimUdpReceiverSystem() {}
+
+  const systems::OutputPort<double>& get_estimated_plant_state_output_port()
+      const {
+    return this->get_output_port(plant_state_output_port_);
+  }
+
+  const systems::OutputPort<double>& get_finger_face_assignments_output_port()
+      const {
+    return this->get_output_port(finger_face_output_port_);
+  }
+
+  const systems::OutputPort<double>& get_desired_brick_state_output_port()
+      const {
+    return this->get_output_port(desired_brick_state_output_port_);
+  }
+
+  const systems::OutputPort<double>& get_desired_brick_accel_output_port()
+      const {
+    return this->get_output_port(desired_brick_accel_output_port_);
+  }
+
+ private:
+  systems::EventStatus UpdateState(const systems::Context<double>& context,
+                                   systems::State<double>* state) const;
+  void OutputEstimatedPlantState(
+      const systems::Context<double>& context,
+      systems::BasicVector<double>* plant_state) const;
+  void OutputFingerFaceAssignments(
+      const systems::Context<double>& context,
+      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
+          finger_face_assignments) const;
+  void OutputBrickDesiredState(
+      const systems::Context<double>& context,
+      systems::BasicVector<double>* qp_desired_brick_state) const;
+  void OutputBrickDesiredAccel(
+      const systems::Context<double>& context,
+      systems::BasicVector<double>* qp_desired_brick_accel) const;
+
+  int file_descriptor_{};
+
+  int num_plant_states_;
+  int num_fingers_;
+  int num_brick_states_;
+  int num_brick_accels_;
+
+  int udp_message_size_;
+
+  systems::DiscreteStateIndex plant_state_index_;
+  systems::AbstractStateIndex finger_face_state_index_;
+  systems::DiscreteStateIndex brick_state_index_;
+  systems::DiscreteStateIndex brick_accel_index_;
+
+  systems::OutputPortIndex plant_state_output_port_;
+  systems::OutputPortIndex finger_face_output_port_;
+  systems::OutputPortIndex desired_brick_state_output_port_;
+  systems::OutputPortIndex desired_brick_accel_output_port_;
 };
 
 // A system that subscribes to the QP planner and publishes to the QP planner.
