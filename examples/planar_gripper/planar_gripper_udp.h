@@ -126,6 +126,9 @@ struct PlanarManipulandSpatialForce : public UdpMessage {
   multibody::ExternallyAppliedSpatialForce<double> ToSpatialForce(
       multibody::BodyIndex body_index) const;
 
+  void FromSpatialForce(
+      const multibody::ExternallyAppliedSpatialForce<double>& spatial_force);
+
   uint32_t utime;
   Finger finger;
   // (y, z) position of point Bq in body frame B.
@@ -365,6 +368,44 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
   systems::OutputPortIndex desired_brick_accel_output_port_;
 };
 
+/**
+ * This is a fake simulation publisher system. It is wired to the QP controller
+ * output, and publishes the spatial forces to UDP.
+ */
+class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPControlUdpPublisherSystem)
+
+  QPControlUdpPublisherSystem(double publish_period, int local_port,
+                              int remote_port, unsigned long remote_address,
+                              int num_fingers,
+                              multibody::BodyIndex brick_body_index);
+  ~QPControlUdpPublisherSystem();
+
+  const systems::InputPort<double>& get_qp_fingers_control_input_port() const {
+    return this->get_input_port(qp_fingers_control_input_port_);
+  }
+
+  const systems::InputPort<double>& get_qp_brick_control_input_port() const {
+    return this->get_input_port(qp_brick_control_input_port_);
+  }
+
+ private:
+  systems::EventStatus PublishInputAsUdpMessage(
+      const systems::Context<double>& context) const;
+  std::vector<uint8_t> Serialize(const systems::Context<double>& context) const;
+
+  int file_descriptor_{};
+  int local_port_{};
+  int remote_port_{};
+  unsigned long remote_address_{};
+  int num_fingers_;
+  multibody::BodyIndex brick_body_index_;
+
+  systems::InputPortIndex qp_fingers_control_input_port_;
+  systems::InputPortIndex qp_brick_control_input_port_;
+};
+
 // A system that subscribes to the QP planner and publishes to the QP planner.
 class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
  public:
@@ -375,6 +416,18 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
                                int num_brick_accels, int local_port,
                                int remote_port, unsigned long remote_address,
                                double publish_period);
+};
+
+// A system that subscribes to the simulation and publishes to the simulation.
+class PlanarGripperSimulationUdp : public systems::Diagram<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationUdp)
+  PlanarGripperSimulationUdp(int num_multibody_states,
+                             multibody::BodyIndex brick_index, int num_fingers,
+                             int num_brick_states, int num_brick_accels,
+                             int local_port, int remote_port,
+                             unsigned long remote_address,
+                             double publish_period);
 };
 }  // namespace planar_gripper
 }  // namespace examples

@@ -182,6 +182,13 @@ PlanarManipulandSpatialForce::ToSpatialForce(
   return applied_spatial_force;
 }
 
+void PlanarManipulandSpatialForce::FromSpatialForce(
+    const multibody::ExternallyAppliedSpatialForce<double>& spatial_force) {
+  this->p_BoBq_B = spatial_force.p_BoBq_B.tail<2>();
+  this->force_Bq_W = spatial_force.F_Bq_W.translational().tail<2>();
+  this->torque_Bq_W = spatial_force.F_Bq_W.rotational()(0);
+}
+
 bool operator==(const PlanarManipulandSpatialForce& f1,
                 const PlanarManipulandSpatialForce& f2) {
   return f1.utime == f2.utime && f1.finger == f2.finger &&
@@ -365,6 +372,7 @@ std::vector<uint8_t> SimToQPUdpPublisherSystem::Serialize(
         .brick_face = finger_face_assignment.second.first;
     finger_face_assignments.finger_face_assignments[finger_face_index]
         .p_BoBq_B = finger_face_assignment.second.second;
+    finger_face_assignments.in_contact[finger_face_index] = true;
     finger_face_index++;
   }
 
@@ -680,6 +688,114 @@ void QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel(
   output_vec = context.get_discrete_state(brick_accel_index_).get_value();
 }
 
+QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
+    double publish_period, int local_port, int remote_port,
+    unsigned long remote_address, int num_fingers,
+    multibody::BodyIndex brick_body_index)
+    : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
+      local_port_{local_port},
+      remote_port_{remote_port},
+      remote_address_{remote_address},
+      num_fingers_{num_fingers},
+      brick_body_index_{brick_body_index} {
+  struct sockaddr_in myaddr;
+  myaddr.sin_family = AF_INET;
+  myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  myaddr.sin_port = htons(local_port);
+  int status =
+      bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
+           sizeof(myaddr));
+  if (status < 0) {
+    throw std::runtime_error("Cannot bind the UDP file descriptor.");
+  }
+
+  this->DeclareForcedPublishEvent(
+      &QPControlUdpPublisherSystem::PublishInputAsUdpMessage);
+
+  const double offset = 0.0;
+  this->DeclarePeriodicPublishEvent(
+      publish_period, offset,
+      &QPControlUdpPublisherSystem::PublishInputAsUdpMessage);
+
+  qp_fingers_control_input_port_ =
+      this->DeclareAbstractInputPort(
+              "qp_fingers_control",
+              Value<std::unordered_map<
+                  Finger, multibody::ExternallyAppliedSpatialForce<double>>>{})
+          .get_index();
+  qp_brick_control_input_port_ =
+      this->DeclareAbstractInputPort(
+              "qp_brick_control",
+              Value<std::vector<
+                  multibody::ExternallyAppliedSpatialForce<double>>>{})
+          .get_index();
+}
+
+std::vector<uint8_t> QPControlUdpPublisherSystem::Serialize(
+    const systems::Context<double>& context) const {
+  // Construct PlanarPlantState
+  const uint32_t utime = context.get_time() * 1e6;
+
+  // Construct PlanarManipulandSpatialForces
+  PlanarManipulandSpatialForces qp_fingers_control_udp(num_fingers_);
+  qp_fingers_control_udp.utime = utime;
+  const auto qp_fingers_control_input =
+      this->get_input_port(qp_fingers_control_input_port_)
+          .Eval<std::unordered_map<
+              Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  int finger_control_index = 0;
+  for (const auto& finger_control : qp_fingers_control_input) {
+    qp_fingers_control_udp.in_contact[finger_control_index] = true;
+    qp_fingers_control_udp.forces[finger_control_index].utime = utime;
+    qp_fingers_control_udp.forces[finger_control_index].finger =
+        finger_control.first;
+    qp_fingers_control_udp.forces[finger_control_index].FromSpatialForce(
+        finger_control.second);
+    finger_control_index++;
+  }
+  PlanarManipulandSpatialForces qp_brick_control_udp(num_fingers_);
+  qp_brick_control_udp.utime = utime;
+  const auto qp_brick_control_input =
+      this->get_input_port(qp_brick_control_input_port_)
+          .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  int brick_control_index = 0;
+  for (const auto brick_control : qp_brick_control_input) {
+    qp_brick_control_udp.in_contact[brick_control_index] = true;
+    qp_brick_control_udp.forces[brick_control_index].utime = utime;
+    qp_brick_control_udp.forces[brick_control_index].FromSpatialForce(
+        brick_control);
+    brick_control_index++;
+  }
+
+  // Now serialize the UDP message
+  std::vector<uint8_t> msg(qp_fingers_control_udp.GetMessageSize() +
+                           qp_brick_control_udp.GetMessageSize());
+  qp_fingers_control_udp.Serialize(msg.data());
+  int msg_start = qp_fingers_control_udp.GetMessageSize();
+  qp_brick_control_udp.Serialize(msg.data() + msg_start);
+  msg_start += qp_brick_control_udp.GetMessageSize();
+
+  return msg;
+}
+
+systems::EventStatus QPControlUdpPublisherSystem::PublishInputAsUdpMessage(
+    const systems::Context<double>& context) const {
+  const std::vector<uint8_t> output_msg = this->Serialize(context);
+  struct sockaddr_in servaddr;
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_port = htons(remote_port_);
+  servaddr.sin_addr.s_addr = htonl(remote_address_);
+  int status =
+      sendto(file_descriptor_, output_msg.data(), output_msg.size(), 0,
+             reinterpret_cast<struct sockaddr*>(&servaddr), sizeof(servaddr));
+  if (status < 0) {
+    throw std::runtime_error("Cannot send the UDP message.");
+  }
+  return systems::EventStatus::Succeeded();
+}
+
 PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
     int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
     int num_brick_states, int num_brick_accels, int local_port, int remote_port,
@@ -709,6 +825,38 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
                       "qp_desired_brick_state");
   builder.ExportInput(sim_to_qp_publisher->get_desired_brick_accel_input_port(),
                       "qp_desired_brick_accel");
+  builder.BuildInto(this);
+}
+
+PlanarGripperSimulationUdp::PlanarGripperSimulationUdp(
+    int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
+    int num_brick_states, int num_brick_accels, int local_port, int remote_port,
+    unsigned long remote_address, double publish_period) {
+  systems::DiagramBuilder<double> builder;
+
+  auto qp_to_sim_receiver = builder.AddSystem<QPtoSimUdpReceiverSystem>(
+      local_port, num_multibody_states, num_fingers, num_brick_states,
+      num_brick_accels);
+  builder.ExportOutput(
+      qp_to_sim_receiver->get_estimated_plant_state_output_port(),
+      "qp_estimated_plant_state");
+  builder.ExportOutput(
+      qp_to_sim_receiver->get_finger_face_assignments_output_port(),
+      "qp_finger_face_assignments");
+  builder.ExportOutput(
+      qp_to_sim_receiver->get_desired_brick_state_output_port(),
+      "qp_desired_brick_state");
+  builder.ExportOutput(
+      qp_to_sim_receiver->get_desired_brick_accel_output_port(),
+      "qp_desired_brick_accel");
+
+  auto qp_control_publisher = builder.AddSystem<QPControlUdpPublisherSystem>(
+      publish_period, local_port, remote_port, remote_address, num_fingers,
+      brick_index);
+  builder.ExportInput(qp_control_publisher->get_qp_fingers_control_input_port(),
+                      "qp_fingers_control");
+  builder.ExportInput(qp_control_publisher->get_qp_brick_control_input_port(),
+                      "qp_brick_control");
   builder.BuildInto(this);
 }
 }  // namespace planar_gripper
