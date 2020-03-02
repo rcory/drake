@@ -318,7 +318,7 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
 
   const systems::OutputPort<double>& get_finger_face_assignments_output_port()
       const {
-    return this->get_output_port(finger_face_output_port_);
+    return this->get_output_port(finger_face_assignments_output_port_);
   }
 
   const systems::OutputPort<double>& get_desired_brick_state_output_port()
@@ -358,19 +358,19 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
   int udp_message_size_;
 
   systems::DiscreteStateIndex plant_state_index_;
-  systems::AbstractStateIndex finger_face_state_index_;
+  systems::AbstractStateIndex finger_face_assignments_state_index_;
   systems::DiscreteStateIndex brick_state_index_;
   systems::DiscreteStateIndex brick_accel_index_;
 
   systems::OutputPortIndex plant_state_output_port_;
-  systems::OutputPortIndex finger_face_output_port_;
+  systems::OutputPortIndex finger_face_assignments_output_port_;
   systems::OutputPortIndex desired_brick_state_output_port_;
   systems::OutputPortIndex desired_brick_accel_output_port_;
 };
 
 /**
- * This is a fake simulation publisher system. It is wired to the QP controller
- * output, and publishes the spatial forces to UDP.
+ * This system is wired to the QP controller outputs. The system publishes
+ * the spatial forces via UDP.
  */
 class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
  public:
@@ -419,10 +419,10 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
 };
 
 // A system that subscribes to the simulation and publishes to the simulation.
-class PlanarGripperSimulationUdp : public systems::Diagram<double> {
+class PlanarGripperSimulationUDP : public systems::Diagram<double> {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationUdp)
-  PlanarGripperSimulationUdp(int num_multibody_states,
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationUDP)
+  PlanarGripperSimulationUDP(int num_multibody_states,
                              multibody::BodyIndex brick_index, int num_fingers,
                              int num_brick_states, int num_brick_accels,
                              int local_port, int remote_port,

@@ -565,7 +565,7 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
   }
 
   plant_state_index_ = this->DeclareDiscreteState(num_plant_states_);
-  finger_face_state_index_ = this->DeclareAbstractState(
+  finger_face_assignments_state_index_ = this->DeclareAbstractState(
       std::make_unique<Value<std::unordered_map<
           Finger, std::pair<BrickFace, Eigen::Vector2d>>>>());
   brick_state_index_ = this->DeclareDiscreteState(num_brick_states_);
@@ -580,7 +580,7 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
               systems::BasicVector<double>(num_plant_states_),
               &QPtoSimUdpReceiverSystem::OutputEstimatedPlantState)
           .get_index();
-  finger_face_output_port_ =
+  finger_face_assignments_output_port_ =
       this->DeclareAbstractOutputPort(
               "qp_finger_face_assignments",
               &QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments)
@@ -631,7 +631,7 @@ systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
 
     auto& assignments = state->get_mutable_abstract_state<
         std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
-        finger_face_state_index_);
+        finger_face_assignments_state_index_);
     for (int i = 0; i < num_fingers_; ++i) {
       if (finger_face_udp.in_contact[i]) {
         assignments.emplace(
@@ -669,7 +669,7 @@ void QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments(
   finger_face_assignments->clear();
   *finger_face_assignments = context.get_abstract_state<
       std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
-      finger_face_state_index_);
+      finger_face_assignments_state_index_);
 }
 
 void QPtoSimUdpReceiverSystem::OutputBrickDesiredState(
@@ -828,7 +828,7 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
   builder.BuildInto(this);
 }
 
-PlanarGripperSimulationUdp::PlanarGripperSimulationUdp(
+PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
     int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
     int num_brick_states, int num_brick_accels, int local_port, int remote_port,
     unsigned long remote_address, double publish_period) {
