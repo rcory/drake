@@ -316,6 +316,7 @@ drake_cc_library(
         "//examples/planar_gripper:contact_force_qp",
         "//examples/planar_gripper:finger_brick",
         "//examples/planar_gripper:planar_gripper_common",
+        "//examples/planar_gripper:planar_gripper_udp",
         "//lcm:drake_lcm",
         "//multibody/plant",
         "//multibody/plant:contact_results_to_lcm",

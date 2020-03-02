@@ -7,7 +7,9 @@
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_udp.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/context.h"
@@ -33,6 +35,13 @@ DEFINE_double(
 DEFINE_double(
     zc, 0,
     "Value of z-coordinate offset for y-face contact (for brick-only sim.");
+DEFINE_int32(
+    local_port, 1001, "local port number for UDP communication.");
+DEFINE_int32(
+    remote_port, 1002, "remote port number for UDP communication.");
+DEFINE_uint64(
+    remote_address, 0, "remote IP address for UDP communication.");
+
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
@@ -135,9 +144,20 @@ int DoMain() {
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   AddGripperQPControllerToDiagram(plant, &builder, qpoptions, &in_ports,
                                   &out_ports);
+<<<<<<< HEAD
   const auto lcm_sim = builder.AddSystem<PlanarGripperSimulationLCM>(
       plant.num_multibody_states(), planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(), lcm, kGripperLcmPeriod);
+=======
+  const auto lcm_sim = builder.AddSystem<PlanarGripperSimulationLcm>(
+      plant.num_multibody_states(), lcm, kGripperLcmPeriod);
+  const auto udp_sim = builder.AddSystem<PlanarGripperSimulationUdp>(
+      plant.num_multibody_states(),
+      GetBrickBodyIndex(planar_gripper.get_multibody_plant()), kNumFingers,
+      planar_gripper.get_num_brick_positions() * 2,
+      planar_gripper.get_num_brick_positions(), FLAGS_local_port,
+      FLAGS_remote_port, FLAGS_remote_address, kGripperUdpStatusPeriod);
+>>>>>>> WIP: connect UDP to the simulation.
 
   // Connect the LCM sim outputs to the QP controller inputs.
   builder.Connect(lcm_sim->GetOutputPort("qp_estimated_plant_state"),

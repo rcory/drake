@@ -255,6 +255,22 @@ void ConnectLCMQPController(
         finger_force_control_map,
     const QPControlOptions& qpoptions, systems::DiagramBuilder<double>* builder);
 
+/// Connects a UDP QP controller to a planar_gripper/brick simulation.
+/// @param planar_gripper The planar gripper diagram.
+/// @param lcm The LCM object used to connect signals to scope, as well as to
+///        connect spatial forces to the visualizer.
+/// @param finger_force_control_map An optional, that maps Fingers to
+///        ForceController objects. For a brick only simulation, this optional
+///        is nullopt.
+/// @param builder A pointer to the diagram builder to which the QP controller
+///        will be added.
+void ConnectUDPQPController(
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const std::optional<std::unordered_map<Finger, ForceController&>>&
+        finger_force_control_map,
+    const QPControlOptions& qpoptions, int local_port, int remote_port,
+    unsigned long remote_address, systems::DiagramBuilder<double>* builder);
+
 void AddGripperQPControllerToDiagram(
     const MultibodyPlant<double>& plant,
     systems::DiagramBuilder<double>* builder, const QPControlOptions& qpoptions,
