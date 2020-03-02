@@ -92,6 +92,13 @@ GTEST_TEST(PlanarManipulandSpatialForceTest, Test) {
       Eigen::Vector3d(0, dut.force_Bq_W(0), dut.force_Bq_W(1))));
   EXPECT_TRUE(CompareMatrices(spatial_force.F_Bq_W.rotational(),
                               Eigen::Vector3d(dut.torque_Bq_W, 0, 0)));
+
+  PlanarManipulandSpatialForce dut_from_spatial_force;
+  dut_from_spatial_force.FromSpatialForce(spatial_force);
+  EXPECT_TRUE(CompareMatrices(dut_from_spatial_force.p_BoBq_B, dut.p_BoBq_B));
+  EXPECT_TRUE(
+      CompareMatrices(dut_from_spatial_force.force_Bq_W, dut.force_Bq_W));
+  EXPECT_EQ(dut_from_spatial_force.torque_Bq_W, dut.torque_Bq_W);
 }
 
 GTEST_TEST(PlanarManipulandSpatialForcesTest, Test) {
