@@ -6,14 +6,14 @@
   <link name="brick_dummy_link1">
     <inertial>
       <pose frame=''>0 0 0 0 0 0 </pose>
-      <mass>1e-10</mass>
+      <mass>0.028</mass>
       <inertia>
-        <ixx>1e-10</ixx>
+        <ixx>1.17e-5</ixx>
         <ixy>0</ixy>
         <ixz>0</ixz>
-        <iyy>1e-10</iyy>
+        <iyy>1.9e-5</iyy>
         <iyz>0</iyz>
-        <izz>1e-10</izz>
+        <izz>1.9e-5</izz>
       </inertia>
     </inertial>
   </link>
@@ -74,7 +74,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0.8 0 1.0</diffuse>
+        <diffuse>0 0.8 0 0.2</diffuse>
       </material>
     </visual>
     <visual name='brick_visual_2'>
@@ -85,7 +85,7 @@
         </box>
       </geometry>
       <material>
-        <diffuse>0 0 0.8 1.0</diffuse>
+        <diffuse>0 0 0.8 0.2</diffuse>
       </material>
     </visual>
     <collision name='box_collision'>
