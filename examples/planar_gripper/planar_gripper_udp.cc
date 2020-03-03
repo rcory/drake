@@ -546,7 +546,8 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
       num_plant_states_{num_plant_states},
       num_fingers_{num_fingers},
       num_brick_states_{num_brick_states},
-      num_brick_accels_{num_brick_accels} {
+      num_brick_accels_{num_brick_accels},
+      message_count_{0} {
   // The implementation of this class follows
   // https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html
   if (file_descriptor_ < 0) {
@@ -586,9 +587,19 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
               &QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments)
           .get_index();
 
-  this->DeclareVectorOutputPort(
-      "qp_desired_brick_state", systems::BasicVector<double>(num_brick_states_),
-      &QPtoSimUdpReceiverSystem::OutputBrickDesiredState);
+  desired_brick_state_output_port_ =
+      this->DeclareVectorOutputPort(
+              "qp_desired_brick_state",
+              systems::BasicVector<double>(num_brick_states_),
+              &QPtoSimUdpReceiverSystem::OutputBrickDesiredState)
+          .get_index();
+
+  desired_brick_accel_output_port_ =
+      this->DeclareVectorOutputPort(
+              "qp_desired_brick_accel",
+              systems::BasicVector<double>(num_brick_accels_),
+              &QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel)
+          .get_index();
 
   // Compute the udp message size.
   PlanarPlantState plant_state_udp(num_plant_states_);
@@ -600,14 +611,24 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
                       manipuland_des_udp.GetMessageSize();
 }
 
-systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
-    const systems::Context<double>&, systems::State<double>* state) const {
-  std::vector<uint8_t> buffer(udp_message_size_);
+int QPtoSimUdpReceiverSystem::ReceiveUDPmsg(
+    std::vector<uint8_t>* buffer) const {
+  buffer->resize(udp_message_size_);
   struct sockaddr_in remaddr;
   socklen_t addrlen = sizeof(remaddr);
   const int recvlen =
-      recvfrom(file_descriptor_, buffer.data(), buffer.size(), 0,
+      recvfrom(file_descriptor_, buffer->data(), buffer->size(), 0,
                reinterpret_cast<struct sockaddr*>(&remaddr), &addrlen);
+  if (recvlen > 0) {
+    message_count_++;
+  }
+  return recvlen;
+}
+
+systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
+    const systems::Context<double>&, systems::State<double>* state) const {
+  std::vector<uint8_t> buffer(udp_message_size_);
+  const int recvlen = ReceiveUDPmsg(&buffer);
   if (recvlen > 0) {
     // First deserialize the UDP message.
     PlanarPlantState plant_state_udp(num_plant_states_);
@@ -706,7 +727,8 @@ QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
       bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
            sizeof(myaddr));
   if (status < 0) {
-    throw std::runtime_error("Cannot bind the UDP file descriptor.");
+    throw std::runtime_error(
+        "QPControlUdpPublisherSystem: Cannot bind the UDP file descriptor.");
   }
 
   this->DeclareForcedPublishEvent(
@@ -834,20 +856,20 @@ PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
     unsigned long remote_address, double publish_period) {
   systems::DiagramBuilder<double> builder;
 
-  auto qp_to_sim_receiver = builder.AddSystem<QPtoSimUdpReceiverSystem>(
+  qp_to_sim_receiver_ = builder.AddSystem<QPtoSimUdpReceiverSystem>(
       local_port, num_multibody_states, num_fingers, num_brick_states,
       num_brick_accels);
   builder.ExportOutput(
-      qp_to_sim_receiver->get_estimated_plant_state_output_port(),
+      qp_to_sim_receiver_->get_estimated_plant_state_output_port(),
       "qp_estimated_plant_state");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_finger_face_assignments_output_port(),
+      qp_to_sim_receiver_->get_finger_face_assignments_output_port(),
       "qp_finger_face_assignments");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_desired_brick_state_output_port(),
+      qp_to_sim_receiver_->get_desired_brick_state_output_port(),
       "qp_desired_brick_state");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_desired_brick_accel_output_port(),
+      qp_to_sim_receiver_->get_desired_brick_accel_output_port(),
       "qp_desired_brick_accel");
 
   auto qp_control_publisher = builder.AddSystem<QPControlUdpPublisherSystem>(
