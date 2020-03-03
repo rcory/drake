@@ -172,7 +172,7 @@ using multibody::ModelInstanceIndex;
    void set_floor_coef_static_friction(double value) {
      if (is_plant_finalized_) {
        throw std::logic_error(
-           "set_floor_ceof_static_friction must be called before "
+           "set_floor_coef_static_friction must be called before "
            "SetupPlanarBrick() or SetupPinBrick().");
      }
      floor_coef_static_friction_ = value;
@@ -250,8 +250,9 @@ using multibody::ModelInstanceIndex;
      return plant_->num_multibody_states(brick_index_);
    }
 
-   double GetBrickDamping() const;
+   double GetBrickPinJointDamping() const;
    Vector3d GetBrickMoments() const;
+   double GetBrickMass() const;
 
   private:
    void SetupPlant(std::string orientation, std::string brick_file_name);
