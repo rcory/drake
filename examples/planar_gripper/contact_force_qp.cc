@@ -184,13 +184,6 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
                              plant->num_positions() + plant->num_velocities())
           .get_index();
 
-  input_index_desired_brick_state_ =
-      this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 6)
-          .get_index();
-  input_index_desired_brick_acceleration_ =
-      this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 3)
-          .get_index();  // {ay, az, w_x}
-
   // This input port contains an unordered map of Finger to a pair of BrickFace
   // and contact point location. Typically if the finger is not in contact it
   // shouldn't be included in this input map. However, the QP planner will
@@ -206,12 +199,26 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
           .get_index();
 
   if (brick_type == BrickType::PlanarBrick) {
+    input_index_desired_brick_state_ =   // {y, z, theta, ydot, zdot, thetadot}
+        this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 6)
+            .get_index();
+    input_index_desired_brick_acceleration_ =  // {yddot, zddot, thetaddot}
+        this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 3)
+            .get_index();  // {ay, az, w_x}
+
     brick_translate_y_position_index_ =
         plant_->GetJointByName("brick_translate_y_joint")
             .position_start();
     brick_translate_z_position_index_ =
-        plant_->GetJointByName("brick_translate_x_joint")
+        plant_->GetJointByName("brick_translate_z_joint")
             .position_start();
+  } else {  // Pin Brick
+    input_index_desired_brick_state_ =  // {theta, thetadot}
+        this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 2)
+            .get_index();
+    input_index_desired_brick_acceleration_ =  // thetaddot
+        this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 1)
+            .get_index();
   }
   brick_revolute_x_position_index_ =
       plant_->GetJointByName("brick_revolute_x_joint").position_start();
@@ -231,7 +238,7 @@ void InstantaneousContactForceQPController::CalcFingersControl(
   const Eigen::VectorBlock<const VectorX<double>> plant_state =
       get_input_port_estimated_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_state =
-      get_input_port_desired_state().Eval(context);
+      get_input_port_desired_brick_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_acceleration =
       get_input_port_desired_brick_acceleration().Eval(context);
   const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
@@ -247,15 +254,24 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     return;
   }
 
-  const Eigen::Vector2d p_WB_planned = desired_brick_state.head<2>();
-  const Eigen::Vector2d v_WB_planned = desired_brick_state.segment<2>(3);
-  const Eigen::Vector2d a_WB_planned = desired_brick_acceleration.head<2>();
-  const double theta_planned = desired_brick_state(2);
-  const double thetadot_planned = desired_brick_state(5);
-  const double thetaddot_planned = desired_brick_acceleration(2);
+  Eigen::Vector2d p_WB_planned;
+  Eigen::Vector2d v_WB_planned;
+  Eigen::Vector2d a_WB_planned;
+  double theta_planned;
+  double thetadot_planned;
+  double thetaddot_planned;
   Vector6<double> brick_state;
 
+  // TODO(rcory) Use properly defined indices to extract the desired values,
+  //  instead of hard-coding them below.
   if (brick_type_ == BrickType::PlanarBrick) {
+    p_WB_planned = desired_brick_state.head<2>();
+    v_WB_planned = desired_brick_state.segment<2>(3);
+    a_WB_planned = desired_brick_acceleration.head<2>();
+    theta_planned = desired_brick_state(2);
+    thetadot_planned = desired_brick_state(5);
+    thetaddot_planned = desired_brick_acceleration(2);
+
     brick_state << plant_state(brick_translate_y_position_index_),
         plant_state(brick_translate_z_position_index_),
         plant_state(brick_revolute_x_position_index_),
@@ -264,7 +280,14 @@ void InstantaneousContactForceQPController::CalcFingersControl(
         plant_state(plant_->num_positions() +
                     brick_translate_z_position_index_),
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
-  } else {
+  } else {  // brick_type is PinBrick
+    p_WB_planned = Eigen::Vector2d::Zero();
+    v_WB_planned = Eigen::Vector2d::Zero();
+    a_WB_planned = Eigen::Vector2d::Zero();
+    theta_planned = desired_brick_state(0);
+    thetadot_planned = desired_brick_state(1);
+    thetaddot_planned = desired_brick_acceleration(0);
+
     brick_state << 0, 0, plant_state(brick_revolute_x_position_index_), 0, 0,
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }

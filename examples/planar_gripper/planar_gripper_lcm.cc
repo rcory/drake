@@ -649,7 +649,9 @@ void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
                num_fingers);
 }
 
-QPBrickDesiredDecoder::QPBrickDesiredDecoder() {
+QPBrickDesiredDecoder::QPBrickDesiredDecoder(const int num_brick_states,
+                                             const int num_brick_accels)
+    : num_brick_states_(num_brick_states), num_brick_accels_(num_brick_accels) {
   this->DeclareAbstractInputPort("brick_desired_lcm",
                                  Value<lcmt_planar_manipuland_desired>{});
   this->DeclareVectorOutputPort(
@@ -730,7 +732,10 @@ void QPBrickDesiredDecoder::DecodeBrickDesiredAccel(
   output_vec = context.get_discrete_state(brick_accel_index_).get_value();
 }
 
-QPBrickDesiredEncoder::QPBrickDesiredEncoder() {
+QPBrickDesiredEncoder::QPBrickDesiredEncoder(const int num_brick_states,
+                                             const int num_brick_accels)
+    : num_brick_states_(num_brick_states),
+      num_brick_accels_(num_brick_accels) {
   this->DeclareVectorInputPort("qp_desired_brick_state",
                                systems::BasicVector<double>(num_brick_states_));
   this->DeclareVectorInputPort("qp_desired_brick_accel",
@@ -769,7 +774,8 @@ void QPBrickDesiredEncoder::EncodeBrickDesired(
 }
 
 PlanarGripperQPControllerLCM::PlanarGripperQPControllerLCM(
-    const int num_multibody_states, const multibody::BodyIndex brick_index,
+    const int num_multibody_states, const int num_brick_states,
+    const int num_brick_accels, const multibody::BodyIndex brick_index,
     drake::lcm::DrakeLcmInterface* lcm, double publish_period) {
   systems::DiagramBuilder<double> builder;
 
@@ -834,8 +840,8 @@ PlanarGripperQPControllerLCM::PlanarGripperQPControllerLCM(
       builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
                         drake::lcmt_planar_manipuland_desired>(
           "QP_BRICK_DESIRED", lcm, publish_period));
-  auto qp_brick_desired_enc =
-      builder.AddSystem<QPBrickDesiredEncoder>();
+  auto qp_brick_desired_enc = builder.AddSystem<QPBrickDesiredEncoder>(
+      num_brick_states, num_brick_accels);
   builder.Connect(qp_brick_desired_enc->GetOutputPort("brick_desired_lcm"),
                   qp_brick_desired_pub->get_input_port());
   builder.ExportInput(qp_brick_desired_enc->GetInputPort(
@@ -846,8 +852,9 @@ PlanarGripperQPControllerLCM::PlanarGripperQPControllerLCM(
   builder.BuildInto(this);
 }
 
-PlanarGripperSimulationLcm::PlanarGripperSimulationLcm(
-    int num_multibody_states, drake::lcm::DrakeLcmInterface* lcm,
+PlanarGripperSimulationLCM::PlanarGripperSimulationLCM(
+    const int num_multibody_states, const int num_brick_states,
+    const int num_brick_accels, drake::lcm::DrakeLcmInterface* lcm,
     double publish_period) {
   systems::DiagramBuilder<double> builder;
   /*
@@ -883,14 +890,14 @@ PlanarGripperSimulationLcm::PlanarGripperSimulationLcm(
       builder.AddSystem(systems::lcm::LcmSubscriberSystem::Make<
           drake::lcmt_planar_manipuland_desired>(
           "QP_BRICK_DESIRED", lcm));
-  auto qp_brick_desired__dec =
-      builder.AddSystem<QPBrickDesiredDecoder>();
+  auto qp_brick_desired_dec = builder.AddSystem<QPBrickDesiredDecoder>(
+      num_brick_states, num_brick_accels);
   builder.Connect(qp_brick_desired_sub_->get_output_port(),
-                  qp_brick_desired__dec->GetInputPort("brick_desired_lcm"));
-  builder.ExportOutput(qp_brick_desired__dec->GetOutputPort(
+                  qp_brick_desired_dec->GetInputPort("brick_desired_lcm"));
+  builder.ExportOutput(qp_brick_desired_dec->GetOutputPort(
       "qp_desired_brick_state"),
                        "qp_desired_brick_state");
-  builder.ExportOutput(qp_brick_desired__dec->GetOutputPort(
+  builder.ExportOutput(qp_brick_desired_dec->GetOutputPort(
       "qp_desired_brick_accel"),
                        "qp_desired_brick_accel");
 
