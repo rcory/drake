@@ -230,8 +230,24 @@ using multibody::ModelInstanceIndex;
      return plant_->num_positions(gripper_index_);
    }
 
+   int get_num_gripper_velocities() const {
+     return plant_->num_velocities(gripper_index_);
+   }
+
+   int get_num_gripper_states() const {
+     return plant_->num_multibody_states(gripper_index_);
+   }
+
    int get_num_brick_positions() const {
      return plant_->num_positions(brick_index_);
+   }
+
+   int get_num_brick_velocities() const {
+     return plant_->num_velocities(brick_index_);
+   }
+
+   int get_num_brick_states() const {
+     return plant_->num_multibody_states(brick_index_);
    }
 
    double GetBrickDamping() const;
