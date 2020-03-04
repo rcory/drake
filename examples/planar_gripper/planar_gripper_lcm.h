@@ -408,7 +408,7 @@ class QPBrickDesiredDecoder : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickDesiredDecoder)
 
-  QPBrickDesiredDecoder();
+  QPBrickDesiredDecoder(int num_brick_states, int num_brick_accels);
 
  private:
   void OutputBrickDesiredState(
@@ -424,8 +424,8 @@ class QPBrickDesiredDecoder : public systems::LeafSystem<double> {
       const systems::Context<double>& context,
       systems::DiscreteValues<double>* discrete_state) const;
 
-  const int num_brick_states_{6};
-  const int num_brick_accels_{3};
+  const int num_brick_states_;
+  const int num_brick_accels_;
 
   systems::DiscreteStateIndex brick_state_index_{};
   systems::DiscreteStateIndex brick_accel_index_{};
@@ -440,15 +440,15 @@ class QPBrickDesiredEncoder : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPBrickDesiredEncoder)
 
-  QPBrickDesiredEncoder();
+  QPBrickDesiredEncoder(int num_brick_states, int num_brick_accels);
 
  private:
   void EncodeBrickDesired(
       const systems::Context<double>& context,
       lcmt_planar_manipuland_desired* planar_gripper_qp_brick_desired) const;
 
-  const int num_brick_states_{6};
-  const int num_brick_accels_{3};
+  const int num_brick_states_;
+  const int num_brick_accels_;
 };
 
 // A system that subscribes to the QP planer and publishes to the QP planer.
@@ -456,16 +456,19 @@ class PlanarGripperQPControllerLCM : public systems::Diagram<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperQPControllerLCM)
   PlanarGripperQPControllerLCM(const int num_multibody_states,
+                               const int num_brick_states,
+                               const int num_brick_accels,
                                const multibody::BodyIndex brick_index,
                                drake::lcm::DrakeLcmInterface* lcm,
                                double publish_period);
 };
 
 // A system that subscribes to the simulation and publishes to the simulation.
- class PlanarGripperSimulationLcm : public systems::Diagram<double> {
+ class PlanarGripperSimulationLCM : public systems::Diagram<double> {
   public:
-   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationLcm)
-   PlanarGripperSimulationLcm(int num_multibody_states,
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationLCM)
+   PlanarGripperSimulationLCM(int num_multibody_states, int num_brick_states,
+                              int num_brick_accels,
                               drake::lcm::DrakeLcmInterface* lcm,
                               double publish_period);
 
