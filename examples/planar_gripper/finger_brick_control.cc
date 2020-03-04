@@ -724,20 +724,43 @@ void DoConnectGripperQPController(
     std::map<std::string, const InputPort<double>&>& in_ports,
     std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
-  // brick accel planned is 0 (yddot, zddot, thetaddot). Use a constant source.
-  auto brick_acceleration_planned_source =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(
-          Eigen::Vector3d::Zero());
-  builder->Connect(brick_acceleration_planned_source->get_output_port(),
-                   in_ports.at("qp_desired_brick_accel"));
 
-  // Just use a constant target...(y, z, theta, ydot, zdot, thetadot)
-  Eigen::VectorXd des_state_vec(6);
-  des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;;
-  auto brick_state_traj_source =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(des_state_vec);
-  builder->Connect(brick_state_traj_source->get_output_port(),
-                   in_ports.at("qp_desired_brick_state"));
+  systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
+  systems::ConstantVectorSource<double>* brick_state_traj_source;
+
+  if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
+    // brick accel planned is 0 {yddot, zddot, thetaddot}. Use a constant
+    // source.
+    brick_acceleration_planned_source =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(
+            Eigen::Vector3d::Zero());
+    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_accel"));
+
+    // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
+    Eigen::VectorXd des_state_vec(6);
+    des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;;
+    brick_state_traj_source =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(
+            des_state_vec);
+    builder->Connect(brick_state_traj_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_state"));
+  } else {
+    // brick accel planned is 0 {thetaddot}. Use a constant source.
+    brick_acceleration_planned_source =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(
+            Vector1d::Zero());
+    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_accel"));
+
+    // Just use a constant state target...{theta, thetadot}
+    Eigen::Vector2d des_state_vec(qpoptions.thetaf_, 0);
+    brick_state_traj_source =
+        builder->AddSystem<systems::ConstantVectorSource<double>>(
+            des_state_vec);
+    builder->Connect(brick_state_traj_source->get_output_port(),
+                     in_ports.at("qp_desired_brick_state"));
+  }
 
   // Spit out to scope
   systems::lcm::ConnectLcmScope(brick_state_traj_source->get_output_port(),
@@ -1045,6 +1068,8 @@ void ConnectLCMQPController(
   // Adds the LCM QP Controller to the diagram.
   auto qp_controller = builder->AddSystem<PlanarGripperQPControllerLCM>(
       planar_gripper.get_multibody_plant().num_multibody_states(),
+      planar_gripper.get_num_brick_states(),
+      planar_gripper.get_num_brick_velocities(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()), &lcm,
       kGripperLcmPeriod /* publish period */);
 
