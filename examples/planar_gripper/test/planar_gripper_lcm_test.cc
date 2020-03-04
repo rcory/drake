@@ -409,8 +409,10 @@ GTEST_TEST(GripperLcmTest, QPBrickDesiredPassthroughTest) {
   systems::DiagramBuilder<double> builder;
   const int kTestNumBrickStates = 6;
   const int kTestNumBrickAccels = 3;
-  auto encoder = builder.AddSystem<QPBrickDesiredEncoder>();
-  auto decoder = builder.AddSystem<QPBrickDesiredDecoder>();
+  auto encoder = builder.AddSystem<QPBrickDesiredEncoder>(kTestNumBrickStates,
+                                                          kTestNumBrickAccels);
+  auto decoder = builder.AddSystem<QPBrickDesiredDecoder>(kTestNumBrickStates,
+                                                          kTestNumBrickAccels);
   builder.Connect(decoder->GetOutputPort("qp_desired_brick_state"),
                   encoder->GetInputPort("qp_desired_brick_state"));
   builder.Connect(decoder->GetOutputPort("qp_desired_brick_accel"),

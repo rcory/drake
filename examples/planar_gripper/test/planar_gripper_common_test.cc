@@ -13,7 +13,7 @@ namespace planar_gripper {
 
 GTEST_TEST(ReorderKeyframesTest, Test) {
   const int kNumKeyframes = 4;
-  MatrixX<double> keyframes =  MatrixX<double>::Zero(kNumJoints, kNumKeyframes);
+  MatrixX<double> keyframes =  MatrixX<double>::Zero(kNumGripperJoints, kNumKeyframes);
   VectorX<double> unit_row = VectorX<double>::Ones(kNumKeyframes);
 
   // Create an arbitrary keyframe matrix.
@@ -67,7 +67,7 @@ GTEST_TEST(ReorderKeyframesTest, Test) {
 
   // Test throw when keyframe rows and joint name to row map size don't match.
   MatrixX<double> bad_rows_keyframes =  /* adds one extra row */
-      MatrixX<double>::Zero(kNumJoints + 1, kNumKeyframes);
+      MatrixX<double>::Zero(kNumGripperJoints + 1, kNumKeyframes);
   EXPECT_THROW(ReorderKeyframesForPlant(plant, bad_rows_keyframes,
                                         &finger_joint_name_to_row_index_map),
                std::runtime_error);
