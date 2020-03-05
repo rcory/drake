@@ -45,10 +45,10 @@ struct FingerFaceAssignment : public UdpMessage {
 
   uint32_t utime;
 
-  Finger finger;
-  BrickFace brick_face;
+  Finger finger{};
+  BrickFace brick_face{};
 
-  Eigen::Vector2d p_BoBq_B;
+  Eigen::Vector2d p_BoBq_B{};
 
  private:
   virtual int DoGetMessageSize() const final;
@@ -130,15 +130,15 @@ struct PlanarManipulandSpatialForce : public UdpMessage {
       const multibody::ExternallyAppliedSpatialForce<double>& spatial_force);
 
   uint32_t utime;
-  Finger finger;
+  Finger finger{};
   // (y, z) position of point Bq in body frame B.
-  Eigen::Vector2d p_BoBq_B;
+  Eigen::Vector2d p_BoBq_B{};
 
   // (y, z) force applied to body B at point Bq, expressed in the world frame W.
-  Eigen::Vector2d force_Bq_W;
+  Eigen::Vector2d force_Bq_W{};
 
   // torque applied to body B at point Bq, expressed in the world frame W.
-  double torque_Bq_W;
+  double torque_Bq_W{};
 
  private:
   virtual int DoGetMessageSize() const final;
@@ -419,9 +419,10 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
   PlanarGripperQPControllerUDP(int num_multibody_states,
                                multibody::BodyIndex brick_index,
                                int num_fingers, int num_brick_states,
-                               int num_brick_accels, int local_port,
-                               int remote_port, unsigned long remote_address,
-                               double publish_period);
+                               int num_brick_accels, int publisher_local_port,
+                               int publisher_remote_port,
+                               unsigned long publisher_remote_address,
+                               int receiver_local_port, double publish_period);
 };
 
 // A system that subscribes to the simulation and publishes to the simulation.
@@ -431,9 +432,10 @@ class PlanarGripperSimulationUDP : public systems::Diagram<double> {
   PlanarGripperSimulationUDP(int num_multibody_states,
                              multibody::BodyIndex brick_index, int num_fingers,
                              int num_brick_states, int num_brick_accels,
-                             int local_port, int remote_port,
-                             unsigned long remote_address,
-                             double publish_period);
+                             int publisher_local_port,
+                             int publisher_remote_port,
+                             unsigned long publisher_remote_address,
+                             int receiver_local_port, double publish_period);
   const QPtoSimUdpReceiverSystem& qp_to_sim_receiver() const {
     return *qp_to_sim_receiver_;
   }
