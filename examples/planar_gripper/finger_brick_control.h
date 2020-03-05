@@ -268,8 +268,9 @@ void ConnectUDPQPController(
     const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
-    const QPControlOptions& qpoptions, int local_port, int remote_port,
-    unsigned long remote_address, systems::DiagramBuilder<double>* builder);
+    const QPControlOptions& qpoptions, int publisher_local_port,
+    int publisher_remote_port, unsigned long publisher_remote_address,
+    int receiver_local_port, systems::DiagramBuilder<double>* builder);
 
 void AddGripperQPControllerToDiagram(
     const MultibodyPlant<double>& plant,

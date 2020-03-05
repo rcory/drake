@@ -112,10 +112,8 @@ DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 
-DEFINE_bool(
-    use_lcm_QP, false,
-    "Use the LCM QP controller?. If this is false, we instantiate a local QP "
-    "controller system.");
+DEFINE_string(use_QP, "local",
+              "We provide 3 types of QP controller, LCM, UDP or local.");
 DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
 DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
@@ -126,6 +124,19 @@ DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
+
+DEFINE_int32(publisher_local_port, 1103, "local port number for UDP publisher");
+// publisher_remote_port should be the same as the receiver_local_port in
+// run_planar_gripper_qp_udp_controller
+DEFINE_int32(publisher_remote_port, 1102,
+             "remote port number for UDP publisher");
+// I convert the IP address of my computer to unsigned long through
+// https://www.smartconversion.com/unit_conversion/IP_Address_Converter.aspx
+DEFINE_uint64(publisher_remote_address, 0,
+              "remote IP address for UDP publisher.");
+// receiver_local_port should be the same as the publisher_remote_port in
+// run_planar_gripper_qp_udp_controller.
+DEFINE_int32(receiver_local_port, 1100, "local port number for UDP receiver");
 
 /// Note: finger_face_assignments_ should only be used for brick only
 /// simulation. However, currently I (rcory) don't have a good way of computing
@@ -256,12 +267,19 @@ int DoMain() {
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, &qpoptions);
   if (FLAGS_brick_only) {
-    if (FLAGS_use_lcm_QP) {
+    if (FLAGS_use_QP == "LCM") {
       ConnectLCMQPController(*planar_gripper, drake_lcm, std::nullopt,
                              qpoptions, &builder);
-    } else {
+    } else if (FLAGS_use_QP == "UDP") {
+      ConnectUDPQPController(
+          *planar_gripper, drake_lcm, std::nullopt, qpoptions,
+          FLAGS_publisher_local_port, FLAGS_publisher_remote_port,
+          FLAGS_publisher_remote_address, FLAGS_receiver_local_port, &builder);
+    } else if (FLAGS_use_QP == "local") {
       ConnectQPController(*planar_gripper, drake_lcm, std::nullopt, qpoptions,
                           &builder);
+    } else {
+      throw std::runtime_error("use_QP must be either LCM, UDP or local");
     }
   } else {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
@@ -281,12 +299,19 @@ int DoMain() {
             planar_gripper->get_multibody_plant(), finger_force_control_map);
     force_controllers_to_plant->ConnectForceControllersToPlant(*planar_gripper,
                                                                &builder);
-    if (FLAGS_use_lcm_QP) {
+    if (FLAGS_use_QP == "LCM") {
       ConnectLCMQPController(*planar_gripper, drake_lcm,
                              finger_force_control_map, qpoptions, &builder);
-    } else {
+    } else if (FLAGS_use_QP == "UDP") {
+      ConnectUDPQPController(
+          *planar_gripper, drake_lcm, finger_force_control_map, qpoptions,
+          FLAGS_publisher_local_port, FLAGS_publisher_remote_port,
+          FLAGS_publisher_remote_address, FLAGS_receiver_local_port, &builder);
+    } else if (FLAGS_use_QP == "local") {
       ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
                           qpoptions, &builder);
+    } else {
+      throw std::runtime_error("use_QP should be either LCM, UDP or local.");
     }
   }
 

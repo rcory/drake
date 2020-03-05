@@ -1110,8 +1110,9 @@ void ConnectUDPQPController(
     const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
-    const QPControlOptions& qpoptions, int local_port, int remote_port,
-    unsigned long remote_address, systems::DiagramBuilder<double>* builder) {
+    const QPControlOptions& qpoptions, int publisher_local_port,
+    int publisher_remote_port, unsigned long publisher_remote_address,
+    int receiver_local_port, systems::DiagramBuilder<double>* builder) {
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
   const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
@@ -1140,9 +1141,10 @@ void ConnectUDPQPController(
       planar_gripper.get_multibody_plant().num_multibody_states(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()),
       planar_gripper.num_gripper_joints() / 2,
-      planar_gripper.get_num_brick_positions() * 2,
-      planar_gripper.get_num_brick_positions(), local_port, remote_port,
-      remote_address, kGripperUdpStatusPeriod);
+      planar_gripper.get_num_brick_states(),
+      planar_gripper.get_num_brick_velocities(), publisher_local_port,
+      publisher_remote_port, publisher_remote_address, receiver_local_port,
+      kGripperUdpStatusPeriod);
 
   // Get the QP controller ports.
 

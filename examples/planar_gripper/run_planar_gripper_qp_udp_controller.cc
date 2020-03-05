@@ -36,9 +36,15 @@ DEFINE_double(
     "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
 // UDP parameters
-DEFINE_int32(local_port, 1100, "local port number for UDP communication.");
-DEFINE_int32(remote_port, 1101, "remote port number for UDP communication.");
-DEFINE_uint64(remote_address, 0, "remote IP address for UDP communication.");
+DEFINE_int32(publisher_local_port, 1101,
+             "local port number for UDP publisher.");
+DEFINE_int32(publisher_remote_port, 1100,
+             "remote port number for UDP publisher.");
+// I convert the IP address of my computer to unsigned long through
+// https://www.smartconversion.com/unit_conversion/IP_Address_Converter.aspx
+DEFINE_uint64(publisher_remote_address, 0,
+              "remote IP address for UDP publisher.");
+DEFINE_int32(receiver_local_port, 1102, "local port number for UDP receiver.");
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
@@ -140,9 +146,10 @@ int DoMain() {
   const auto udp_sim = builder.AddSystem<PlanarGripperSimulationUDP>(
       plant.num_multibody_states(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()), kNumFingers,
-      planar_gripper.get_num_brick_positions() * 2,
-      planar_gripper.get_num_brick_positions(), FLAGS_local_port,
-      FLAGS_remote_port, FLAGS_remote_address, kGripperUdpStatusPeriod);
+      planar_gripper.get_num_brick_states(),
+      planar_gripper.get_num_brick_velocities(), FLAGS_publisher_local_port,
+      FLAGS_publisher_remote_port, FLAGS_publisher_remote_address,
+      FLAGS_receiver_local_port, kGripperUdpStatusPeriod);
 
   // Connect the LCM/UDP sim outputs to the QP controller inputs.
   builder.Connect(udp_sim->GetOutputPort("qp_estimated_plant_state"),
@@ -166,51 +173,35 @@ int DoMain() {
   systems::Context<double>& diagram_context = simulator.get_mutable_context();
 
   // Make sure we receive one of each message before we begin.
-  auto wait_for_new_message = [udp_sim] {
-    const int orig_count =
-        udp_sim->qp_to_sim_receiver().GetInternalMessageCount();
-    std::vector<uint8_t> buffer;
-    while (udp_sim->qp_to_sim_receiver().GetInternalMessageCount() <=
-           orig_count) {
-      udp_sim->qp_to_sim_receiver().ReceiveUDPmsg(&buffer);
-    }
-  };
-  drake::log()->info("Waiting for initial messages...");
-  wait_for_new_message();
-  drake::log()->info("Received!");
+  //  auto wait_for_new_message = [udp_sim] {
+  //    const int orig_count =
+  //        udp_sim->qp_to_sim_receiver().GetInternalMessageCount();
+  //    while (udp_sim->qp_to_sim_receiver().GetInternalMessageCount() <=
+  //           orig_count) {
+  //      std::vector<uint8_t> buffer;
+  //      udp_sim->qp_to_sim_receiver().ReceiveUDPmsg(&buffer);
+  //    }
+  //  };
+  //  drake::log()->info("Waiting for initial messages...");
+  //  wait_for_new_message();
+  //  drake::log()->info("Received!");
 
   // Force a diagram update, to receive the first messages.
-  systems::State<double>& diagram_state = diagram_context.get_mutable_state();
-  diagram->CalcUnrestrictedUpdate(diagram_context, &diagram_state);
+  // systems::State<double>& diagram_state =
+  // diagram_context.get_mutable_state(); std::cout << "Call unrestricted
+  // update.\n"; diagram->CalcUnrestrictedUpdate(diagram_context,
+  // &diagram_state); std::cout << "Finish unrestricted update.\n";
 
-  // Get the first message and read it's time.
-  const systems::Context<double>& qp_to_sim_receiver_context =
-      diagram->GetSubsystemContext(udp_sim->qp_to_sim_receiver(),
-                                   diagram_context);
-  auto first_msg = udp_sim->qp_to_sim_receiver()
-                       .get_estimated_plant_state_output_port()
-                       .Eval<PlanarPlantState>(qp_to_sim_receiver_context);
-  const double t0 = first_msg.utime * 1e-6;
-  diagram_context.SetTime(t0);
+  diagram_context.SetTime(0);
 
   // Send out the first message.
   diagram->Publish(diagram_context);
 
   drake::log()->info("Running controller...");
   simulator.Initialize();
-  while (true) {
-    double next_msg_time{0};
-    wait_for_new_message();
-    auto next_msg = udp_sim->qp_to_sim_receiver()
-                        .get_estimated_plant_state_output_port()
-                        .Eval<PlanarPlantState>(qp_to_sim_receiver_context);
-    next_msg_time = next_msg.utime * 1e-6;
-
-    simulator.AdvanceTo(next_msg_time);
-    diagram->Publish(diagram_context);
-  }
+  simulator.AdvanceTo(10);
   // We should never reach here.
-  return EXIT_FAILURE;
+  return 0;
 }
 
 }  // namespace
