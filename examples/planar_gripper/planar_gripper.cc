@@ -436,7 +436,7 @@ void PlanarGripper::SetBrickVelocity(
   plant_->SetVelocities(plant_context, &plant_state, brick_index_, v);
 }
 
-double PlanarGripper::GetBrickDamping() const {
+double PlanarGripper::GetBrickPinJointDamping() const {
   std::string joint_name = "brick_revolute_x_joint";
   if (!plant_->HasJointNamed(joint_name)) {
     throw std::logic_error(
@@ -456,6 +456,17 @@ Vector3d PlanarGripper::GetBrickMoments() const {
              plant_->GetFrameByName(frame_name).body())
       .default_rotational_inertia()
       .get_moments();
+}
+
+double PlanarGripper::GetBrickMass() const {
+  std::string frame_name = "brick_link";
+  if (!plant_->HasFrameNamed(frame_name)) {
+    throw std::logic_error(
+        "Frame " + frame_name + " does not exist in the MBP");
+  }
+  return dynamic_cast<const multibody::RigidBody<double>&>(
+             plant_->GetFrameByName("brick_link").body())
+      .default_mass();
 }
 
 }  // namespace planar_gripper
