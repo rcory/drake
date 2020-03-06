@@ -89,7 +89,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
                          QPControlOptions* qpoptions) {
   double brick_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
-    brick_damping = planar_gripper.GetBrickDamping();
+    brick_damping = planar_gripper.GetBrickPinJointDamping();
   }
   // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
   const int kIxx_index = 0;
@@ -106,7 +106,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_mu_ = FLAGS_QP_mu;
   qpoptions->brick_only_ = FLAGS_brick_only;
   qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions->brick_damping_ = brick_damping;
+  qpoptions->brick_rotational_damping_ = brick_damping;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_type_ = BrickType::PinBrick;
   qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();

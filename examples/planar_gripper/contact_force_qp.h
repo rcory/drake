@@ -62,9 +62,10 @@ class InstantaneousContactForceQP {
    * p_BoBq_B), where p_BoBq_B is the y/z location of the contact point Bq,
    * measured from the brick's body origin Bo, expressed in the brick's body
    * frame B.
-   * @param weight_a The weight of the acceleration error in the cost.
+   * @param weight_a_error The weight of the acceleration error in the cost.
+   * This error is made up of a PD term and a FF (planned) term.
    * @param weight_thetaddot_error The weight of the angular acceleration error
-   * in the cost.
+   * in the cost. This error is made up of a PD term and a FF (planned) term.
    * @param weight_f_Cb The weight of the contact force in the cost.
    * @param mu The brick/floor coefficient of static friction (stiction).
    * @param I_B The brick's rotational moment of inertia around its axis of
@@ -84,7 +85,7 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const Vector6<double>>& brick_state,
       const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
           finger_face_assignments,
-      double weight_a, double weight_thetaddot_error, double weight_f_Cb,
+      double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
       double mu, double I_B, double mass_B, double rotational_damping,
       double translational_damping);
 
@@ -127,22 +128,33 @@ class InstantaneousContactForceQPController
 
   /**
    * @param gripper_brick The gripper_brick system.
-   * @param Kp_tr The proportional gain for the brick y/z translational position.
+   * @param Kp_tr The proportional gain for the brick y/z translational
+   * position.
    * @param Kd_tr The derivative gain for the brick y/z translational position.
-   * @param Kp_ro The proportional gain for the brick rotational position (angle).
+   * @param Kp_ro The proportional gain for the brick rotational position
+   * (angle).
    * @param Kd_ro The derivative gain for the brick rotational velocity.
-   * @param weight_a The weighting for the brick y/z acceleration in the cost.
-   * @param weight_thetaddot The weighting for the brick thetaddot in the cost.
+   * @param weight_a_error The weighting for the brick y/z acceleration in the
+   * cost. This error is made up of a PD term and a FF (planned) term.
+   * @param weight_thetaddot_error The weighting for the brick thetaddot in the
+   * cost. This error is made up of a PD term and a FF (planned) term.
    * @param weight_f_Cb_B The weighting for the contact forces in the cost.
+   * @param mu The friction coefficient used to compute friction cones.
+   *        Note: This value is strictly used for modeling the frictional force
+   *        between the fingertip and the brick, and NOT between the brick and
+   *        the floor.
+   * @param translational_damping The translational damping coefficient.
+   * @param rotational_damping The rotational damping coefficient.
+   * @param I_B The rotational inertia of the brick.
+   * @param mass_B The mass of the brick.
    */
   InstantaneousContactForceQPController(
-      BrickType brick_type,
-      const multibody::MultibodyPlant<double>* plant,
+      BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_tr,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro, double Kd_ro,
-      double weight_a, double weight_thetaddot, double weight_f_Cb_B, double mu,
-      double translational_damping, double rotational_damping, double I_B,
-      double mass_B);
+      const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro,
+      double Kd_ro, double weight_a_error, double weight_thetaddot_error,
+      double weight_f_Cb_B, double mu, double translational_damping,
+      double rotational_damping, double I_B, double mass_B);
 
   const systems::InputPort<double>& get_input_port_estimated_plant_state()
       const {
@@ -232,8 +244,8 @@ class InstantaneousContactForceQPController
   Eigen::Matrix2d Kd_tr_;  // Translational derivative QP gain.
   double Kp_ro_;  // Rotational proportional QP gain.
   double Kd_ro_;  // Rotational derivative QP gain.
-  double weight_a_;
-  double weight_thetaddot_;
+  double weight_a_error_;
+  double weight_thetaddot_error_;
   double weight_f_Cb_B_;
   double translational_damping_;
   double rotational_damping_;
