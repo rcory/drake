@@ -1,7 +1,6 @@
 /// @file
 ///
-/// Implements an LCM based finger/brick QP controller.
-// TODO(rcory) This file is still a WIP.
+/// Implements an UDP based finger/brick QP controller.
 
 #include <gflags/gflags.h>
 
@@ -10,14 +9,10 @@
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_udp.h"
-#include "drake/lcm/drake_lcm.h"
-#include "drake/lcmt_planar_plant_state.hpp"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
-#include "drake/systems/lcm/lcm_publisher_system.h"
-#include "drake/systems/lcm/lcm_subscriber_system.h"
 
 namespace drake {
 namespace examples {
@@ -151,7 +146,7 @@ int DoMain() {
       FLAGS_publisher_remote_port, FLAGS_publisher_remote_address,
       FLAGS_receiver_local_port, kGripperUdpStatusPeriod);
 
-  // Connect the LCM/UDP sim outputs to the QP controller inputs.
+  // Connect the UDP sim outputs to the QP controller inputs.
   builder.Connect(udp_sim->GetOutputPort("qp_estimated_plant_state"),
                   in_ports.at("qp_estimated_plant_state"));
   builder.Connect(udp_sim->GetOutputPort("qp_finger_face_assignments"),
@@ -161,7 +156,7 @@ int DoMain() {
   builder.Connect(udp_sim->GetOutputPort("qp_desired_brick_state"),
                   in_ports.at("qp_desired_brick_state"));
 
-  // Connect the QP controller outputs to the LCM sim inputs.
+  // Connect the QP controller outputs to the UDP sim inputs.
   builder.Connect(out_ports.at("qp_fingers_control"),
                   udp_sim->GetInputPort("qp_fingers_control"));
   builder.Connect(out_ports.at("qp_brick_control"),
@@ -172,26 +167,6 @@ int DoMain() {
   systems::Simulator<double> simulator(std::move(owned_diagram));
   systems::Context<double>& diagram_context = simulator.get_mutable_context();
 
-  // Make sure we receive one of each message before we begin.
-  //  auto wait_for_new_message = [udp_sim] {
-  //    const int orig_count =
-  //        udp_sim->qp_to_sim_receiver().GetInternalMessageCount();
-  //    while (udp_sim->qp_to_sim_receiver().GetInternalMessageCount() <=
-  //           orig_count) {
-  //      std::vector<uint8_t> buffer;
-  //      udp_sim->qp_to_sim_receiver().ReceiveUDPmsg(&buffer);
-  //    }
-  //  };
-  //  drake::log()->info("Waiting for initial messages...");
-  //  wait_for_new_message();
-  //  drake::log()->info("Received!");
-
-  // Force a diagram update, to receive the first messages.
-  // systems::State<double>& diagram_state =
-  // diagram_context.get_mutable_state(); std::cout << "Call unrestricted
-  // update.\n"; diagram->CalcUnrestrictedUpdate(diagram_context,
-  // &diagram_state); std::cout << "Finish unrestricted update.\n";
-
   diagram_context.SetTime(0);
 
   // Send out the first message.
@@ -200,7 +175,6 @@ int DoMain() {
   drake::log()->info("Running controller...");
   simulator.Initialize();
   simulator.AdvanceTo(10);
-  // We should never reach here.
   return 0;
 }
 

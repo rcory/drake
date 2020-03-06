@@ -728,7 +728,7 @@ QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
   memset(reinterpret_cast<char*>(&myaddr), 0, sizeof(myaddr));
   myaddr.sin_family = AF_INET;
   myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  myaddr.sin_port = htons(local_port);
+  myaddr.sin_port = htons(local_port_);
   int status =
       bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
            sizeof(myaddr));
