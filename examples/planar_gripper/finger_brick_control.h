@@ -203,6 +203,7 @@ struct QPControlOptions{
   double QP_Kp_ro_{0};  // QP controller rotational Kp gain
   double QP_Kd_ro_{0};  // QP controller rotational Kd gain
   double QP_weight_thetaddot_error_{0};  // thetaddot error weight
+  double QP_weight_acceleration_error_{0};  // tran. acceleration error weight.
   double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight
   double QP_mu_{0};  // QP mu value
 
@@ -210,8 +211,10 @@ struct QPControlOptions{
   double viz_force_scale_{0};  // scale factor for visualizing spatial force arrow.
 
   // Brick specific parameters.
-  double brick_damping_{0};  // brick's pin joint damping.
+  double brick_rotational_damping_{0};  // brick's pin joint damping.
+  double brick_translational_damping_{0};  // brick's translational damping.
   double brick_inertia_{0};  // brick's rotational inertia.
+  double brick_mass_{0};  // brick's mass.
 
   // The brick's finger/contact-face assignments.
   std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
