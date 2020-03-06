@@ -119,6 +119,7 @@ DEFINE_bool(
 DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
 DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
+DEFINE_double(QP_weight_a_error, 1, "translational acceleration error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
@@ -158,13 +159,14 @@ GetFingerFaceAssignments() {
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
                             QPControlOptions* qpoptions) {
-  double brick_damping = 0;
+  double brick_rotational_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
-    brick_damping = planar_gripper.GetBrickDamping();
+    brick_rotational_damping = planar_gripper.GetBrickPinJointDamping();
   }
   // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
   const int kIxx_index = 0;
   double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
+  double brick_mass = planar_gripper.GetBrickMass();
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
@@ -173,12 +175,15 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_Kp_ro_ = FLAGS_QP_Kp_ro;
   qpoptions->QP_Kd_ro_ = FLAGS_QP_Kd_ro;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
+  qpoptions->QP_weight_acceleration_error_ = FLAGS_QP_weight_a_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
   qpoptions->QP_mu_ = FLAGS_QP_mu;
   qpoptions->brick_only_ = FLAGS_brick_only;
   qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions->brick_damping_ = brick_damping;
+  qpoptions->brick_rotational_damping_ = brick_rotational_damping;
+  qpoptions->brick_translational_damping_ = 0;
   qpoptions->brick_inertia_ = brick_inertia;
+  qpoptions->brick_mass_ = brick_mass;
   qpoptions->brick_type_ = BrickType::PinBrick;
   qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
 }
@@ -188,7 +193,7 @@ void GetForceControllerOptions(const PlanarGripper& planar_gripper,
                                ForceControlOptions* foptions) {
   double brick_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
-    brick_damping = planar_gripper.GetBrickDamping();
+    brick_damping = planar_gripper.GetBrickPinJointDamping();
   }
   // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
   const int kIxx_index = 0;
@@ -364,20 +369,6 @@ int DoMain() {
     planar_gripper_context.FixInputPort(
         planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
   }
-
-//  // For debugging only
-//  multibody::ExternallyAppliedSpatialForce<double> spatial_force;
-//  spatial_force.body_index =
-//      GetBrickBodyIndex(planar_gripper->get_multibody_plant());
-//  spatial_force.p_BoBq_B = Eigen::Vector3d(0, 0.05, 0.05);
-//  spatial_force.F_Bq_W = multibody::SpatialForce<double>(
-//      Eigen::Vector3d::Zero(), Eigen::Vector3d(0, -.04*0, 0));
-//  std::vector<multibody::ExternallyAppliedSpatialForce<double>>
-//      spatial_force_vec{spatial_force};
-//  planar_gripper_context.FixInputPort(
-//      planar_gripper->GetInputPort("spatial_force").get_index(),
-//      Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
-//          spatial_force_vec));
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);

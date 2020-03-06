@@ -946,10 +946,13 @@ void AddGripperQPControllerToDiagram(
   double Kp_ro = qpoptions.QP_Kp_ro_;
   double Kd_ro = qpoptions.QP_Kd_ro_;
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
+  double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
   double mu = qpoptions.QP_mu_;
-  double rotational_damping = qpoptions.brick_damping_;
+  double rotational_damping = qpoptions.brick_rotational_damping_;
+  double translational_damping = qpoptions.brick_translational_damping_;
   double I_B = qpoptions.brick_inertia_;
+  double mass_B = qpoptions.brick_mass_;
 
   // TODO(rcory) Remove this once planar brick is fully supported.
   if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
@@ -960,9 +963,9 @@ void AddGripperQPControllerToDiagram(
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
           qpoptions.brick_type_, &plant, zero_2d_mat /* Kp_tr */,
-          zero_2d_mat /* Kd_tr */, Kp_ro, Kd_ro, 0 /* weight_a */,
-          weight_thetaddot_error, weight_f_Cb_B, mu, 0 /* trans_damping */,
-          rotational_damping, I_B, 1 /* mass_B */);
+          zero_2d_mat /* Kd_tr */, Kp_ro, Kd_ro, weight_acceleration_error,
+          weight_thetaddot_error, weight_f_Cb_B, mu, translational_damping,
+          rotational_damping, I_B, mass_B);
 
   // Insert a zero order hold on the output of the controller, so that its
   // output (and hence it's computation of the QP) is only pulled at the

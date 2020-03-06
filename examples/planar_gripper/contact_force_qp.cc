@@ -44,7 +44,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const Eigen::Ref<const Vector6<double>>& brick_state,
     const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
         finger_face_assignments,
-    double weight_a, double weight_thetaddot_error, double weight_f_Cb,
+    double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
     double mu, double I_B, double brick_mass, double rotational_damping,
     double translational_damping)
     : prog_{new solvers::MathematicalProgram()} {
@@ -108,7 +108,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
 
   symbolic::Expression thetaddot = total_torque / I_B;
   if (brick_type == BrickType::PlanarBrick) {
-    prog_->AddQuadraticCost((a_WB - a_WB_des).squaredNorm() * weight_a);
+    prog_->AddQuadraticCost((a_WB - a_WB_des).squaredNorm() * weight_a_error);
   }
   using std::pow;
   prog_->AddQuadraticCost(pow(thetaddot - thetaddot_des, 2) *
@@ -140,13 +140,12 @@ InstantaneousContactForceQP::GetContactForceResult(
 }
 
 InstantaneousContactForceQPController::InstantaneousContactForceQPController(
-    const BrickType brick_type,
-    const multibody::MultibodyPlant<double>* plant,
+    const BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_tr,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro, double Kd_ro,
-    double weight_a, double weight_thetaddot, double weight_f_Cb_B, double mu,
-    double translational_damping, double rotational_damping, double I_B,
-    double mass_B)
+    double weight_a_error, double weight_thetaddot_error, double weight_f_Cb_B,
+    double mu, double translational_damping, double rotational_damping,
+    double I_B, double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
@@ -154,18 +153,23 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       Kd_tr_{Kd_tr},
       Kp_ro_{Kp_ro},
       Kd_ro_{Kd_ro},
-      weight_a_{weight_a},
-      weight_thetaddot_{weight_thetaddot},
+      weight_a_error_{weight_a_error},
+      weight_thetaddot_error_{weight_thetaddot_error},
       weight_f_Cb_B_{weight_f_Cb_B},
       translational_damping_(translational_damping),
       rotational_damping_(rotational_damping),
       mass_B_(mass_B),
       I_B_(I_B) {
+  // TODO(rcory) Check positive definiteness of Kp_tr and Kd_tr
   DRAKE_DEMAND(Kp_ro_ >= 0);
   DRAKE_DEMAND(Kd_ro_ >= 0);
-  DRAKE_DEMAND(weight_a_ >= 0);
-  DRAKE_DEMAND(weight_thetaddot_ >= 0);
+  DRAKE_DEMAND(weight_a_error_ >= 0);
+  DRAKE_DEMAND(weight_thetaddot_error_ >= 0);
   DRAKE_DEMAND(weight_f_Cb_B_ >= 0);
+  DRAKE_DEMAND(translational_damping_ >= 0);
+  DRAKE_DEMAND(rotational_damping_ >= 0);
+  DRAKE_DEMAND(mass_B_ >= 0);
+  DRAKE_DEMAND(I_B_ >= 0);
 
   output_index_fingers_control_ =
       this->DeclareAbstractOutputPort(
@@ -295,9 +299,9 @@ void InstantaneousContactForceQPController::CalcFingersControl(
   InstantaneousContactForceQP qp(
       brick_type_, p_WB_planned, v_WB_planned, a_WB_planned, theta_planned,
       thetadot_planned, thetaddot_planned, Kp_tr_, Kd_tr_, Kp_ro_, Kd_ro_,
-      brick_state, finger_face_assignments, weight_a_, weight_thetaddot_,
-      weight_f_Cb_B_, mu_, I_B_, mass_B_, rotational_damping_,
-      translational_damping_);
+      brick_state, finger_face_assignments, weight_a_error_,
+      weight_thetaddot_error_, weight_f_Cb_B_, mu_, I_B_, mass_B_,
+      rotational_damping_, translational_damping_);
 
   const auto qp_result = solvers::Solve(qp.prog());
   const std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
