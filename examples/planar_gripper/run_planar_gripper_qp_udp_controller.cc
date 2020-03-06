@@ -4,7 +4,6 @@
 
 #include <gflags/gflags.h>
 
-#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/examples/planar_gripper/finger_brick_control.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
@@ -95,7 +94,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
                          QPControlOptions* qpoptions) {
   double brick_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
-    brick_damping = planar_gripper.GetBrickDamping();
+    brick_damping = planar_gripper.GetBrickPinJointDamping();
   }
   // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
   const int kIxx_index = 0;
@@ -112,7 +111,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_mu_ = FLAGS_QP_mu;
   qpoptions->brick_only_ = FLAGS_brick_only;
   qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
-  qpoptions->brick_damping_ = brick_damping;
+  qpoptions->brick_rotational_damping_ = brick_damping;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_type_ = BrickType::PinBrick;
   qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
@@ -139,8 +138,7 @@ int DoMain() {
   AddGripperQPControllerToDiagram(plant, &builder, qpoptions, &in_ports,
                                   &out_ports);
   const auto udp_sim = builder.AddSystem<PlanarGripperSimulationUDP>(
-      plant.num_multibody_states(),
-      GetBrickBodyIndex(planar_gripper.get_multibody_plant()), kNumFingers,
+      plant.num_multibody_states(), kNumFingers,
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(), FLAGS_publisher_local_port,
       FLAGS_publisher_remote_port, FLAGS_publisher_remote_address,
