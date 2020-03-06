@@ -139,8 +139,7 @@ int DoMain() {
   AddGripperQPControllerToDiagram(plant, &builder, qpoptions, &in_ports,
                                   &out_ports);
   const auto udp_sim = builder.AddSystem<PlanarGripperSimulationUDP>(
-      plant.num_multibody_states(),
-      GetBrickBodyIndex(planar_gripper.get_multibody_plant()), kNumFingers,
+      plant.num_multibody_states(), kNumFingers,
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(), FLAGS_publisher_local_port,
       FLAGS_publisher_remote_port, FLAGS_publisher_remote_address,

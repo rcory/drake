@@ -716,14 +716,12 @@ void QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel(
 
 QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
     double publish_period, int local_port, int remote_port,
-    unsigned long remote_address, int num_fingers,
-    multibody::BodyIndex brick_body_index)
+    unsigned long remote_address, int num_fingers)
     : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
       local_port_{local_port},
       remote_port_{remote_port},
       remote_address_{remote_address},
-      num_fingers_{num_fingers},
-      brick_body_index_{brick_body_index} {
+      num_fingers_{num_fingers} {
   struct sockaddr_in myaddr;
   memset(reinterpret_cast<char*>(&myaddr), 0, sizeof(myaddr));
   myaddr.sin_family = AF_INET;
@@ -859,10 +857,10 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
 }
 
 PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
-    int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
-    int num_brick_states, int num_brick_accels, int publisher_local_port,
-    int publisher_remote_port, unsigned long publisher_remote_address,
-    int receiver_local_port, double publish_period) {
+    int num_multibody_states, int num_fingers, int num_brick_states,
+    int num_brick_accels, int publisher_local_port, int publisher_remote_port,
+    unsigned long publisher_remote_address, int receiver_local_port,
+    double publish_period) {
   systems::DiagramBuilder<double> builder;
 
   qp_to_sim_receiver_ = builder.AddSystem<QPtoSimUdpReceiverSystem>(
@@ -883,7 +881,7 @@ PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
 
   auto qp_control_publisher = builder.AddSystem<QPControlUdpPublisherSystem>(
       publish_period, publisher_local_port, publisher_remote_port,
-      publisher_remote_address, num_fingers, brick_index);
+      publisher_remote_address, num_fingers);
   builder.ExportInput(qp_control_publisher->get_qp_fingers_control_input_port(),
                       "qp_fingers_control");
   builder.ExportInput(qp_control_publisher->get_qp_brick_control_input_port(),

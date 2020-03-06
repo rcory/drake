@@ -384,8 +384,7 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
 
   QPControlUdpPublisherSystem(double publish_period, int local_port,
                               int remote_port, unsigned long remote_address,
-                              int num_fingers,
-                              multibody::BodyIndex brick_body_index);
+                              int num_fingers);
   ~QPControlUdpPublisherSystem() {}
 
   const systems::InputPort<double>& get_qp_fingers_control_input_port() const {
@@ -406,7 +405,6 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
   int remote_port_{};
   unsigned long remote_address_{};
   int num_fingers_;
-  multibody::BodyIndex brick_body_index_;
 
   systems::InputPortIndex qp_fingers_control_input_port_;
   systems::InputPortIndex qp_brick_control_input_port_;
@@ -429,8 +427,7 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
 class PlanarGripperSimulationUDP : public systems::Diagram<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationUDP)
-  PlanarGripperSimulationUDP(int num_multibody_states,
-                             multibody::BodyIndex brick_index, int num_fingers,
+  PlanarGripperSimulationUDP(int num_multibody_states, int num_fingers,
                              int num_brick_states, int num_brick_accels,
                              int publisher_local_port,
                              int publisher_remote_port,
