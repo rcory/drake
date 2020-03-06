@@ -152,8 +152,8 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
-    name = "run_planar_gripper_qp_controller",
-    srcs = ["run_planar_gripper_qp_controller.cc"],
+    name = "run_planar_gripper_qp_lcm_controller",
+    srcs = ["run_planar_gripper_qp_lcm_controller.cc"],
     deps = [
         ":finger_brick_control",
         ":planar_gripper",
@@ -174,12 +174,9 @@ drake_cc_binary(
         ":finger_brick_control",
         ":planar_gripper",
         ":planar_gripper_common",
-        ":planar_gripper_lcm",
         ":planar_gripper_udp",
-        "//lcm",
         "//lcmtypes:planar_gripper_qp",
         "//systems/analysis:simulator",
-        "//systems/lcm:lcm_pubsub_system",
         "@gflags",
     ],
 )

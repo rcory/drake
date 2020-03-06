@@ -259,6 +259,14 @@ void ConnectLCMQPController(
 /// @param finger_force_control_map An optional, that maps Fingers to
 ///        ForceController objects. For a brick only simulation, this optional
 ///        is nullopt.
+/// @param publisher_local_port The local port of the UDP publisher for
+///        publishing QP controller output.
+/// @param publisher_remote_port The remote port for receiving the UDP message
+///        published by the QP controller.
+/// @param publisher_remote_address The unsiged long version of the IP address
+///        for receiving the UDP message published by the QP controller.
+/// @param receiver_local_port The local port for receiving the UDP message to
+///        be used by the QP controller (like the plant state UDP message.)
 /// @param builder A pointer to the diagram builder to which the QP controller
 ///        will be added.
 void ConnectUDPQPController(

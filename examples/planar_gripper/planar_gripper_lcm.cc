@@ -420,17 +420,6 @@ systems::EventStatus QPFingersControlDecoder::UpdateAbstractState(
                                  applied_spatial_force);
     }
   }
-  if (qp_fingers_control.empty()) {
-    std::cout << "empty qp finger control\n";
-  }
-  for (const auto& qp_finger_control : qp_fingers_control) {
-    std::cout << to_string(qp_finger_control.first) << " body "
-              << qp_finger_control.second.body_index << " "
-              << qp_finger_control.second.p_BoBq_B.transpose() << " "
-              << qp_finger_control.second.F_Bq_W.rotational().transpose() << " "
-              << qp_finger_control.second.F_Bq_W.translational().transpose()
-              << "\n";
-  }
   return systems::EventStatus::Succeeded();
 }
 
@@ -522,7 +511,6 @@ systems::EventStatus QPEstimatedStateDecoder::UpdateDiscreteState(
               planar_plant_state_lcm.plant_state.data() + num_plant_states_,
               plant_state.data());
   }
-  std::cout << "plant state: " << plant_state.transpose() << "\n";
   return systems::EventStatus::Succeeded();
 }
 
@@ -603,14 +591,6 @@ systems::EventStatus QPFingerFaceAssignmentsDecoder::UpdateAbstractState(
       p_BoBq_B(0) = assignment_lcm.p_BoBq_B[0];
       p_BoBq_B(1) = assignment_lcm.p_BoBq_B[1];
       assignments.emplace(finger, std::make_pair(brick_face, p_BoBq_B));
-    }
-    if (assignments.empty()) {
-      std::cout << "empty finger face assignment\n";
-    }
-    for (const auto& assignment : assignments) {
-      std::cout << to_string(assignment.first) << " in contact with"
-                << to_string(assignment.second.first) << " at "
-                << assignment.second.second.transpose() << "\n";
     }
   }
   return systems::EventStatus::Succeeded();
@@ -733,8 +713,6 @@ systems::EventStatus QPBrickDesiredDecoder::UpdateDiscreteState(
               brick_desired_lcm.desired_accel.data() + num_brick_accels_,
               brick_accel.data());
   }
-  std::cout << "brick_desired_state " << brick_state.transpose() << "\n";
-  std::cout << "brick_desired_accel " << brick_accel.transpose() << "\n";
   return systems::EventStatus::Succeeded();
 }
 

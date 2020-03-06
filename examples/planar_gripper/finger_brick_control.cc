@@ -1132,7 +1132,7 @@ void ConnectUDPQPController(
   in_ports.insert(std::pair<std::string, const InputPort<double>&>(
       "plant_spatial_force", planar_gripper.GetInputPort("spatial_force")));
 
-  // Adds the LCM QP Controller to the diagram.
+  // Adds the UDP QP Controller to the diagram.
 
   auto qp_controller = builder->AddSystem<PlanarGripperQPControllerUDP>(
       planar_gripper.get_multibody_plant().num_multibody_states(),
@@ -1166,7 +1166,7 @@ void ConnectUDPQPController(
       "qp_desired_brick_state",
       qp_controller->GetInputPort("qp_desired_brick_state")));
 
-  // Connects the LCM QP controller.
+  // Connects the UDP QP controller.
   DoConnectGripperQPController(plant, scene_graph, lcm,
                                finger_force_control_map, brick_index, qpoptions,
                                in_ports, out_ports, builder);

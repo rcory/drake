@@ -5,19 +5,18 @@
 
 #include <gflags/gflags.h>
 
+#include "drake/examples/planar_gripper/finger_brick_control.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
-#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/lcmt_planar_plant_state.hpp"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
-#include "drake/examples/planar_gripper/finger_brick_control.h"
-#include "drake/lcmt_planar_plant_state.hpp"
 
 namespace drake {
 namespace examples {
@@ -35,7 +34,6 @@ DEFINE_double(
     zc, 0,
     "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
-
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
@@ -46,7 +44,7 @@ DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
 DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
-DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
+DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
 
 // Define which fingers are used for the brick rotation.
@@ -77,7 +75,6 @@ GetFingerFaceAssignments() {
     finger_face_assignments.emplace(
         Finger::kFinger2,
         std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
-
   }
   if (FLAGS_use_finger3) {
     finger_face_assignments.emplace(
@@ -115,7 +112,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 }
 
 int DoMain() {
-//  lcm::DrakeLcm lcm;
+  //  lcm::DrakeLcm lcm;
   systems::DiagramBuilder<double> builder;
   systems::lcm::LcmInterfaceSystem* lcm =
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
@@ -124,7 +121,6 @@ int DoMain() {
   planar_gripper.SetupPinBrick("vertical");
   planar_gripper.zero_gravity(true);
   planar_gripper.Finalize();
-
 
   // Create a std::map to hold all input/output ports.
   std::map<std::string, const OutputPort<double>&> out_ports;
@@ -182,11 +178,12 @@ int DoMain() {
 
   // Get the first message and read it's time.
   const systems::Context<double>& est_plant_state_sub_context =
-      diagram->GetSubsystemContext(
-          lcm_sim->get_estimated_plant_state_sub(), diagram_context);
-  auto first_msg = lcm_sim->get_estimated_plant_state_sub()
-      .get_output_port()
-      .Eval<lcmt_planar_plant_state>(est_plant_state_sub_context);
+      diagram->GetSubsystemContext(lcm_sim->get_estimated_plant_state_sub(),
+                                   diagram_context);
+  auto first_msg =
+      lcm_sim->get_estimated_plant_state_sub()
+          .get_output_port()
+          .Eval<lcmt_planar_plant_state>(est_plant_state_sub_context);
 
   const double t0 = first_msg.utime * 1e-6;
   diagram_context.SetTime(t0);
@@ -202,9 +199,10 @@ int DoMain() {
     wait_for_new_message(lcm_sim->get_brick_desired_sub());
 
     // Grab the next message.
-    auto next_msg = lcm_sim->get_estimated_plant_state_sub()
-        .get_output_port()
-        .Eval<lcmt_planar_plant_state>(est_plant_state_sub_context);
+    auto next_msg =
+        lcm_sim->get_estimated_plant_state_sub()
+            .get_output_port()
+            .Eval<lcmt_planar_plant_state>(est_plant_state_sub_context);
 
     simulator.AdvanceTo(next_msg.utime * 1e-6);
     diagram->Publish(diagram_context);
