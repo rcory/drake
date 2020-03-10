@@ -45,10 +45,10 @@ struct FingerFaceAssignment : public UdpMessage {
 
   uint32_t utime;
 
-  Finger finger;
-  BrickFace brick_face;
+  Finger finger{};
+  BrickFace brick_face{};
 
-  Eigen::Vector2d p_BoBq_B;
+  Eigen::Vector2d p_BoBq_B{};
 
  private:
   virtual int DoGetMessageSize() const final;
@@ -130,15 +130,15 @@ struct PlanarManipulandSpatialForce : public UdpMessage {
       const multibody::ExternallyAppliedSpatialForce<double>& spatial_force);
 
   uint32_t utime;
-  Finger finger;
+  Finger finger{};
   // (y, z) position of point Bq in body frame B.
-  Eigen::Vector2d p_BoBq_B;
+  Eigen::Vector2d p_BoBq_B{};
 
   // (y, z) force applied to body B at point Bq, expressed in the world frame W.
-  Eigen::Vector2d force_Bq_W;
+  Eigen::Vector2d force_Bq_W{};
 
   // torque applied to body B at point Bq, expressed in the world frame W.
-  double torque_Bq_W;
+  double torque_Bq_W{};
 
  private:
   virtual int DoGetMessageSize() const final;
@@ -211,7 +211,7 @@ class SimToQPUdpPublisherSystem : public systems::LeafSystem<double> {
                             int num_plant_states, int num_fingers,
                             int num_brick_states, int num_brick_accels);
 
-  ~SimToQPUdpPublisherSystem();
+  ~SimToQPUdpPublisherSystem() {}
 
   const systems::InputPort<double>& get_plant_state_input_port() const {
     return this->get_input_port(plant_state_input_port_);
@@ -262,7 +262,7 @@ class QPControlUdpReceiverSystem : public systems::LeafSystem<double> {
 
   QPControlUdpReceiverSystem(int local_port, int num_fingers,
                              multibody::BodyIndex brick_body_index);
-  ~QPControlUdpReceiverSystem();
+  ~QPControlUdpReceiverSystem() {}
 
   const systems::OutputPort<double>& get_qp_fingers_control_output_port()
       const {
@@ -311,6 +311,8 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
                            int num_brick_accels);
   ~QPtoSimUdpReceiverSystem() {}
 
+  int GetInternalMessageCount() const { return message_count_; }
+
   const systems::OutputPort<double>& get_estimated_plant_state_output_port()
       const {
     return this->get_output_port(plant_state_output_port_);
@@ -330,6 +332,8 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
       const {
     return this->get_output_port(desired_brick_accel_output_port_);
   }
+
+  int ReceiveUDPmsg(std::vector<uint8_t>* buffer) const;
 
  private:
   systems::EventStatus UpdateState(const systems::Context<double>& context,
@@ -366,6 +370,8 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
   systems::OutputPortIndex finger_face_assignments_output_port_;
   systems::OutputPortIndex desired_brick_state_output_port_;
   systems::OutputPortIndex desired_brick_accel_output_port_;
+
+  mutable int message_count_;
 };
 
 /**
@@ -378,9 +384,8 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
 
   QPControlUdpPublisherSystem(double publish_period, int local_port,
                               int remote_port, unsigned long remote_address,
-                              int num_fingers,
-                              multibody::BodyIndex brick_body_index);
-  ~QPControlUdpPublisherSystem();
+                              int num_fingers);
+  ~QPControlUdpPublisherSystem() {}
 
   const systems::InputPort<double>& get_qp_fingers_control_input_port() const {
     return this->get_input_port(qp_fingers_control_input_port_);
@@ -400,7 +405,6 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
   int remote_port_{};
   unsigned long remote_address_{};
   int num_fingers_;
-  multibody::BodyIndex brick_body_index_;
 
   systems::InputPortIndex qp_fingers_control_input_port_;
   systems::InputPortIndex qp_brick_control_input_port_;
@@ -413,21 +417,28 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
   PlanarGripperQPControllerUDP(int num_multibody_states,
                                multibody::BodyIndex brick_index,
                                int num_fingers, int num_brick_states,
-                               int num_brick_accels, int local_port,
-                               int remote_port, unsigned long remote_address,
-                               double publish_period);
+                               int num_brick_accels, int publisher_local_port,
+                               int publisher_remote_port,
+                               unsigned long publisher_remote_address,
+                               int receiver_local_port, double publish_period);
 };
 
 // A system that subscribes to the simulation and publishes to the simulation.
 class PlanarGripperSimulationUDP : public systems::Diagram<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationUDP)
-  PlanarGripperSimulationUDP(int num_multibody_states,
-                             multibody::BodyIndex brick_index, int num_fingers,
+  PlanarGripperSimulationUDP(int num_multibody_states, int num_fingers,
                              int num_brick_states, int num_brick_accels,
-                             int local_port, int remote_port,
-                             unsigned long remote_address,
-                             double publish_period);
+                             int publisher_local_port,
+                             int publisher_remote_port,
+                             unsigned long publisher_remote_address,
+                             int receiver_local_port, double publish_period);
+  const QPtoSimUdpReceiverSystem& qp_to_sim_receiver() const {
+    return *qp_to_sim_receiver_;
+  }
+
+ private:
+  QPtoSimUdpReceiverSystem* qp_to_sim_receiver_;
 };
 }  // namespace planar_gripper
 }  // namespace examples
