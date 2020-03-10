@@ -1,42 +1,50 @@
 #pragma once
 
-#include "drake/multibody/plant/multibody_plant.h"
-#include "drake/lcm/drake_lcm.h"
-#include "drake/systems/lcm/lcm_interface_system.h"
+#include <map>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+
+#include "drake/examples/planar_gripper/contact_force_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
-#include "drake/examples/planar_gripper/contact_force_qp.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
 
 namespace drake {
 namespace examples {
 namespace planar_gripper {
 
-using lcm::DrakeLcm;
 using geometry::SceneGraph;
-using multibody::MultibodyPlant;
+using lcm::DrakeLcm;
 using multibody::ModelInstanceIndex;
-using systems::InputPortIndex;
+using multibody::MultibodyPlant;
 using systems::InputPort;
-using systems::OutputPortIndex;
+using systems::InputPortIndex;
 using systems::OutputPort;
+using systems::OutputPortIndex;
 
-struct ForceControlOptions{
+struct ForceControlOptions {
   double kpf_t_{0};  // Tangential proportional force gain (in brick frame)
   double kpf_n_{0};  // Normal proportional force gain (in brick frame)
   double kif_t_{0};  // Tangential integral force gain (in brick frame)
   double kif_n_{0};  // Normal integral force gain (in brick frame)
-  double kp_t_{0};  // Tangential position gain (in brick frame)
-  double kd_t_{0};  // Tangential derivative gain (in brick frame)
-  double kp_n_{0};  // Normal position gain (in brick frame)
-  double kd_n_{0};  // Normal derivative gain (in brick frame)
+  double kp_t_{0};   // Tangential position gain (in brick frame)
+  double kd_t_{0};   // Tangential derivative gain (in brick frame)
+  double kp_n_{0};   // Normal position gain (in brick frame)
+  double kd_n_{0};   // Normal derivative gain (in brick frame)
   Eigen::Matrix2d Kd_joint_{
       Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
-  double K_compliance_{0};  // impedance control stiffness
-  double D_damping_{0};  // impedance control damping
-  double brick_damping_{0};  // brick pin joint damping
-  double brick_inertia_{0};  // brick's rotational inertia
-  bool always_direct_force_control_{true};  // false for impedance control during non-contact
-  Finger finger_to_control_{Finger::kFinger1};  // specifies which finger to control.
+  double K_compliance_{0};       // impedance control stiffness
+  double D_damping_{0};          // impedance control damping
+  double brick_damping_{0};      // brick pin joint damping
+  double brick_inertia_{0};      // brick's rotational inertia
+  bool always_direct_force_control_{
+      true};  // false for impedance control during non-contact
+  Finger finger_to_control_{
+      Finger::kFinger1};  // specifies which finger to control.
 
   // TODO(rcory) Compute this on the fly instead.
   BrickFace brick_face_;
@@ -94,9 +102,7 @@ class ForceController : public systems::LeafSystem<double> {
                   const SceneGraph<double>& scene_graph,
                   ForceControlOptions options);
 
-  ForceControlOptions get_options() const {
-    return options_;
-  }
+  ForceControlOptions get_options() const { return options_; }
 
   const InputPort<double>& get_force_desired_input_port() const {
     return this->get_input_port(force_desired_input_port_);
@@ -187,7 +193,7 @@ class ForceController : public systems::LeafSystem<double> {
   ForceControlOptions options_;
 };
 
-struct QPControlOptions{
+struct QPControlOptions {
   double T_{0};  // time horizon
 
   // The QP planner's timestep (enforced by a ZOH). This works in two ways:
@@ -200,21 +206,22 @@ struct QPControlOptions{
   double theta0_{0};  // initial rotation angle (rad)
   double thetaf_{0};  // final rotation angle (rad)
 
-  double QP_Kp_ro_{0};  // QP controller rotational Kp gain
-  double QP_Kd_ro_{0};  // QP controller rotational Kd gain
-  double QP_weight_thetaddot_error_{0};  // thetaddot error weight
+  double QP_Kp_ro_{0};                      // QP controller rotational Kp gain
+  double QP_Kd_ro_{0};                      // QP controller rotational Kd gain
+  double QP_weight_thetaddot_error_{0};     // thetaddot error weight
   double QP_weight_acceleration_error_{0};  // tran. acceleration error weight.
   double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight
-  double QP_mu_{0};  // QP mu value
+  double QP_mu_{0};             // QP mu value
 
   bool brick_only_{false};  // only control brick (no finger)
-  double viz_force_scale_{0};  // scale factor for visualizing spatial force arrow.
+  double viz_force_scale_{
+      0};  // scale factor for visualizing spatial force arrow.
 
   // Brick specific parameters.
-  double brick_rotational_damping_{0};  // brick's pin joint damping.
+  double brick_rotational_damping_{0};     // brick's pin joint damping.
   double brick_translational_damping_{0};  // brick's translational damping.
-  double brick_inertia_{0};  // brick's rotational inertia.
-  double brick_mass_{0};  // brick's mass.
+  double brick_inertia_{0};                // brick's rotational inertia.
+  double brick_mass_{0};                   // brick's mass.
 
   // The brick's finger/contact-face assignments.
   std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
@@ -234,7 +241,7 @@ struct QPControlOptions{
 /// @param builder A pointer to the diagram builder to which the QP controller
 ///        will be added.
 void ConnectQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const QPControlOptions qpoptions, systems::DiagramBuilder<double>* builder);
@@ -250,10 +257,11 @@ void ConnectQPController(
 /// @param builder A pointer to the diagram builder to which the QP controller
 ///        will be added.
 void ConnectLCMQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
-    const QPControlOptions& qpoptions, systems::DiagramBuilder<double>* builder);
+    const QPControlOptions& qpoptions,
+    systems::DiagramBuilder<double>* builder);
 
 /// Connects a UDP QP controller to a planar_gripper/brick simulation.
 /// @param planar_gripper The planar gripper diagram.
@@ -273,11 +281,11 @@ void ConnectLCMQPController(
 /// @param builder A pointer to the diagram builder to which the QP controller
 ///        will be added.
 void ConnectUDPQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const QPControlOptions& qpoptions, int publisher_local_port,
-    int publisher_remote_port, unsigned long publisher_remote_address,
+    int publisher_remote_port, uint32_t publisher_remote_address,
     int receiver_local_port, systems::DiagramBuilder<double>* builder);
 
 void AddGripperQPControllerToDiagram(
@@ -287,7 +295,7 @@ void AddGripperQPControllerToDiagram(
     std::map<std::string, const OutputPort<double>&>* out_ports);
 
 ForceController* SetupForceController(const PlanarGripper& planar_gripper,
-                                      DrakeLcm& lcm,
+                                      DrakeLcm* lcm,
                                       const ForceControlOptions& foptions,
                                       systems::DiagramBuilder<double>* builder);
 
@@ -319,7 +327,7 @@ class FingerToPlantActuationMap : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingerToPlantActuationMap);
   FingerToPlantActuationMap(const MultibodyPlant<double>& plant,
-                             const Finger finger);
+                            const Finger finger);
 
   void CalcOutput(const drake::systems::Context<double>& context,
                   drake::systems::BasicVector<double>* output) const;

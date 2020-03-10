@@ -6,6 +6,10 @@
 
 #include <netinet/in.h>
 
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -51,11 +55,11 @@ struct FingerFaceAssignment : public UdpMessage {
   Eigen::Vector2d p_BoBq_B{};
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const FingerFaceAssignment& f1, const FingerFaceAssignment& f2);
@@ -63,7 +67,7 @@ bool operator==(const FingerFaceAssignment& f1, const FingerFaceAssignment& f2);
 struct FingerFaceAssignments : public UdpMessage {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FingerFaceAssignments)
 
-  FingerFaceAssignments(int m_num_fingers)
+  explicit FingerFaceAssignments(int m_num_fingers)
       : num_fingers{static_cast<uint32_t>(m_num_fingers)},
         finger_face_assignments(m_num_fingers),
         in_contact(m_num_fingers, false) {}
@@ -79,11 +83,11 @@ struct FingerFaceAssignments : public UdpMessage {
   std::vector<bool> in_contact;
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const FingerFaceAssignments& f1,
@@ -106,11 +110,11 @@ struct PlanarManipulandDesired : public UdpMessage {
   Eigen::VectorXd desired_accel;
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const PlanarManipulandDesired& f1,
@@ -141,11 +145,11 @@ struct PlanarManipulandSpatialForce : public UdpMessage {
   double torque_Bq_W{};
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const PlanarManipulandSpatialForce& f1,
@@ -154,7 +158,7 @@ bool operator==(const PlanarManipulandSpatialForce& f1,
 struct PlanarManipulandSpatialForces : public UdpMessage {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PlanarManipulandSpatialForces)
 
-  PlanarManipulandSpatialForces(int m_num_forces);
+  explicit PlanarManipulandSpatialForces(int m_num_forces);
 
   PlanarManipulandSpatialForces();
 
@@ -167,11 +171,11 @@ struct PlanarManipulandSpatialForces : public UdpMessage {
   std::vector<bool> in_contact;
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const PlanarManipulandSpatialForces& f1,
@@ -180,7 +184,7 @@ bool operator==(const PlanarManipulandSpatialForces& f1,
 struct PlanarPlantState : public UdpMessage {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PlanarPlantState)
 
-  PlanarPlantState(int m_num_states);
+  explicit PlanarPlantState(int m_num_states);
 
   PlanarPlantState();
 
@@ -191,11 +195,11 @@ struct PlanarPlantState : public UdpMessage {
   Eigen::VectorXd plant_state;
 
  private:
-  virtual int DoGetMessageSize() const final;
+  int DoGetMessageSize() const final;
 
-  virtual void DoDeserialize(const uint8_t* msg) final;
+  void DoDeserialize(const uint8_t* msg) final;
 
-  virtual void DoSerialize(uint8_t* msg) const final;
+  void DoSerialize(uint8_t* msg) const final;
 };
 
 bool operator==(const PlanarPlantState& f1, const PlanarPlantState& f2);
@@ -207,7 +211,7 @@ bool operator==(const PlanarPlantState& f1, const PlanarPlantState& f2);
 class SimToQPUdpPublisherSystem : public systems::LeafSystem<double> {
  public:
   SimToQPUdpPublisherSystem(double publish_period, int local_port,
-                            int remote_port, unsigned long remote_address,
+                            int remote_port, uint32_t remote_address,
                             int num_plant_states, int num_fingers,
                             int num_brick_states, int num_brick_accels);
 
@@ -238,7 +242,7 @@ class SimToQPUdpPublisherSystem : public systems::LeafSystem<double> {
 
   int file_descriptor_{};
   int remote_port_{};
-  unsigned long remote_address_{};
+  uint32_t remote_address_{};
 
   int num_plant_states_;
   int num_fingers_;
@@ -383,7 +387,7 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPControlUdpPublisherSystem)
 
   QPControlUdpPublisherSystem(double publish_period, int local_port,
-                              int remote_port, unsigned long remote_address,
+                              int remote_port, uint32_t remote_address,
                               int num_fingers);
   ~QPControlUdpPublisherSystem() {}
 
@@ -403,7 +407,7 @@ class QPControlUdpPublisherSystem : public systems::LeafSystem<double> {
   int file_descriptor_{};
   int local_port_{};
   int remote_port_{};
-  unsigned long remote_address_{};
+  uint32_t remote_address_{};
   int num_fingers_;
 
   systems::InputPortIndex qp_fingers_control_input_port_;
@@ -419,7 +423,7 @@ class PlanarGripperQPControllerUDP : public systems::Diagram<double> {
                                int num_fingers, int num_brick_states,
                                int num_brick_accels, int publisher_local_port,
                                int publisher_remote_port,
-                               unsigned long publisher_remote_address,
+                               uint32_t publisher_remote_address,
                                int receiver_local_port, double publish_period);
 };
 
@@ -431,7 +435,7 @@ class PlanarGripperSimulationUDP : public systems::Diagram<double> {
                              int num_brick_states, int num_brick_accels,
                              int publisher_local_port,
                              int publisher_remote_port,
-                             unsigned long publisher_remote_address,
+                             uint32_t publisher_remote_address,
                              int receiver_local_port, double publish_period);
   const QPtoSimUdpReceiverSystem& qp_to_sim_receiver() const {
     return *qp_to_sim_receiver_;
