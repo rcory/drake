@@ -1,0 +1,17 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ planar_finger_brick_rotate_lcm ]
+  pull_request:
+    branches: [ planar_finger_brick_rotate_lcm ]
+
+jobs:
+  build:
+
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: build
+      run: bazel test //...
