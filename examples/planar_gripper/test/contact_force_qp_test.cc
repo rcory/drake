@@ -5,7 +5,6 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/find_resource.h"
-#include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
@@ -19,6 +18,96 @@ namespace examples {
 namespace planar_gripper {
 const double kInf = std::numeric_limits<double>::infinity();
 
+// TODO(rcory) Convert this test to use a PlanarGripper diagram instead of an
+//  individually constructed single finger.
+//  Note: The following utility methods will be removed once this unit
+//  test is updated to use a PlanarGripper diagram.
+
+// Welds a single finger to the MultibodyPlant.
+template <typename T>
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
+  // The finger base link is welded a fixed distance from the world
+  // origin, on the Y-Z plane.
+  const double kGripperOriginToBaseDistance = 0.19;
+  const double kFinger1Angle = 0;
+
+  // Note: Before welding and with the finger joint angles being zero, the
+  // finger base link sits at the world origin with the finger pointing along
+  // the world -Z axis.
+
+  // We align the planar gripper coordinate frame G with the world frame W.
+  const math::RigidTransformd X_WG = math::RigidTransformd::Identity();
+
+  // Weld the first finger. Finger base links are arranged equidistant along the
+  // perimeter of a circle. The first finger is welded kFinger1Angle radians
+  // from the +Gz-axis. Frames F1, F2, F3 correspond to the base link finger
+  // frames.
+  math::RigidTransformd X_GF1 =
+      math::RigidTransformd(
+          Eigen::AngleAxisd(kFinger1Angle, Eigen::Vector3d::UnitX()),
+          Eigen::Vector3d(0, 0, 0)) *
+          math::RigidTransformd(
+              math::RotationMatrixd(),
+              Eigen::Vector3d(0, 0, kGripperOriginToBaseDistance));
+  const multibody::Frame<T>& finger1_base_frame =
+      plant->GetFrameByName("finger1_base");
+  plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_WG * X_GF1);
+}
+
+geometry::GeometryId GetFingerTipGeometryId(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger) {
+  std::string fnum = to_string(finger);
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::GeometryId finger_tip_geometry_id =
+      inspector.GetGeometryIdByName(
+          plant.GetBodyFrameIdOrThrow(
+              plant.GetBodyByName(fnum + "_tip_link").index()),
+          geometry::Role::kProximity, "planar_gripper::tip_sphere_collision");
+  return finger_tip_geometry_id;
+}
+
+Eigen::Vector3d GetFingerTipSpherePositionInLt(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, const Finger finger) {
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::GeometryId finger_tip_geometry_id =
+      GetFingerTipGeometryId(plant, scene_graph, finger);
+  Eigen::Vector3d p_LtTip =  // position of sphere center in tip-link frame
+      inspector.GetPoseInFrame(finger_tip_geometry_id).translation();
+  return p_LtTip;
+}
+
+double GetFingerTipSphereRadius(
+    const multibody::MultibodyPlant<double>& plant,
+    const geometry::SceneGraph<double>& scene_graph, Finger finger) {
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::GeometryId finger_tip_geometry_id =
+      GetFingerTipGeometryId(plant, scene_graph, finger);
+  const geometry::Shape& fingertip_shape =
+      inspector.GetShape(finger_tip_geometry_id);
+  double finger_tip_radius =
+      dynamic_cast<const geometry::Sphere&>(fingertip_shape).radius();
+  return finger_tip_radius;
+}
+
+Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
+                             const geometry::SceneGraph<double>& scene_graph) {
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
+  const geometry::Shape& brick_shape =
+      inspector.GetShape(inspector.GetGeometryIdByName(
+          plant.GetBodyFrameIdOrThrow(
+              plant.GetBodyByName("brick_link").index()),
+          geometry::Role::kProximity, "brick::box_collision"));
+  const Eigen::Vector3d brick_size =
+      dynamic_cast<const geometry::Box&>(brick_shape).size();
+  return brick_size;
+}
+
 GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   systems::DiagramBuilder<double> builder;
 
@@ -28,7 +117,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   // Make and add the planar_finger model.
   const std::string full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_finger.sdf");
+      FindResourceOrThrow("drake/examples/planar_gripper/test/planar_finger.sdf");
   multibody::MultibodyPlant<double>& plant =
       *builder.AddSystem<multibody::MultibodyPlant>(1e-3);
   multibody::Parser(&plant, &scene_graph).AddModelFromFile(full_name);

@@ -418,16 +418,23 @@ drake_cc_googletest(
     ],
 )
 
+filegroup(
+    name = "test_finger_files",
+    testonly = 1,
+    srcs = [
+        "test/planar_finger.sdf",
+    ],
+)
+
 drake_cc_googletest(
     name = "contact_force_qp_test",
     data = [
+        ":test_finger_files",
         "//examples/planar_gripper:1dof_brick.sdf",
         "//examples/planar_gripper:fixed_surface.sdf",
-        "//examples/planar_gripper:planar_finger.sdf",
     ],
     deps = [
         ":contact_force_qp",
-        ":finger_brick",
         "//common:find_resource",
         "//geometry:geometry_visualization",
         "//multibody/inverse_kinematics",

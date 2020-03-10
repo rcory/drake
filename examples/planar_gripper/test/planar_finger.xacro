@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 
+<!-- This file will be removed once contact_force_qp_test uses a PlanarGripper diagram -->
 <sdf xmlns:xacro="http://www.ros.org/wiki/xacro" version='1.6'>
   <model name='planar_gripper'>
 
