@@ -494,10 +494,12 @@ QPControlUdpReceiverSystem::ProcessMessageAndStoreToAbstractState(
         abstract_state.get_mutable_value(finger_control_state_index_)
             .get_mutable_value<std::unordered_map<
                 Finger, multibody::ExternallyAppliedSpatialForce<double>>>();
+    finger_control_state.clear();
     auto& brick_control_state =
         abstract_state.get_mutable_value(brick_control_state_index_)
             .get_mutable_value<std::vector<
                 multibody::ExternallyAppliedSpatialForce<double>>>();
+    brick_control_state.clear();
     for (int i = 0; i < num_fingers_; ++i) {
       if (qp_finger_control_udp.in_contact[i]) {
         const multibody::ExternallyAppliedSpatialForce<double>
@@ -546,7 +548,8 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
       num_plant_states_{num_plant_states},
       num_fingers_{num_fingers},
       num_brick_states_{num_brick_states},
-      num_brick_accels_{num_brick_accels} {
+      num_brick_accels_{num_brick_accels},
+      message_count_{0} {
   // The implementation of this class follows
   // https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html
   if (file_descriptor_ < 0) {
@@ -573,6 +576,8 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
 
   this->DeclarePeriodicUnrestrictedUpdateEvent(
       kGripperUdpStatusPeriod, 0., &QPtoSimUdpReceiverSystem::UpdateState);
+  this->DeclareForcedUnrestrictedUpdateEvent(
+      &QPtoSimUdpReceiverSystem::UpdateState);
 
   plant_state_output_port_ =
       this->DeclareVectorOutputPort(
@@ -586,9 +591,19 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
               &QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments)
           .get_index();
 
-  this->DeclareVectorOutputPort(
-      "qp_desired_brick_state", systems::BasicVector<double>(num_brick_states_),
-      &QPtoSimUdpReceiverSystem::OutputBrickDesiredState);
+  desired_brick_state_output_port_ =
+      this->DeclareVectorOutputPort(
+              "qp_desired_brick_state",
+              systems::BasicVector<double>(num_brick_states_),
+              &QPtoSimUdpReceiverSystem::OutputBrickDesiredState)
+          .get_index();
+
+  desired_brick_accel_output_port_ =
+      this->DeclareVectorOutputPort(
+              "qp_desired_brick_accel",
+              systems::BasicVector<double>(num_brick_accels_),
+              &QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel)
+          .get_index();
 
   // Compute the udp message size.
   PlanarPlantState plant_state_udp(num_plant_states_);
@@ -600,16 +615,26 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
                       manipuland_des_udp.GetMessageSize();
 }
 
-systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
-    const systems::Context<double>&, systems::State<double>* state) const {
-  std::vector<uint8_t> buffer(udp_message_size_);
+int QPtoSimUdpReceiverSystem::ReceiveUDPmsg(
+    std::vector<uint8_t>* buffer) const {
+  buffer->resize(udp_message_size_);
   struct sockaddr_in remaddr;
   socklen_t addrlen = sizeof(remaddr);
   const int recvlen =
-      recvfrom(file_descriptor_, buffer.data(), buffer.size(), 0,
+      recvfrom(file_descriptor_, buffer->data(), buffer->size(), 0,
                reinterpret_cast<struct sockaddr*>(&remaddr), &addrlen);
   if (recvlen > 0) {
-    // First deserialize the UDP message.
+    message_count_++;
+  }
+  return recvlen;
+}
+
+systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
+    const systems::Context<double>&, systems::State<double>* state) const {
+  // First deserialize the UDP message.
+  std::vector<uint8_t> buffer;
+  const int recvlen = ReceiveUDPmsg(&buffer);
+  if (recvlen > 0) {
     PlanarPlantState plant_state_udp(num_plant_states_);
     int start = 0;
     plant_state_udp.Deserialize(buffer.data());
@@ -632,6 +657,7 @@ systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
     auto& assignments = state->get_mutable_abstract_state<
         std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
         finger_face_assignments_state_index_);
+    assignments.clear();
     for (int i = 0; i < num_fingers_; ++i) {
       if (finger_face_udp.in_contact[i]) {
         assignments.emplace(
@@ -690,23 +716,23 @@ void QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel(
 
 QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
     double publish_period, int local_port, int remote_port,
-    unsigned long remote_address, int num_fingers,
-    multibody::BodyIndex brick_body_index)
+    unsigned long remote_address, int num_fingers)
     : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
       local_port_{local_port},
       remote_port_{remote_port},
       remote_address_{remote_address},
-      num_fingers_{num_fingers},
-      brick_body_index_{brick_body_index} {
+      num_fingers_{num_fingers} {
   struct sockaddr_in myaddr;
+  memset(reinterpret_cast<char*>(&myaddr), 0, sizeof(myaddr));
   myaddr.sin_family = AF_INET;
   myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  myaddr.sin_port = htons(local_port);
+  myaddr.sin_port = htons(local_port_);
   int status =
       bind(file_descriptor_, reinterpret_cast<struct sockaddr*>(&myaddr),
            sizeof(myaddr));
   if (status < 0) {
-    throw std::runtime_error("Cannot bind the UDP file descriptor.");
+    throw std::runtime_error(
+        "QPControlUdpPublisherSystem: Cannot bind the UDP file descriptor.");
   }
 
   this->DeclareForcedPublishEvent(
@@ -798,13 +824,14 @@ systems::EventStatus QPControlUdpPublisherSystem::PublishInputAsUdpMessage(
 
 PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
     int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
-    int num_brick_states, int num_brick_accels, int local_port, int remote_port,
-    unsigned long remote_address, double publish_period) {
+    int num_brick_states, int num_brick_accels, int publisher_local_port,
+    int publisher_remote_port, unsigned long publisher_remote_address,
+    int receiver_local_port, double publish_period) {
   systems::DiagramBuilder<double> builder;
   // The UDP receiver receives from publisher of the remote QP controller, and
   // outputs signal to local simulation.
   auto qp_control_receiver = builder.AddSystem<QPControlUdpReceiverSystem>(
-      local_port, num_fingers, brick_index);
+      receiver_local_port, num_fingers, brick_index);
   builder.ExportOutput(
       qp_control_receiver->get_qp_fingers_control_output_port(),
       "qp_fingers_control");
@@ -814,8 +841,9 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
   // The UDP pulisher takes signal from local simulation, and publish them to
   // remote QP controller.
   auto sim_to_qp_publisher = builder.AddSystem<SimToQPUdpPublisherSystem>(
-      publish_period, local_port, remote_port, remote_address,
-      num_multibody_states, num_fingers, num_brick_states, num_brick_accels);
+      publish_period, publisher_local_port, publisher_remote_port,
+      publisher_remote_address, num_multibody_states, num_fingers,
+      num_brick_states, num_brick_accels);
   builder.ExportInput(sim_to_qp_publisher->get_plant_state_input_port(),
                       "qp_estimated_plant_state");
   builder.ExportInput(
@@ -829,30 +857,31 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
 }
 
 PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
-    int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
-    int num_brick_states, int num_brick_accels, int local_port, int remote_port,
-    unsigned long remote_address, double publish_period) {
+    int num_multibody_states, int num_fingers, int num_brick_states,
+    int num_brick_accels, int publisher_local_port, int publisher_remote_port,
+    unsigned long publisher_remote_address, int receiver_local_port,
+    double publish_period) {
   systems::DiagramBuilder<double> builder;
 
-  auto qp_to_sim_receiver = builder.AddSystem<QPtoSimUdpReceiverSystem>(
-      local_port, num_multibody_states, num_fingers, num_brick_states,
+  qp_to_sim_receiver_ = builder.AddSystem<QPtoSimUdpReceiverSystem>(
+      receiver_local_port, num_multibody_states, num_fingers, num_brick_states,
       num_brick_accels);
   builder.ExportOutput(
-      qp_to_sim_receiver->get_estimated_plant_state_output_port(),
+      qp_to_sim_receiver_->get_estimated_plant_state_output_port(),
       "qp_estimated_plant_state");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_finger_face_assignments_output_port(),
+      qp_to_sim_receiver_->get_finger_face_assignments_output_port(),
       "qp_finger_face_assignments");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_desired_brick_state_output_port(),
+      qp_to_sim_receiver_->get_desired_brick_state_output_port(),
       "qp_desired_brick_state");
   builder.ExportOutput(
-      qp_to_sim_receiver->get_desired_brick_accel_output_port(),
+      qp_to_sim_receiver_->get_desired_brick_accel_output_port(),
       "qp_desired_brick_accel");
 
   auto qp_control_publisher = builder.AddSystem<QPControlUdpPublisherSystem>(
-      publish_period, local_port, remote_port, remote_address, num_fingers,
-      brick_index);
+      publish_period, publisher_local_port, publisher_remote_port,
+      publisher_remote_address, num_fingers);
   builder.ExportInput(qp_control_publisher->get_qp_fingers_control_input_port(),
                       "qp_fingers_control");
   builder.ExportInput(qp_control_publisher->get_qp_brick_control_input_port(),
