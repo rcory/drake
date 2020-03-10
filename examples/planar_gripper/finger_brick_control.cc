@@ -1,5 +1,6 @@
 #include "drake/examples/planar_gripper/finger_brick_control.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_udp.h"
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
@@ -1100,6 +1101,75 @@ void ConnectLCMQPController(
       qp_controller->GetInputPort("qp_desired_brick_state")));
 
   // Connects the LCM QP controller.
+  DoConnectGripperQPController(plant, scene_graph, lcm,
+                               finger_force_control_map, brick_index, qpoptions,
+                               in_ports, out_ports, builder);
+}
+
+void ConnectUDPQPController(
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const std::optional<std::unordered_map<Finger, ForceController&>>&
+        finger_force_control_map,
+    const QPControlOptions& qpoptions, int publisher_local_port,
+    int publisher_remote_port, unsigned long publisher_remote_address,
+    int receiver_local_port, systems::DiagramBuilder<double>* builder) {
+  const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
+  const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
+  const SceneGraph<double>& scene_graph = planar_gripper.get_scene_graph();
+
+  // Create a std::map to hold all input/output ports.
+  std::map<std::string, const OutputPort<double>&> out_ports;
+  std::map<std::string, const InputPort<double>&> in_ports;
+
+  // Output ports.
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "brick_state", planar_gripper.GetOutputPort("brick_state")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "plant_state", planar_gripper.GetOutputPort("plant_state")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "contact_results", planar_gripper.GetOutputPort("contact_results")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "scene_graph_query", planar_gripper.GetOutputPort("scene_graph_query")));
+
+  // Input ports.
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "plant_spatial_force", planar_gripper.GetInputPort("spatial_force")));
+
+  // Adds the UDP QP Controller to the diagram.
+
+  auto qp_controller = builder->AddSystem<PlanarGripperQPControllerUDP>(
+      planar_gripper.get_multibody_plant().num_multibody_states(),
+      GetBrickBodyIndex(planar_gripper.get_multibody_plant()),
+      planar_gripper.num_gripper_joints() / 2,
+      planar_gripper.get_num_brick_states(),
+      planar_gripper.get_num_brick_velocities(), publisher_local_port,
+      publisher_remote_port, publisher_remote_address, receiver_local_port,
+      kGripperUdpStatusPeriod);
+
+  // Get the QP controller ports.
+
+  // Output ports.
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "qp_fingers_control",
+      qp_controller->GetOutputPort("qp_fingers_control")));
+  out_ports.insert(std::pair<std::string, const OutputPort<double>&>(
+      "qp_brick_control", qp_controller->GetOutputPort("qp_brick_control")));
+
+  // Input ports.
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_estimated_plant_state",
+      qp_controller->GetInputPort("qp_estimated_plant_state")));
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_finger_face_assignments",
+      qp_controller->GetInputPort("qp_finger_face_assignments")));
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_brick_accel",
+      qp_controller->GetInputPort("qp_desired_brick_accel")));
+  in_ports.insert(std::pair<std::string, const InputPort<double>&>(
+      "qp_desired_brick_state",
+      qp_controller->GetInputPort("qp_desired_brick_state")));
+
+  // Connects the UDP QP controller.
   DoConnectGripperQPController(plant, scene_graph, lcm,
                                finger_force_control_map, brick_index, qpoptions,
                                in_ports, out_ports, builder);
