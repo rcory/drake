@@ -83,8 +83,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   total_torque += -rotational_damping * thetadot;
 
   // First compute the desired acceleration.
-  const Eigen::Vector2d a_WB_des =
-      Kp_t * (p_WB_planned - p_WB) + Kd_t * (v_WB_planned - v_WB) + a_WB_planned;
+  const Eigen::Vector2d a_WB_des = Kp_t * (p_WB_planned - p_WB) +
+                                   Kd_t * (v_WB_planned - v_WB) + a_WB_planned;
   const double thetaddot_des = Kp_r * (theta_planned - theta) +
                                Kd_r * (thetadot_planned - thetadot) +
                                thetaddot_planned;
@@ -102,8 +102,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   Eigen::Matrix2d D;
   D << translational_damping, 0, 0, translational_damping;
   Vector2<symbolic::Expression> a_WB =
-      Eigen::Vector2d(
-          0, 0*-multibody::UniformGravityFieldElement<double>::kDefaultStrength) +
+      Eigen::Vector2d(0, 0 * -multibody::UniformGravityFieldElement<
+                                 double>::kDefaultStrength) +
       (R_WB * f_total_B - D * brick_state.segment<2>(3)) / brick_mass;
 
   symbolic::Expression thetaddot = total_torque / I_B;
@@ -203,7 +203,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
           .get_index();
 
   if (brick_type == BrickType::PlanarBrick) {
-    input_index_desired_brick_state_ =   // {y, z, theta, ydot, zdot, thetadot}
+    input_index_desired_brick_state_ =  // {y, z, theta, ydot, zdot, thetadot}
         this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 6)
             .get_index();
     input_index_desired_brick_acceleration_ =  // {yddot, zddot, thetaddot}
@@ -211,12 +211,10 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
             .get_index();  // {ay, az, w_x}
 
     brick_translate_y_position_index_ =
-        plant_->GetJointByName("brick_translate_y_joint")
-            .position_start();
+        plant_->GetJointByName("brick_translate_y_joint").position_start();
     brick_translate_z_position_index_ =
-        plant_->GetJointByName("brick_translate_z_joint")
-            .position_start();
-  } else {  // Pin Brick
+        plant_->GetJointByName("brick_translate_z_joint").position_start();
+  } else {                              // Pin Brick
     input_index_desired_brick_state_ =  // {theta, thetadot}
         this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 2)
             .get_index();
@@ -316,8 +314,8 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     spatial_force.body_index = brick_body_index_;
     const std::pair<Eigen::Vector2d, Eigen::Vector2d>& force_position =
         finger_contact_result.at(finger_face_assignment.first);
-//    drake::log()->info("force: \n{}", force_position.first);
-//    drake::log()->info("position: \n{}", force_position.second);
+    //    drake::log()->info("force: \n{}", force_position.first);
+    //    drake::log()->info("position: \n{}", force_position.second);
     const Eigen::Vector2d p_BCb = force_position.second;
     spatial_force.p_BoBq_B = Eigen::Vector3d(0, p_BCb(0), p_BCb(1));
     const Eigen::Vector2d f_Cb_W = R_WB * force_position.first;
