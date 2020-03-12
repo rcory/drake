@@ -1,26 +1,28 @@
 #include "drake/examples/planar_gripper/finger_brick_control.h"
-#include "drake/examples/planar_gripper/planar_gripper_lcm.h"
-#include "drake/examples/planar_gripper/planar_gripper_udp.h"
-#include "drake/examples/planar_gripper/finger_brick.h"
-#include "drake/multibody/plant/multibody_plant.h"
-#include "drake/multibody/plant/externally_applied_spatial_force.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
-#include "drake/systems/primitives/constant_vector_source.h"
-#include "drake/systems/primitives/constant_value_source.h"
-#include "drake/common/trajectories/piecewise_polynomial.h"
-#include "drake/systems/primitives/trajectory_source.h"
-#include "drake/systems/lcm/connect_lcm_scope.h"
-#include "drake/multibody/tree/revolute_joint.h"
-#include "drake/examples/planar_gripper/planar_gripper_common.h"
-#include "drake/examples/planar_gripper/contact_force_qp.h"
-#include "drake/multibody/plant/spatial_forces_to_lcm.h"
-#include "drake/systems/primitives/zero_order_hold.h"
-#include "drake/systems/primitives/discrete_derivative.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
-#include "drake/systems/lcm/lcm_interface_system.h"
-#include "drake/lcm/drake_lcm.h"
 
 #include <cmath>
+#include <vector>
+
+#include "drake/common/trajectories/piecewise_polynomial.h"
+#include "drake/examples/planar_gripper/contact_force_qp.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_udp.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/plant/spatial_forces_to_lcm.h"
+#include "drake/multibody/tree/revolute_joint.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
+#include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/systems/primitives/constant_value_source.h"
+#include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/systems/primitives/discrete_derivative.h"
+#include "drake/systems/primitives/trajectory_source.h"
+#include "drake/systems/primitives/zero_order_hold.h"
 
 namespace drake {
 namespace examples {
@@ -30,11 +32,11 @@ using geometry::SceneGraph;
 using multibody::ContactResults;
 using multibody::MultibodyPlant;
 using multibody::RevoluteJoint;
-using systems::InputPortIndex;
-using systems::InputPort;
-using systems::OutputPortIndex;
-using systems::OutputPort;
 using multibody::SpatialForce;
+using systems::InputPort;
+using systems::InputPortIndex;
+using systems::OutputPort;
+using systems::OutputPortIndex;
 
 // Force controller with pure gravity compensation (no dynamics compensation
 // yet).
@@ -42,17 +44,16 @@ using multibody::SpatialForce;
 ForceController::ForceController(const MultibodyPlant<double>& plant,
                                  const SceneGraph<double>& scene_graph,
                                  ForceControlOptions options)
-    : plant_(plant),
-      scene_graph_(scene_graph),
-      options_(options) {
+    : plant_(plant), scene_graph_(scene_graph), options_(options) {
   // Make context with default parameters.
   plant_context_ = plant.CreateDefaultContext();
 
   // TODO(rcory) Can this just be a 2d force vector?
   force_desired_input_port_ =
       this->DeclareAbstractInputPort(
-              "force_desired", Value<std::vector<
-                         multibody::ExternallyAppliedSpatialForce<double>>>())
+              "force_desired",
+              Value<std::vector<
+                  multibody::ExternallyAppliedSpatialForce<double>>>())
           .get_index();
   // Actual state of a single finger: {pos, vel}.
   finger_state_actual_input_port_ =
@@ -70,14 +71,16 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
   // Note: We ignore the x-components in the controller since the task is
   // planar.
   contact_state_desired_input_port_ =
-      this->DeclareVectorInputPort(
-              "tip_state_desired", systems::BasicVector<double>(6))
+      this->DeclareVectorInputPort("tip_state_desired",
+                                   systems::BasicVector<double>(6))
           .get_index();
 
   // Contact point reference acceleration (for ID control).
   // TODO(rcory) likely don't need this, consider removing this input port.
-  contact_point_ref_accel_input_port_ = this->DeclareVectorInputPort(
-      "contact_point_ref_accel", systems::BasicVector<double>(2)).get_index();
+  contact_point_ref_accel_input_port_ =
+      this->DeclareVectorInputPort("contact_point_ref_accel",
+                                   systems::BasicVector<double>(2))
+          .get_index();
 
   contact_results_input_port_ =
       this->DeclareAbstractInputPort("contact_results",
@@ -91,7 +94,8 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
           .get_index();
 
   // TODO(rcory) likely don't need this, consider removing this input port.
-  accelerations_actual_input_port_ =  // actual accelerations of the MBP (num_vel x 1)
+  accelerations_actual_input_port_ =  // actual accelerations of the MBP
+                                      // (num_vel x 1)
       this->DeclareVectorInputPort("plant_vdot", systems::BasicVector<double>(
                                                      plant_.num_velocities()))
           .get_index();
@@ -106,8 +110,8 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
       this->DeclareInputPort("p_BrCb", systems::kVectorValued, 2).get_index();
 
   is_contact_input_port_ =
-      this->DeclareAbstractInputPort("is_in_contact",
-                                     Value<bool>{}).get_index();
+      this->DeclareAbstractInputPort("is_in_contact", Value<bool>{})
+          .get_index();
 
   this->DeclareContinuousState(3);  // stores ∫ Δf dt
 }
@@ -118,7 +122,7 @@ void ForceController::CalcTauOutput(
   auto output_calc = output_vector->get_mutable_value();
   output_calc.setZero();
 
-//  drake::log()->info("Finger: {}", to_string(options_.finger_to_control_));
+  //  drake::log()->info("Finger: {}", to_string(options_.finger_to_control_));
 
   // The finger to control.
   std::string finger_num = to_string(options_.finger_to_control_);
@@ -140,9 +144,8 @@ void ForceController::CalcTauOutput(
 
   // This is the state of the finger to be controlled.
   VectorX<double> finger_state(kNumJointsPerFinger * 2);
-  finger_state =
-      this->EvalVectorInput(context, finger_state_actual_input_port_)
-          ->get_value();
+  finger_state = this->EvalVectorInput(context, finger_state_actual_input_port_)
+                     ->get_value();
 
   // The state vector of the planar-gripper model (entire plant w/ brick).
   VectorX<double> plant_state =
@@ -158,10 +161,11 @@ void ForceController::CalcTauOutput(
 
   // Get the contact point reference translational accelerations (yddot, zddot),
   // for inverse dynamics control.
-//  auto a_BrCr = /* 2-element vector of the accels of the contact point ref. */
-//      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
-//          ->get_value();
-//  unused(a_BrCr);
+  //  auto a_BrCr = /* 2-element vector of the accels of the contact point ref.
+  //  */
+  //      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
+  //          ->get_value();
+  //  unused(a_BrCr);
 
   // TODO(rcory) Remove this input port once contact point estimation exists.
   const auto& contact_results =
@@ -172,10 +176,10 @@ void ForceController::CalcTauOutput(
 
   // Get the plant vdot for dynamics inverse dynamics.
   // TODO(rcory) I don't need this input anymore(?). Consider removing.
-//  auto plant_vdot =
-//      this->EvalVectorInput(context, accelerations_actual_input_port_)
-//          ->get_value();
-//  unused(plant_vdot);
+  //  auto plant_vdot =
+  //      this->EvalVectorInput(context, accelerations_actual_input_port_)
+  //          ->get_value();
+  //  unused(plant_vdot);
 
   // Set the plant's position and velocity within the context.
   plant_.SetPositionsAndVelocities(plant_context_.get(), plant_state);
@@ -191,21 +195,20 @@ void ForceController::CalcTauOutput(
       plant_.GetBodyByName("brick_link").body_frame();
 
   /* Rotation of world (W) w.r.t. brick (Br) */
-  auto R_BrW = plant_.CalcRelativeRotationMatrix(
-      *plant_context_, brick_frame, plant_.world_frame());
+  auto R_BrW = plant_.CalcRelativeRotationMatrix(*plant_context_, brick_frame,
+                                                 plant_.world_frame());
 
   /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */
-  auto R_BaBr = plant_.CalcRelativeRotationMatrix(
-      *plant_context_, base_frame, brick_frame);
+  auto R_BaBr = plant_.CalcRelativeRotationMatrix(*plant_context_, base_frame,
+                                                  brick_frame);
 
   /* Rotation of finger base frame (Ba) w.r.t. brick frame (Br) */
-  auto R_BrBa = plant_.CalcRelativeRotationMatrix(
-      *plant_context_, brick_frame, base_frame);
+  auto R_BrBa = plant_.CalcRelativeRotationMatrix(*plant_context_, brick_frame,
+                                                  base_frame);
   unused(R_BrBa);
 
   // Initialize the vector for calculated torque commands.
-  VectorX<double> torque_calc =
-      VectorX<double>::Zero(kNumJointsPerFinger);
+  VectorX<double> torque_calc = VectorX<double>::Zero(kNumJointsPerFinger);
 
   // Gravity compensation.
   // TODO(rcory) Create a selector matrix from finger_num and assign directly
@@ -215,8 +218,7 @@ void ForceController::CalcTauOutput(
   int mid_joint_index =
       plant_.GetJointByName(finger_num + "_MidJoint").velocity_start();
   VectorX<double> gravity_vec = VectorX<double>::Zero(plant_.num_velocities());
-  gravity_vec =
-       -plant_.CalcGravityGeneralizedForces(*plant_context_);
+  gravity_vec = -plant_.CalcGravityGeneralizedForces(*plant_context_);
   torque_calc(0) = gravity_vec(base_joint_index);
   torque_calc(1) = gravity_vec(mid_joint_index);
 
@@ -224,8 +226,10 @@ void ForceController::CalcTauOutput(
   // this reference is the actual contact point (lying inside the contact
   // intersection for the point contact model). When not in contact this
   // reference is the fingertip sphere center.
-  Eigen::Vector3d p_LtC = Eigen::Vector3d::Zero();  /* contact point ref. in tip link frame */
-  Eigen::Vector3d p_WC = Eigen::Vector3d::Zero();  /* contact point ref. in world frame */
+  Eigen::Vector3d p_LtC =
+      Eigen::Vector3d::Zero(); /* contact point ref. in tip link frame */
+  Eigen::Vector3d p_WC =
+      Eigen::Vector3d::Zero(); /* contact point ref. in world frame */
 
   // Check whether there is contact between the fingertip and the brick.
   const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
@@ -240,7 +244,7 @@ void ForceController::CalcTauOutput(
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
     p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
-                                              options_.finger_to_control_);
+                                           options_.finger_to_control_);
     plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtC,
                                plant_.world_frame(), &p_WC);
   }
@@ -264,8 +268,7 @@ void ForceController::CalcTauOutput(
   // Extract the 2 x 2 planar only (y-z) translational Jacobian that corresponds
   // to finger joints only (ignore the brick joint).
   Eigen::Matrix<double, 2, 2> J_planar_Ba(2, 2);
-  J_planar_Ba.block<2, 1>(0, 0) =
-      Jv_V_BaC.block<2, 1>(1, base_joint_index);
+  J_planar_Ba.block<2, 1>(0, 0) = Jv_V_BaC.block<2, 1>(1, base_joint_index);
   J_planar_Ba.block<2, 1>(0, 1) = Jv_V_BaC.block<2, 1>(1, mid_joint_index);
 
   // Get the fingertip velocity in the brick frame.
@@ -276,8 +279,8 @@ void ForceController::CalcTauOutput(
   Eigen::Vector3d v_BrC =
       Jv_V_BrickFtip * plant_.GetVelocities(*plant_context_);
 
-//#define ADD_ACCELS
-//#define SKIP_FORCE_CONT
+// #define ADD_ACCELS
+// #define SKIP_FORCE_CONT
 #ifdef SKIP_FORCE_CONT
   unused(v_BrC);
   unused(p_BrC);
@@ -288,8 +291,8 @@ void ForceController::CalcTauOutput(
   // TODO(rcory) Remove when done.
   // For testing, follow a sine wave traj on the y-axis;
   /* Rotation of world (W) w.r.t. finger brick (Br) */
-  auto X_BaW = plant_.CalcRelativeTransform(
-      *plant_context_, base_frame, plant_.world_frame());
+  auto X_BaW = plant_.CalcRelativeTransform(*plant_context_, base_frame,
+                                            plant_.world_frame());
   //  unused(R_BaW);
   //  drake::log()->info("X_BaW: \n{}", X_BaW.matrix());
 
@@ -299,18 +302,22 @@ void ForceController::CalcTauOutput(
   //  drake::log()->info("p_BaC: \n{}", p_BaC); // y=0.049145; z=-0.119522
   //  drake::log()->info("time: {}", context.get_time());
 
-  double a_Kp = 25; double a_Kd = 5;
-  double yoff_Ba = 0.049145; double zoff_Ba = -0.119522;
+  double a_Kp = 25;
+  double a_Kd = 5;
+  double yoff_Ba = 0.049145;
+  double zoff_Ba = -0.119522;
 
-  double A = 0.025; double w = 3 * (2 * 3.14);
+  double A = 0.025;
+  double w = 3 * (2 * 3.14);
   double t = context.get_time();
-  double yddot_Ba = (-A * w * w * sin(w * t))
-      + a_Kd * ((A * w * cos(w * t)) - v_Ftip_Ba(1))
-      + a_Kp * ((A * sin(w * t) + yoff_Ba) - p_BaC(1));
+  double yddot_Ba = (-A * w * w * sin(w * t)) +
+                    a_Kd * ((A * w * cos(w * t)) - v_Ftip_Ba(1)) +
+                    a_Kp * ((A * sin(w * t) + yoff_Ba) - p_BaC(1));
   double zddot_Ba = a_Kd * (0 - v_Ftip_Ba(2)) + a_Kp * (zoff_Ba - p_BaC(2));
 
-  //  double yddot_Ba = a_Kp * (yoff_Ba - 0.03 - p_BaC(1)) + a_Kd * (0 - v_Ftip_Ba(1));
-  //  double zddot_Ba = a_Kp * (zoff_Ba + 0.01 - p_BaC(2)) + a_Kd * (0 - v_Ftip_Ba(2));
+  //  double yddot_Ba = a_Kp * (yoff_Ba - 0.03 - p_BaC(1)) + a_Kd * (0 -
+  //  v_Ftip_Ba(1)); double zddot_Ba = a_Kp * (zoff_Ba + 0.01 - p_BaC(2)) + a_Kd
+  //  * (0 - v_Ftip_Ba(2));
 
   a_BrCr_Ba << 0, yddot_Ba, zddot_Ba;
 
@@ -318,11 +325,11 @@ void ForceController::CalcTauOutput(
 #else
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-//    drake::log()->info("In direct force control.");
-    // Desired forces (external spatial forces) are expressed in the world frame.
-    // Express these in the brick frame instead (to compute the force error
-    // terms), we then convert these commands to the finger base frame to match
-    // the Jacobian.
+    //    drake::log()->info("In direct force control.");
+    // Desired forces (external spatial forces) are expressed in the world
+    // frame. Express these in the brick frame instead (to compute the force
+    // error terms), we then convert these commands to the finger base frame to
+    // match the Jacobian.
     Eigen::Vector3d force_des_Br = R_BrW * force_des_W;
 
     // Get the control gains.
@@ -350,10 +357,8 @@ void ForceController::CalcTauOutput(
         Ki_force * force_error_integral_Br;
 
     // Compute the errors.
-    Eigen::Vector3d delta_pos_Br =
-        contact_state_desired_Br.head<3>() - p_BrC;
-    Eigen::Vector3d delta_vel_Br =
-        contact_state_desired_Br.tail<3>() - v_BrC;
+    Eigen::Vector3d delta_pos_Br = contact_state_desired_Br.head<3>() - p_BrC;
+    Eigen::Vector3d delta_vel_Br = contact_state_desired_Br.tail<3>() - v_BrC;
     Vector3d position_error_command_Br =
         Kp_position * delta_pos_Br + Kd_position * delta_vel_Br;
 
@@ -364,7 +369,7 @@ void ForceController::CalcTauOutput(
     // planar gripper base frame (Ba). This calculation depends on the brick
     // dynamics.
     Eigen::Vector3d p_BrCb = external_spatial_forces_vec[0]
-                                .p_BoBq_B; /* contact point in brick frame */
+                                 .p_BoBq_B; /* contact point in brick frame */
 
     // Option 1: The angular accel. of the brick due to *planned* contact force.
     double thetaddot =
@@ -374,7 +379,8 @@ void ForceController::CalcTauOutput(
 
     //    // Option 2: Instead use the actual accel of the brick;
     //    int brick_joint_vel_index =
-    //        plant_.GetJointByName("brick_pin_joint", brick_index_).velocity_start();
+    //        plant_.GetJointByName("brick_pin_joint",
+    //        brick_index_).velocity_start();
     //    double thetaddot = plant_vdot[brick_joint_vel_index];
 
     // Now calculate the desired reference accels (a_BrCr_Ba)
@@ -385,26 +391,29 @@ void ForceController::CalcTauOutput(
     a_BrCr_Ba = (ac_unit_Ba * brick_state(1) * brick_state(1)) +
                 (at_unit_Ba * p_BrCb.norm() * thetaddot);
 #endif
-// ============ End of inverse dynamics calcs. ===============
+    // ============ End of inverse dynamics calcs. ===============
 
     // Adds Joint damping.
     torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
 
-//    drake::log()->info("delta_pos_Br: \n{}", delta_pos_Br);
-//    drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
-//    drake::log()->info("contact_state_des: \n{}", contact_state_desired_Br);
-//    drake::log()->info("is_contact: \n{}", is_contact);
-//    drake::log()->info("p_BrC: \n{}", p_BrC);
-//    drake::log()->info("p_WC: \n{}", p_WC);
-//    drake::log()->info("v_BrC: \n{}", v_BrC);
+    //    drake::log()->info("delta_pos_Br: \n{}", delta_pos_Br);
+    //    drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
+    //    drake::log()->info("contact_state_des: \n{}",
+    //    contact_state_desired_Br); drake::log()->info("is_contact: \n{}",
+    //    is_contact); drake::log()->info("p_BrC: \n{}", p_BrC);
+    //    drake::log()->info("p_WC: \n{}", p_WC);
+    //    drake::log()->info("v_BrC: \n{}", v_BrC);
 
-//    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-//    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-//    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-//    drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
-//    drake::log()->info("force_error_integral_Br: \n{}", force_error_integral_Br);
-//    drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
-//    drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
+    //    drake::log()->info("force_des_Br: \n{}", force_des_Br);
+    //    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+    //    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+    //    drake::log()->info("force_error_command_Br: \n{}",
+    //    force_error_command_Br); drake::log()->info("force_error_integral_Br:
+    //    \n{}", force_error_integral_Br);
+    //    drake::log()->info("position_error_command_Br: \n{}",
+    //    position_error_command_Br);
+    //    drake::log()->info("force_integral_command_Br: \n{}",
+    //    force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -417,68 +426,67 @@ void ForceController::CalcTauOutput(
     // TODO(rcory) only for debugging. Fixed desired force.
     // unused(force_command_Ba);
     // torque_calc += J_planar_Ba.transpose() * Eigen::Vector2d(0, -50);
-//    drake::log()->info("torque_calc in DFC: {}", torque_calc.transpose());
+    //    drake::log()->info("torque_calc in DFC: {}", torque_calc.transpose());
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere
     // center.
-//    drake::log()->info("In impedance force control.");
+    //    drake::log()->info("In impedance force control.");
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
-    Eigen::Vector2d p_BrC_des =
-        get_p_BrCb_input_port().Eval(context);
+    Eigen::Vector2d p_BrC_des = get_p_BrCb_input_port().Eval(context);
 
-//    Eigen::Vector3d p_BaC_des = Eigen::Vector3d::Zero();
-//    p_BaC_des.tail<2>() = R_BaBr * p_BrC_des;
-//    Eigen::Vector3d p_BaC = Eigen::Vector3d::Zero();
-//    p_BaC = R_BaBr * p_BrC;
+    //    Eigen::Vector3d p_BaC_des = Eigen::Vector3d::Zero();
+    //    p_BaC_des.tail<2>() = R_BaBr * p_BrC_des;
+    //    Eigen::Vector3d p_BaC = Eigen::Vector3d::Zero();
+    //    p_BaC = R_BaBr * p_BrC;
 
-//    // Compute the desired contact point velocity.
-//    // TODO(rcory) take in the brick's model instance.
-//    ModelInstanceIndex brick_instance = plant_.GetModelInstanceByName("brick");
-//    Vector1d brick_rotational_velocity =
-//        plant_.GetVelocities(*plant_context_, brick_instance);
-//    Eigen::Vector3d omega(brick_rotational_velocity(0), 0, 0);
-//    unused(omega);
-//    Eigen::Vector3d r = Eigen::Vector3d::Zero();
-//    r.tail<2>() = p_BrC_des;
-//    Eigen::Vector3d v_BrC_des = r.cross(omega);
-//    drake::log()->info("v_BrC_des: \n{}", v_BrC_des);
+    //    // Compute the desired contact point velocity.
+    //    // TODO(rcory) take in the brick's model instance.
+    //    ModelInstanceIndex brick_instance =
+    //    plant_.GetModelInstanceByName("brick"); Vector1d
+    //    brick_rotational_velocity =
+    //        plant_.GetVelocities(*plant_context_, brick_instance);
+    //    Eigen::Vector3d omega(brick_rotational_velocity(0), 0, 0);
+    //    unused(omega);
+    //    Eigen::Vector3d r = Eigen::Vector3d::Zero();
+    //    r.tail<2>() = p_BrC_des;
+    //    Eigen::Vector3d v_BrC_des = r.cross(omega);
+    //    drake::log()->info("v_BrC_des: \n{}", v_BrC_des);
 
-//    drake::log()->info("finger_state: \n{}", finger_state);
-//    drake::log()->info("brick_state: \n{}", brick_state);
-//    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
-//    drake::log()->info("p_BrFingerTip: \n{}", p_BrC_des);
-//    drake::log()->info("p_BrC: \n{}", p_BrC);
-//    drake::log()->info("v_Ftip_Ba: \n{}", v_Ftip_Ba);
-//    drake::log()->info("v_BrC: \n{}", v_BrC);
+    //    drake::log()->info("finger_state: \n{}", finger_state);
+    //    drake::log()->info("brick_state: \n{}", brick_state);
+    //    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
+    //    drake::log()->info("p_BrFingerTip: \n{}", p_BrC_des);
+    //    drake::log()->info("p_BrC: \n{}", p_BrC);
+    //    drake::log()->info("v_Ftip_Ba: \n{}", v_Ftip_Ba);
+    //    drake::log()->info("v_BrC: \n{}", v_BrC);
 
     // Regulate the fingertip position back to the surface w/ impedance control
     // implement simple spring and damping laws for now (-kx - dxdot), i.e.,
     // just damped compliance control.
-    const double K = options_.K_compliance_; // spring const
-    const double D = options_.D_damping_; // damper
-    double y_force_desired_Br =
-        K * (p_BrC_des[0] - p_BrC(1)) - D * v_BrC(1);
-    double z_force_desired_Br =
-        K * (p_BrC_des[1] - p_BrC(2)) - D * v_BrC(2);
+    const double K = options_.K_compliance_;  // spring const
+    const double D = options_.D_damping_;     // damper
+    double y_force_desired_Br = K * (p_BrC_des[0] - p_BrC(1)) - D * v_BrC(1);
+    double z_force_desired_Br = K * (p_BrC_des[1] - p_BrC(2)) - D * v_BrC(2);
     Vector3<double> imp_force_desired_Br(0, y_force_desired_Br,
                                          z_force_desired_Br);
 
-//    double y_force_desired_Ba =
-//        K * (p_BaC_des[0] - p_BaC(1)) + D * (R_BaBr * v_BrC(1));
-//    double z_force_desired_Ba =
-//        K * (p_BaC_des[1] - p_BaC(2)) + D * (v_BrC_des(2) - v_BrC(2));
-//    Vector3<double> imp_force_desired_Ba(0, y_force_desired_Ba,
-//                                         z_force_desired_Ba);
+    //    double y_force_desired_Ba =
+    //        K * (p_BaC_des[0] - p_BaC(1)) + D * (R_BaBr * v_BrC(1));
+    //    double z_force_desired_Ba =
+    //        K * (p_BaC_des[1] - p_BaC(2)) + D * (v_BrC_des(2) - v_BrC(2));
+    //    Vector3<double> imp_force_desired_Ba(0, y_force_desired_Ba,
+    //                                         z_force_desired_Ba);
 
     Vector3<double> imp_force_desired_Ba = R_BaBr * imp_force_desired_Br;
     torque_calc += J_planar_Ba.transpose() * imp_force_desired_Ba.tail(2);
 
     // TODO(rcory) Need to calculate a_BrCr_Ba for impedance control part.
 
-//    drake::log()->info("imp_force_desired_Br: \n{}", imp_force_desired_Br);
-//    drake::log()->info("imp_force_desired_Ba: \n{}", imp_force_desired_Ba);
+    //    drake::log()->info("imp_force_desired_Br: \n{}",
+    //    imp_force_desired_Br); drake::log()->info("imp_force_desired_Ba:
+    //    \n{}", imp_force_desired_Ba);
   }
 #endif
 
@@ -497,14 +505,14 @@ void ForceController::CalcTauOutput(
   multibody::MultibodyForces<double> external_forces(plant_);
   //  plant_.CalcForceElementsContribution(*plant_context_, &external_forces);
   // Eigen::Vector3d vdot_ref(0, 0, 0); /* accels for (brick, j1, j2) */
-  Eigen::Vector3d id_torques =  plant_.CalcInverseDynamics(
-      *plant_context_, vdot_ref, external_forces);
+  Eigen::Vector3d id_torques =
+      plant_.CalcInverseDynamics(*plant_context_, vdot_ref, external_forces);
   torque_calc += id_torques.tail<2>();
 #endif
 
   // The output for calculated torques.
   output_calc = torque_calc;
-//  drake::log()->info("torque_calc: \n{}", torque_calc);
+  //  drake::log()->info("torque_calc: \n{}", torque_calc);
 }
 
 void ForceController::DoCalcTimeDerivatives(
@@ -515,7 +523,8 @@ void ForceController::DoCalcTimeDerivatives(
           .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
               context);
   DRAKE_DEMAND(external_spatial_forces_vec.size() == 1);
-  Eigen::Vector3d force_des_W = /* Note: we only care about forces in the y-z plane */
+  Eigen::Vector3d
+      force_des_W = /* Note: we only care about forces in the y-z plane */
       external_spatial_forces_vec[0].F_Bq_W.translational();
 
   Eigen::Vector3d force_sensor_vec_W =
@@ -530,9 +539,10 @@ void ForceController::DoCalcTimeDerivatives(
   Vector3d controlled_force_diff;
   if (is_contact) {
     controlled_force_diff = (force_des_W - force_sensor_vec_W);
-//    drake::log()->info("force_des_W: \n{}", force_des_W);
-//    drake::log()->info("force_sensor_vec_W: \n{}", force_sensor_vec_W);
-//    drake::log()->info("controlled_force_diff: \n{}", controlled_force_diff);
+    //    drake::log()->info("force_des_W: \n{}", force_des_W);
+    //    drake::log()->info("force_sensor_vec_W: \n{}", force_sensor_vec_W);
+    //    drake::log()->info("controlled_force_diff: \n{}",
+    //    controlled_force_diff);
   } else {
     // Intergral error, which is stored in the continuous state.
     // Drive the integral error to zero when there is no contact (i.e., reset).
@@ -561,30 +571,24 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
 
   if (options_.brick_face_ == BrickFace::kPosZ ||
       options_.brick_face_ == BrickFace::kNegZ) {
-    *Kp_force << 0, 0, 0,  /* don't care about x */
-        0, options_.kpf_t_, 0,
-        0, 0, options_.kpf_n_;
+    *Kp_force << 0, 0, 0, /* don't care about x */
+        0, options_.kpf_t_, 0, 0, 0, options_.kpf_n_;
 
-    *Ki_force << 0, 0, 0,  /* don't care about x */
-        0, options_.kif_t_, 0,
-        0, 0, options_.kif_n_;
+    *Ki_force << 0, 0, 0, /* don't care about x */
+        0, options_.kif_t_, 0, 0, 0, options_.kif_n_;
 
-    *Kd_position << 0, 0, 0,
-        0, options_.kd_t_, 0,
-        0, 0, options_.kd_n_;  // regulate velocity in z (brick frame)
+    *Kd_position << 0, 0, 0, 0, options_.kd_t_, 0, 0, 0,
+        options_.kd_n_;  // regulate velocity in z (brick frame)
   } else {
-    *Kp_force << 0, 0, 0,  /* don't care about x */
-        0, options_.kpf_n_, 0,
-        0, 0, options_.kpf_t_;
+    *Kp_force << 0, 0, 0, /* don't care about x */
+        0, options_.kpf_n_, 0, 0, 0, options_.kpf_t_;
 
-    *Ki_force << 0, 0, 0,  /* don't care about x */
-        0, options_.kif_n_, 0,
-        0, 0, options_.kif_t_;
+    *Ki_force << 0, 0, 0, /* don't care about x */
+        0, options_.kif_n_, 0, 0, 0, options_.kif_t_;
 
-    *Kd_position << 0, 0, 0,
-        0, options_.kd_n_, 0,  // regulate normal velocity (brick frame)
+    *Kd_position << 0, 0, 0, 0, options_.kd_n_,
+        0,  // regulate normal velocity (brick frame)
         0, 0, options_.kd_t_;
-
   }
 }
 
@@ -616,7 +620,7 @@ Vector3d ForceController::GetFingerContactPoint(
 class QPPlanToForceControllers : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPPlanToForceControllers);
-  QPPlanToForceControllers(multibody::BodyIndex brick_index)
+  explicit QPPlanToForceControllers(multibody::BodyIndex brick_index)
       : brick_index_(brick_index) {
     this->DeclareAbstractInputPort(
         "qp_fingers_control",
@@ -663,7 +667,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
   void CalcF2Output(
       const systems::Context<double>& context,
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
-      desired_force_vec) const {
+          desired_force_vec) const {
     desired_force_vec->clear();
     auto finger_force_map =
         this->GetInputPort("qp_fingers_control")
@@ -689,7 +693,7 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
   void CalcF3Output(
       const systems::Context<double>& context,
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
-      desired_force_vec) const {
+          desired_force_vec) const {
     desired_force_vec->clear();
     auto finger_force_map =
         this->GetInputPort("qp_fingers_control")
@@ -718,14 +722,13 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
 
 void DoConnectGripperQPController(
     const MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm& lcm,
+    const geometry::SceneGraph<double>& scene_graph, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const ModelInstanceIndex& brick_index, const QPControlOptions& qpoptions,
-    std::map<std::string, const InputPort<double>&>& in_ports,
-    std::map<std::string, const OutputPort<double>&>& out_ports,
+    const std::map<std::string, const InputPort<double>&>& in_ports,
+    const std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
-
   systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
   systems::ConstantVectorSource<double>* brick_state_traj_source;
 
@@ -740,7 +743,7 @@ void DoConnectGripperQPController(
 
     // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
     Eigen::VectorXd des_state_vec(6);
-    des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;;
+    des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;
     brick_state_traj_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             des_state_vec);
@@ -765,7 +768,7 @@ void DoConnectGripperQPController(
 
   // Spit out to scope
   systems::lcm::ConnectLcmScope(brick_state_traj_source->get_output_port(),
-                                "BRICK_STATE_TRAJ", builder, &lcm);
+                                "BRICK_STATE_TRAJ", builder, lcm);
 
   // Connect the plant state to the QP controller
   builder->Connect(out_ports.at("plant_state"),
@@ -777,7 +780,7 @@ void DoConnectGripperQPController(
   builder->Connect(out_ports.at("qp_brick_control"),
                    viz_converter->get_input_port(0));
   multibody::ConnectSpatialForcesToDrakeVisualizer(
-      builder, plant, viz_converter->get_output_port(0), &lcm);
+      builder, plant, viz_converter->get_output_port(0), lcm);
   builder->Connect(out_ports.at("brick_state"),
                    viz_converter->get_input_port(1));
 
@@ -785,10 +788,11 @@ void DoConnectGripperQPController(
     builder->Connect(out_ports.at("qp_brick_control"),
                      in_ports.at("plant_spatial_force"));
 
-    auto finger_face_assigments_source = builder->AddSystem<
-        systems::ConstantValueSource<double>>(
-        Value<std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
-            qpoptions.finger_face_assignments_));
+    auto finger_face_assigments_source =
+        builder->AddSystem<systems::ConstantValueSource<double>>(
+            Value<std::unordered_map<Finger,
+                                     std::pair<BrickFace, Eigen::Vector2d>>>(
+                qpoptions.finger_face_assignments_));
 
     builder->Connect(finger_face_assigments_source->get_output_port(0),
                      in_ports.at("qp_finger_face_assignments"));
@@ -909,9 +913,8 @@ void DoConnectGripperQPController(
                        contact_point_calc_sys->get_geometry_query_input_port());
 
       // Communicate the contact point to the force controller (if available).
-      builder->Connect(
-          contact_point_calc_sys->GetOutputPort("p_BrCb"),
-          finger_force_control.second.get_p_BrCb_input_port());
+      builder->Connect(contact_point_calc_sys->GetOutputPort("p_BrCb"),
+                       finger_force_control.second.get_p_BrCb_input_port());
 
       // Tells the force controller whether there is contact between the
       // fingertip and the brick.
@@ -938,11 +941,9 @@ void DoConnectGripperQPController(
 /// input/output ports.
 void AddGripperQPControllerToDiagram(
     const MultibodyPlant<double>& plant,
-    systems::DiagramBuilder<double>* builder,
-    const QPControlOptions& qpoptions,
+    systems::DiagramBuilder<double>* builder, const QPControlOptions& qpoptions,
     std::map<std::string, const InputPort<double>&>* in_ports,
     std::map<std::string, const OutputPort<double>&>* out_ports) {
-
   // QP controller
   double Kp_ro = qpoptions.QP_Kp_ro_;
   double Kd_ro = qpoptions.QP_Kd_ro_;
@@ -1008,7 +1009,7 @@ void AddGripperQPControllerToDiagram(
 
 // Connects a QP controller to a PlanarGripper diagram type simulation.
 void ConnectQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const QPControlOptions qpoptions,
@@ -1034,15 +1035,15 @@ void ConnectQPController(
   // Input ports.
   in_ports.insert(std::pair<std::string, const InputPort<double>&>(
       "plant_spatial_force", planar_gripper.GetInputPort("spatial_force")));
-    AddGripperQPControllerToDiagram(plant, builder, qpoptions, &in_ports,
-                                    &out_ports);
-    DoConnectGripperQPController(plant, scene_graph, lcm,
-                                 finger_force_control_map, brick_index,
-                                 qpoptions, in_ports, out_ports, builder);
+  AddGripperQPControllerToDiagram(plant, builder, qpoptions, &in_ports,
+                                  &out_ports);
+  DoConnectGripperQPController(plant, scene_graph, lcm,
+                               finger_force_control_map, brick_index, qpoptions,
+                               in_ports, out_ports, builder);
 }
 
 void ConnectLCMQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const QPControlOptions& qpoptions,
@@ -1074,7 +1075,7 @@ void ConnectLCMQPController(
       planar_gripper.get_multibody_plant().num_multibody_states(),
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(),
-      GetBrickBodyIndex(planar_gripper.get_multibody_plant()), &lcm,
+      GetBrickBodyIndex(planar_gripper.get_multibody_plant()), lcm,
       kGripperLcmPeriod /* publish period */);
 
   // Get the QP controller ports.
@@ -1107,11 +1108,11 @@ void ConnectLCMQPController(
 }
 
 void ConnectUDPQPController(
-    const PlanarGripper& planar_gripper, lcm::DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, lcm::DrakeLcm* lcm,
     const std::optional<std::unordered_map<Finger, ForceController&>>&
         finger_force_control_map,
     const QPControlOptions& qpoptions, int publisher_local_port,
-    int publisher_remote_port, unsigned long publisher_remote_address,
+    int publisher_remote_port, uint32_t publisher_remote_address,
     int receiver_local_port, systems::DiagramBuilder<double>* builder) {
   const MultibodyPlant<double>& plant = planar_gripper.get_multibody_plant();
   const ModelInstanceIndex brick_index = planar_gripper.get_brick_index();
@@ -1176,7 +1177,7 @@ void ConnectUDPQPController(
 }
 
 ForceController* SetupForceController(
-    const PlanarGripper& planar_gripper, DrakeLcm& lcm,
+    const PlanarGripper& planar_gripper, DrakeLcm* lcm,
     const ForceControlOptions& foptions,
     systems::DiagramBuilder<double>* builder) {
   auto& plant = planar_gripper.get_multibody_plant();
@@ -1191,14 +1192,15 @@ ForceController* SetupForceController(
       1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 
   // TODO(rcory) remove this?
-//  auto zoh_joint_accels = builder->AddSystem<systems::ZeroOrderHold<double>>(
-//      1e-3, plant.num_velocities());
+  //  auto zoh_joint_accels =
+  //  builder->AddSystem<systems::ZeroOrderHold<double>>(
+  //      1e-3, plant.num_velocities());
 
   Finger kFingerToControl = foptions.finger_to_control_;
 
   // Connect the force controller
-  auto force_controller = builder->AddSystem<ForceController>(
-      plant, scene_graph, foptions);
+  auto force_controller =
+      builder->AddSystem<ForceController>(plant, scene_graph, foptions);
   auto plant_to_finger_state_sel =
       builder->AddSystem<PlantStateToFingerStateSelector>(
           planar_gripper.get_multibody_plant(), kFingerToControl);
@@ -1217,10 +1219,10 @@ ForceController* SetupForceController(
                    force_controller->get_contact_results_input_port());
   // TODO(rcory) Remove these joint accelerations once I confirm they are not
   // needed.
-//  builder->Connect(plant.get_joint_accelerations_output_port(),
-//                  zoh_joint_accels->get_input_port());
-//  builder->Connect(zoh_joint_accels->get_output_port(),
-//                  force_controller->get_accelerations_actual_input_port());
+  //  builder->Connect(plant.get_joint_accelerations_output_port(),
+  //                  zoh_joint_accels->get_input_port());
+  //  builder->Connect(zoh_joint_accels->get_output_port(),
+  //                  force_controller->get_accelerations_actual_input_port());
   auto zero_accels_src =
       builder->AddSystem<systems::ConstantVectorSource<double>>(
           VectorX<double>::Zero(plant.num_velocities()));
@@ -1247,7 +1249,8 @@ ForceController* SetupForceController(
   // Connect to the scope.
   systems::lcm::ConnectLcmScope(
       force_controller->get_torque_output_port(),
-      "TORQUE_OUTPUT_F" + std::to_string(to_num(kFingerToControl)), builder, &lcm);
+      "TORQUE_OUTPUT_F" + std::to_string(to_num(kFingerToControl)), builder,
+      lcm);
 
   // We don't regulate position for now (set these to zero).
   // 6-vector represents pos-vel for fingertip contact point x-y-z. The control
@@ -1275,13 +1278,11 @@ PlantStateToFingerStateSelector::PlantStateToFingerStateSelector(
       plant.GetJointByName(fnum + "_BaseJoint").index());
   joint_index_vector.push_back(
       plant.GetJointByName(fnum + "_MidJoint").index());
-  state_selector_matrix_ =
-      plant.MakeStateSelectorMatrix(joint_index_vector);
+  state_selector_matrix_ = plant.MakeStateSelectorMatrix(joint_index_vector);
 
   this->DeclareVectorInputPort(
-      "plant_state",
-      systems::BasicVector<double>(plant.num_positions() +
-                                   plant.num_velocities()));
+      "plant_state", systems::BasicVector<double>(plant.num_positions() +
+                                                  plant.num_velocities()));
   this->DeclareVectorOutputPort(
       "finger_state", systems::BasicVector<double>(kNumJointsPerFinger * 2),
       &PlantStateToFingerStateSelector::CalcOutput);
@@ -1290,13 +1291,13 @@ PlantStateToFingerStateSelector::PlantStateToFingerStateSelector(
 void PlantStateToFingerStateSelector::CalcOutput(
     const drake::systems::Context<double>& context,
     drake::systems::BasicVector<double>* output) const {
-  VectorX<double> plant_state =
-      this->EvalVectorInput(context, 0)->get_value();
+  VectorX<double> plant_state = this->EvalVectorInput(context, 0)->get_value();
   output->get_mutable_value() = state_selector_matrix_ * plant_state;
 }
 
 FingerToPlantActuationMap::FingerToPlantActuationMap(
-    const MultibodyPlant<double>& plant, const Finger finger) : finger_(finger) {
+    const MultibodyPlant<double>& plant, const Finger finger)
+    : finger_(finger) {
   std::vector<multibody::JointIndex> joint_index_vector;
 
   // Create the Sᵤ matrix.
@@ -1312,9 +1313,8 @@ FingerToPlantActuationMap::FingerToPlantActuationMap(
       plant.MakeActuatorSelectorMatrix(joint_index_vector);
   actuation_selector_matrix_inv_ = actuation_selector_matrix_.inverse();
 
-  this->DeclareVectorInputPort(
-      "u_in",  /* in plant actuator ordering */
-      systems::BasicVector<double>(kNumGripperJoints));
+  this->DeclareVectorInputPort("u_in", /* in plant actuator ordering */
+                               systems::BasicVector<double>(kNumGripperJoints));
 
   this->DeclareVectorInputPort(
       "u_fn", /* override value for finger_n actuation {fn_base_u, fn_mid_u} */
@@ -1328,10 +1328,8 @@ FingerToPlantActuationMap::FingerToPlantActuationMap(
 void FingerToPlantActuationMap::CalcOutput(
     const drake::systems::Context<double>& context,
     drake::systems::BasicVector<double>* output) const {
-
-  VectorX<double> u_all_in =
-      this->EvalVectorInput(context, 0)->get_value();
-  Vector2<double> u_fn_in =  /* {fn_base_u, fn_mid_u} */
+  VectorX<double> u_all_in = this->EvalVectorInput(context, 0)->get_value();
+  Vector2<double> u_fn_in = /* {fn_base_u, fn_mid_u} */
       this->EvalVectorInput(context, 1)->get_value();
 
   // Reorder the gripper actuation to: {f1_base_u, f1_mid_u, ...}
@@ -1356,22 +1354,22 @@ ForceControllersToPlantActuationMap::ForceControllersToPlantActuationMap(
   /// the vector of actuation values for the full model (ordered by
   /// JointActuatorIndex) and uₛ is a vector of actuation values for the
   /// actuators acting on the joints listed by `joint_index_vector`
-  for (auto & iter : finger_force_control_map) {
+  for (auto& iter : finger_force_control_map) {
     Finger finger_m = iter.first;
     joint_index_vector.push_back(
-        plant.GetJointByName(to_string(finger_m) + "_BaseJoint")
-            .index());
+        plant.GetJointByName(to_string(finger_m) + "_BaseJoint").index());
     joint_index_vector.push_back(
-        plant.GetJointByName(to_string(finger_m) + "_MidJoint")
-            .index());
+        plant.GetJointByName(to_string(finger_m) + "_MidJoint").index());
 
     /* Input port n contains finger_m actuation {fm_base_u, fm_mid_u} */
-    InputPortIndex n = this->DeclareVectorInputPort(
-        to_string(finger_m) + "_u_in",
-        systems::BasicVector<double>(kNumJointsPerFinger)).get_index();
+    InputPortIndex n =
+        this->DeclareVectorInputPort(
+                to_string(finger_m) + "_u_in",
+                systems::BasicVector<double>(kNumJointsPerFinger))
+            .get_index();
     input_port_index_to_finger_map_[n] = finger_m;
   }
-  actuation_selector_matrix_ =  /* Sᵤ */
+  actuation_selector_matrix_ = /* Sᵤ */
       plant.MakeActuatorSelectorMatrix(joint_index_vector);
 
   // The single output containing MBP actuation values (in the plant's
@@ -1391,7 +1389,7 @@ void ForceControllersToPlantActuationMap::CalcOutput(
 
   // Gather all the inputs
   int u_in_index = 0;
-  for (auto & iter : input_port_index_to_finger_map_) {
+  for (auto& iter : input_port_index_to_finger_map_) {
     /* insert {fm_base_u, fm_mid_u} */
     u_in.segment<kNumJointsPerFinger>(u_in_index) =
         this->EvalVectorInput(context, iter.first)->get_value();
@@ -1407,9 +1405,8 @@ void ForceControllersToPlantActuationMap::CalcOutput(
 void ForceControllersToPlantActuationMap::ConnectForceControllersToPlant(
     const PlanarGripper& planar_gripper,
     systems::DiagramBuilder<double>* builder) const {
-
   // Connect the force controllers
-  for (auto & iter : input_port_index_to_finger_map_) {
+  for (auto& iter : input_port_index_to_finger_map_) {
     InputPortIndex input_port_index = iter.first;
     Finger finger = iter.second;
     ForceController& force_controller = finger_force_control_map_.at(finger);

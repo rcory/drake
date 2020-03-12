@@ -45,15 +45,16 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   plant.Finalize();
 
-  const Eigen::Vector3d p_LtFingerTip =  // position of sphere center in tip link
+  const Eigen::Vector3d
+      p_LtFingerTip =  // position of sphere center in tip link
       GetFingerTipSpherePositionInLt(plant, scene_graph, Finger::kFinger1);
   const double finger_tip_radius =
       GetFingerTipSphereRadius(plant, scene_graph, Finger::kFinger1);
   const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
   const multibody::Frame<double>& brick_frame =
       plant.GetFrameByName("brick_link");
-  const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph, Finger::kFinger1);  //fingertip sphere id
+  const geometry::GeometryId finger_tip_geometry_id = GetFingerTipGeometryId(
+      plant, scene_graph, Finger::kFinger1);  // fingertip sphere id
   // First solve an IK problem that the finger is making contact with the brick.
   multibody::InverseKinematics ik(plant);
   // Finger in contact with +z face.
@@ -65,8 +66,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
                       brick_size(2) / 2 + finger_tip_radius));
 
   // Add the initial brick orientation condition constraint
-  const math::RotationMatrix<double> R_AbarA(Eigen::AngleAxisd(
-      -M_PI_4 + .2, Eigen::Vector3d(1, 0, 0).normalized()));
+  const math::RotationMatrix<double> R_AbarA(
+      Eigen::AngleAxisd(-M_PI_4 + .2, Eigen::Vector3d(1, 0, 0).normalized()));
   ik.AddOrientationConstraint(plant.world_frame(), R_AbarA,
                               plant.GetFrameByName("brick_link"),
                               math::RotationMatrixd(), 0);
@@ -136,13 +137,10 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
                                  std::make_pair(BrickFace::kPosZ, p_BCb));
   Eigen::Vector2d zero2d = Eigen::Vector2d::Zero();
   InstantaneousContactForceQP qp2(
-      BrickType::PinBrick,
-      zero2d, zero2d, zero2d,
-      theta_planned, thetadot_planned, thetaddot_planned,
-      zero2d, zero2d,
-      Kp, Kd, brick_state, finger_face_assignment,
-      0, weight_thetaddot_error, weight_f_Cb,
-      mu, I_B, 1, damping, 0);
+      BrickType::PinBrick, zero2d, zero2d, zero2d, theta_planned,
+      thetadot_planned, thetaddot_planned, zero2d, zero2d, Kp, Kd, brick_state,
+      finger_face_assignment, 0, weight_thetaddot_error, weight_f_Cb, mu, I_B,
+      1, damping, 0);
 
   auto qp_result = solvers::Solve(qp2.prog());
   EXPECT_TRUE(qp_result.is_success());
@@ -161,11 +159,10 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   double thetaddot =
       (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
   double thetaddot_des = Kp * (theta_planned - theta) +
-      Kd * (thetadot_planned - thetadot) +
-      thetaddot_planned;
+                         Kd * (thetadot_planned - thetadot) + thetaddot_planned;
   double cost_expected =
       weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
-          weight_f_Cb * f_Cb_B.squaredNorm();
+      weight_f_Cb * f_Cb_B.squaredNorm();
   drake::log()->info("qp2 cost: {}", qp_result.get_optimal_cost());
   EXPECT_NEAR(cost_expected, qp_result.get_optimal_cost(), 1E-9);
 }

@@ -9,21 +9,23 @@
 /// (joint_positions, joint_velocities).
 
 #include <memory>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
-#include "drake/lcmt_planar_gripper_status.hpp"
-#include "drake/lcmt_planar_plant_state.hpp"
 #include "drake/lcmt_planar_gripper_finger_face_assignments.hpp"
-#include "drake/lcmt_planar_manipuland_spatial_forces.hpp"
+#include "drake/lcmt_planar_gripper_status.hpp"
 #include "drake/lcmt_planar_manipuland_desired.hpp"
+#include "drake/lcmt_planar_manipuland_spatial_forces.hpp"
+#include "drake/lcmt_planar_plant_state.hpp"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/event_status.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "drake/systems/framework/diagram.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 
@@ -31,8 +33,8 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
-using systems::OutputPort;
 using systems::InputPort;
+using systems::OutputPort;
 
 // By default the planar gripper has 3 fingers.
 constexpr int kGripperDefaultNumFingers = 3;
@@ -63,9 +65,8 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
   /// velocity) until a position message is received.  If this
   /// function is not called, the starting position will be the zero
   /// configuration.
-  void set_initial_position(
-      systems::Context<double>* context,
-      const Eigen::Ref<const VectorX<double>> x) const;
+  void set_initial_position(systems::Context<double>* context,
+                            const Eigen::Ref<const VectorX<double>> x) const;
 
   const systems::OutputPort<double>& get_state_output_port() const {
     DRAKE_DEMAND(state_output_port_ != nullptr);
@@ -79,10 +80,10 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
 
  private:
   void OutputStateCommand(const systems::Context<double>& context,
-                     systems::BasicVector<double>* output) const;
+                          systems::BasicVector<double>* output) const;
 
   void OutputTorqueCommand(const systems::Context<double>& context,
-                          systems::BasicVector<double>* output) const;
+                           systems::BasicVector<double>* output) const;
 
   /// Event handler of the periodic discrete state update.
   systems::EventStatus UpdateDiscreteState(
@@ -166,7 +167,7 @@ class GripperStatusDecoder : public systems::LeafSystem<double> {
 
  private:
   void OutputStateStatus(const systems::Context<double>& context,
-                    systems::BasicVector<double>* output) const;
+                         systems::BasicVector<double>* output) const;
 
   void OutputForceStatus(const systems::Context<double>& context,
                          systems::BasicVector<double>* output) const;
@@ -315,7 +316,6 @@ class QPFingersControlEncoder : public systems::LeafSystem<double> {
   void EncodeFingersControl(
       const systems::Context<double>& context,
       lcmt_planar_manipuland_spatial_forces* spatial_forces_lcm) const;
-
 };
 
 /*
@@ -327,7 +327,7 @@ class QPEstimatedStateDecoder : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPEstimatedStateDecoder)
 
-  QPEstimatedStateDecoder(const int num_plant_states);
+  explicit QPEstimatedStateDecoder(const int num_plant_states);
 
  private:
   void OutputEstimatedState(const systems::Context<double>& context,
@@ -350,11 +350,11 @@ class QPEstimatedStateEncoder : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(QPEstimatedStateEncoder)
 
-  QPEstimatedStateEncoder(const int num_plant_states);
+  explicit QPEstimatedStateEncoder(const int num_plant_states);
 
  private:
   void EncodeEstimatedState(const systems::Context<double>& context,
-      lcmt_planar_plant_state* plant_status) const;
+                            lcmt_planar_plant_state* plant_status) const;
 
   const int num_plant_states_;
 };
@@ -464,29 +464,29 @@ class PlanarGripperQPControllerLCM : public systems::Diagram<double> {
 };
 
 // A system that subscribes to the simulation and publishes to the simulation.
- class PlanarGripperSimulationLCM : public systems::Diagram<double> {
-  public:
-   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationLCM)
-   PlanarGripperSimulationLCM(int num_multibody_states, int num_brick_states,
-                              int num_brick_accels,
-                              drake::lcm::DrakeLcmInterface* lcm,
-                              double publish_period);
+class PlanarGripperSimulationLCM : public systems::Diagram<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PlanarGripperSimulationLCM)
+  PlanarGripperSimulationLCM(int num_multibody_states, int num_brick_states,
+                             int num_brick_accels,
+                             drake::lcm::DrakeLcmInterface* lcm,
+                             double publish_period);
 
-   const systems::lcm::LcmSubscriberSystem& get_estimated_plant_state_sub() {
-     return *qp_estimated_plant_state_sub_;
-   }
-   const systems::lcm::LcmSubscriberSystem& get_finger_face_assignments_sub() {
-     return *qp_finger_face_assignments_sub_;
-   }
-   const systems::lcm::LcmSubscriberSystem& get_brick_desired_sub() {
-     return *qp_brick_desired_sub_;
-   }
+  const systems::lcm::LcmSubscriberSystem& get_estimated_plant_state_sub() {
+    return *qp_estimated_plant_state_sub_;
+  }
+  const systems::lcm::LcmSubscriberSystem& get_finger_face_assignments_sub() {
+    return *qp_finger_face_assignments_sub_;
+  }
+  const systems::lcm::LcmSubscriberSystem& get_brick_desired_sub() {
+    return *qp_brick_desired_sub_;
+  }
 
-  private:
-   systems::lcm::LcmSubscriberSystem* qp_estimated_plant_state_sub_;
-   systems::lcm::LcmSubscriberSystem* qp_finger_face_assignments_sub_;
-   systems::lcm::LcmSubscriberSystem* qp_brick_desired_sub_;
- };
+ private:
+  systems::lcm::LcmSubscriberSystem* qp_estimated_plant_state_sub_;
+  systems::lcm::LcmSubscriberSystem* qp_finger_face_assignments_sub_;
+  systems::lcm::LcmSubscriberSystem* qp_brick_desired_sub_;
+};
 
 }  // namespace planar_gripper
 }  // namespace examples
