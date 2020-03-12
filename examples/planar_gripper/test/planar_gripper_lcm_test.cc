@@ -37,7 +37,7 @@ GTEST_TEST(GripperLcmTest, GripperCommandPassthroughTest) {
   lcmt_planar_gripper_command command{};
   command.num_fingers = kNumFingers;
   command.finger_command.resize(kNumFingers);
-  auto &fcommand_in = command.finger_command[0];
+  auto& fcommand_in = command.finger_command[0];
   fcommand_in.joint_position[0] = 0.1;
   fcommand_in.joint_position[1] = 0.2;
   fcommand_in.joint_velocity[0] = 0.3;
@@ -89,7 +89,7 @@ GTEST_TEST(GripperLcmTest, GripperStatusPassthroughTest) {
   lcmt_planar_gripper_status status{};
   status.num_fingers = kNumFingers;
   status.finger_status.resize(kNumFingers);
-  auto &fstatus_in = status.finger_status[0];
+  auto& fstatus_in = status.finger_status[0];
   fstatus_in.joint_position[0] = 0.1;
   fstatus_in.joint_position[1] = 0.2;
   fstatus_in.joint_velocity[0] = 0.3;
@@ -171,7 +171,8 @@ GTEST_TEST(GripperLcmTest, QPBrickControlPassthroughTest) {
           .Eval<lcmt_planar_manipuland_spatial_forces>(*context);
 
   ASSERT_EQ(spatial_forces_lcm.utime, spatial_forces_lcm_out.utime);
-  ASSERT_EQ(spatial_forces_lcm.manip_body_name, spatial_forces_lcm_out.manip_body_name);
+  ASSERT_EQ(spatial_forces_lcm.manip_body_name,
+            spatial_forces_lcm_out.manip_body_name);
   ASSERT_EQ(spatial_forces_lcm.num_forces, spatial_forces_lcm_out.num_forces);
 
   auto forces_out = spatial_forces_lcm_out.forces;
@@ -190,8 +191,8 @@ GTEST_TEST(GripperLcmTest, QPFingersControlPassthroughTest) {
   systems::DiagramBuilder<double> builder;
   const int kTestNumFingers = 3;
   auto encoder = builder.AddSystem<QPFingersControlEncoder>();
-  auto decoder = builder.AddSystem<QPFingersControlDecoder>(
-      multibody::BodyIndex(3));
+  auto decoder =
+      builder.AddSystem<QPFingersControlDecoder>(multibody::BodyIndex(3));
   builder.Connect(decoder->GetOutputPort("qp_fingers_control"),
                   encoder->GetInputPort("qp_fingers_control"));
   const systems::InputPortIndex decoder_input =
@@ -302,8 +303,8 @@ GTEST_TEST(GripperLcmTest, QPEstimatedStatePassthroughTest) {
   diagram->get_input_port(decoder_input)
       .FixValue(context.get(), planar_plant_state_lcm);
 
-//  auto& state = context->get_mutable_state();
-//  diagram->CalcUnrestrictedUpdate(*context, &state);
+  //  auto& state = context->get_mutable_state();
+  //  diagram->CalcUnrestrictedUpdate(*context, &state);
   std::unique_ptr<systems::DiscreteValues<double>> update =
       diagram->AllocateDiscreteVariables();
   update->SetFrom(context->get_mutable_discrete_state());
@@ -314,7 +315,8 @@ GTEST_TEST(GripperLcmTest, QPEstimatedStatePassthroughTest) {
       diagram->get_output_port(encoder_output)
           .Eval<lcmt_planar_plant_state>(*context);
 
-  ASSERT_EQ(planar_plant_state_lcm.num_states, planar_plant_state_lcm_out.num_states);
+  ASSERT_EQ(planar_plant_state_lcm.num_states,
+            planar_plant_state_lcm_out.num_states);
   ASSERT_EQ(kTestNumStates, planar_plant_state_lcm_out.plant_state.size());
   ASSERT_EQ(planar_plant_state_lcm.plant_state[0],
             planar_plant_state_lcm_out.plant_state[0]);
@@ -331,8 +333,8 @@ GTEST_TEST(GripperLcmTest, QPFingerFaceAssignmentsPassthroughTest) {
                   encoder->GetInputPort("qp_finger_face_assignments"));
   const systems::InputPortIndex decoder_input =
       builder.ExportInput(decoder->GetInputPort("finger_face_assignments_lcm"));
-  const systems::OutputPortIndex encoder_output =
-      builder.ExportOutput(encoder->GetOutputPort("finger_face_assignments_lcm"));
+  const systems::OutputPortIndex encoder_output = builder.ExportOutput(
+      encoder->GetOutputPort("finger_face_assignments_lcm"));
   auto diagram = builder.Build();
 
   std::unique_ptr<systems::Context<double>> context =
@@ -370,39 +372,39 @@ GTEST_TEST(GripperLcmTest, QPFingerFaceAssignmentsPassthroughTest) {
   ASSERT_EQ(finger_face_assignments_lcm.finger_face_assignments.size(),
             finger_face_assignments_lcm_out.finger_face_assignments.size());
 
-    auto& assignment0 = finger_face_assignments_lcm.finger_face_assignments[0];
-    auto& assignment0_out =
-        finger_face_assignments_lcm_out.finger_face_assignments[0];
-    auto& assignment1 = finger_face_assignments_lcm.finger_face_assignments[1];
-    auto& assignment1_out =
-        finger_face_assignments_lcm_out.finger_face_assignments[1];
+  auto& assignment0 = finger_face_assignments_lcm.finger_face_assignments[0];
+  auto& assignment0_out =
+      finger_face_assignments_lcm_out.finger_face_assignments[0];
+  auto& assignment1 = finger_face_assignments_lcm.finger_face_assignments[1];
+  auto& assignment1_out =
+      finger_face_assignments_lcm_out.finger_face_assignments[1];
 
-    // Because the intermediate form is an unordered_map, we can't guarantee
-    // the ordering during encoding, so we allow for either outcome.
-    if (assignment0_out.finger_name == "finger1") {
-      DRAKE_DEMAND(assignment1_out.finger_name == "finger2");
-      ASSERT_EQ(assignment0.finger_name, assignment0_out.finger_name);
-      ASSERT_EQ(assignment0.brick_face_name, assignment0_out.brick_face_name);
-      ASSERT_EQ(assignment0.p_BoBq_B[0], assignment0_out.p_BoBq_B[0]);
-      ASSERT_EQ(assignment0.p_BoBq_B[1], assignment0_out.p_BoBq_B[1]);
+  // Because the intermediate form is an unordered_map, we can't guarantee
+  // the ordering during encoding, so we allow for either outcome.
+  if (assignment0_out.finger_name == "finger1") {
+    DRAKE_DEMAND(assignment1_out.finger_name == "finger2");
+    ASSERT_EQ(assignment0.finger_name, assignment0_out.finger_name);
+    ASSERT_EQ(assignment0.brick_face_name, assignment0_out.brick_face_name);
+    ASSERT_EQ(assignment0.p_BoBq_B[0], assignment0_out.p_BoBq_B[0]);
+    ASSERT_EQ(assignment0.p_BoBq_B[1], assignment0_out.p_BoBq_B[1]);
 
-      ASSERT_EQ(assignment1.finger_name, assignment1_out.finger_name);
-      ASSERT_EQ(assignment1.brick_face_name, assignment1_out.brick_face_name);
-      ASSERT_EQ(assignment1.p_BoBq_B[0], assignment1_out.p_BoBq_B[0]);
-      ASSERT_EQ(assignment1.p_BoBq_B[1], assignment1_out.p_BoBq_B[1]);
-    } else {
-      DRAKE_DEMAND(assignment0_out.finger_name == "finger2");
-      DRAKE_DEMAND(assignment1_out.finger_name == "finger1");
-      ASSERT_EQ(assignment0.finger_name, assignment1_out.finger_name);
-      ASSERT_EQ(assignment0.brick_face_name, assignment1_out.brick_face_name);
-      ASSERT_EQ(assignment0.p_BoBq_B[0], assignment1_out.p_BoBq_B[0]);
-      ASSERT_EQ(assignment0.p_BoBq_B[1], assignment1_out.p_BoBq_B[1]);
+    ASSERT_EQ(assignment1.finger_name, assignment1_out.finger_name);
+    ASSERT_EQ(assignment1.brick_face_name, assignment1_out.brick_face_name);
+    ASSERT_EQ(assignment1.p_BoBq_B[0], assignment1_out.p_BoBq_B[0]);
+    ASSERT_EQ(assignment1.p_BoBq_B[1], assignment1_out.p_BoBq_B[1]);
+  } else {
+    DRAKE_DEMAND(assignment0_out.finger_name == "finger2");
+    DRAKE_DEMAND(assignment1_out.finger_name == "finger1");
+    ASSERT_EQ(assignment0.finger_name, assignment1_out.finger_name);
+    ASSERT_EQ(assignment0.brick_face_name, assignment1_out.brick_face_name);
+    ASSERT_EQ(assignment0.p_BoBq_B[0], assignment1_out.p_BoBq_B[0]);
+    ASSERT_EQ(assignment0.p_BoBq_B[1], assignment1_out.p_BoBq_B[1]);
 
-      ASSERT_EQ(assignment1.finger_name, assignment0_out.finger_name);
-      ASSERT_EQ(assignment1.brick_face_name, assignment0_out.brick_face_name);
-      ASSERT_EQ(assignment1.p_BoBq_B[0], assignment0_out.p_BoBq_B[0]);
-      ASSERT_EQ(assignment1.p_BoBq_B[1], assignment0_out.p_BoBq_B[1]);
-    }
+    ASSERT_EQ(assignment1.finger_name, assignment0_out.finger_name);
+    ASSERT_EQ(assignment1.brick_face_name, assignment0_out.brick_face_name);
+    ASSERT_EQ(assignment1.p_BoBq_B[0], assignment0_out.p_BoBq_B[0]);
+    ASSERT_EQ(assignment1.p_BoBq_B[1], assignment0_out.p_BoBq_B[1]);
+  }
 }
 
 GTEST_TEST(GripperLcmTest, QPBrickDesiredPassthroughTest) {
