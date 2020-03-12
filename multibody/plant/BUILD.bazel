@@ -27,6 +27,7 @@ drake_cc_package_library(
         ":multibody_plant_core",
         ":point_pair_contact_info",
         ":propeller",
+	":spatial_force_output",
         ":tamsi_solver",
         ":tamsi_solver_results",
     ],

@@ -1,5 +1,7 @@
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 
+#include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -7,9 +9,9 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
-#include "drake/lcmt_planar_plant_state.hpp"
-#include "drake/lcmt_planar_manipuland_spatial_forces.hpp"
 #include "drake/lcmt_planar_manipuland_desired.hpp"
+#include "drake/lcmt_planar_manipuland_spatial_forces.hpp"
+#include "drake/lcmt_planar_plant_state.hpp"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
@@ -20,16 +22,15 @@ namespace planar_gripper {
 
 using systems::BasicVector;
 using systems::Context;
+using systems::DiscreteUpdateEvent;
 using systems::DiscreteValues;
 using systems::State;
-using systems::DiscreteUpdateEvent;
 using systems::UnrestrictedUpdateEvent;
 
-GripperCommandDecoder::GripperCommandDecoder(int num_fingers) :
-      num_fingers_(num_fingers), num_joints_(num_fingers * 2) {
-  this->DeclareAbstractInputPort(
-      "lcmt_planar_gripper_command",
-      Value<lcmt_planar_gripper_command>{});
+GripperCommandDecoder::GripperCommandDecoder(int num_fingers)
+    : num_fingers_(num_fingers), num_joints_(num_fingers * 2) {
+  this->DeclareAbstractInputPort("lcmt_planar_gripper_command",
+                                 Value<lcmt_planar_gripper_command>{});
   state_output_port_ = &this->DeclareVectorOutputPort(
       "state", systems::BasicVector<double>(num_joints_ * 2),
       &GripperCommandDecoder::OutputStateCommand);
@@ -50,8 +51,7 @@ void GripperCommandDecoder::set_initial_position(
     Context<double>* context,
     const Eigen::Ref<const VectorX<double>> pos) const {
   // The Discrete state consists of positions, velocities, torques.
-  auto state_value =
-      context->get_mutable_discrete_state(0).get_mutable_value();
+  auto state_value = context->get_mutable_discrete_state(0).get_mutable_value();
   DRAKE_ASSERT(pos.size() == num_joints_);
   // Set the initial positions.
   state_value.head(num_joints_) = pos;
@@ -99,13 +99,12 @@ void GripperCommandDecoder::OutputStateCommand(
 
 void GripperCommandDecoder::OutputTorqueCommand(
     const Context<double>& context, BasicVector<double>* output) const {
-  Eigen::VectorBlock<VectorX<double>> output_vec =
-      output->get_mutable_value();
+  Eigen::VectorBlock<VectorX<double>> output_vec = output->get_mutable_value();
   output_vec = context.get_discrete_state(0).get_value().tail(num_joints_);
 }
 
-GripperCommandEncoder::GripperCommandEncoder(int num_fingers) :
-      num_fingers_(num_fingers), num_joints_(num_fingers * 2) {
+GripperCommandEncoder::GripperCommandEncoder(int num_fingers)
+    : num_fingers_(num_fingers), num_joints_(num_fingers * 2) {
   state_input_port_ =
       &this->DeclareInputPort("state", systems::kVectorValued, num_joints_ * 2);
   torques_input_port_ =
@@ -128,8 +127,7 @@ void GripperCommandEncoder::OutputCommand(
 
   for (int i = 0; i < num_fingers_; ++i) {
     const int st_index = 2 * i;
-    lcmt_planar_gripper_finger_command& fcommand =
-        command->finger_command[i];
+    lcmt_planar_gripper_finger_command& fcommand = command->finger_command[i];
     fcommand.joint_position[0] = state_input->GetAtIndex(st_index);
     fcommand.joint_position[1] = state_input->GetAtIndex(st_index + 1);
     fcommand.joint_velocity[0] =
@@ -154,7 +152,7 @@ GripperStatusDecoder::GripperStatusDecoder(int num_fingers)
   this->DeclareAbstractInputPort("lcmt_planar_gripper_status",
                                  Value<lcmt_planar_gripper_status>{});
   // Discrete state includes: {state, fingertip_force(y,z)}.
-  this->DeclareDiscreteState((num_joints_* 2) + (num_fingers_ * 2));
+  this->DeclareDiscreteState((num_joints_ * 2) + (num_fingers_ * 2));
 
   this->DeclarePeriodicDiscreteUpdateEvent(
       kGripperLcmPeriod, 0., &GripperStatusDecoder::UpdateDiscreteState);
@@ -244,10 +242,8 @@ void GripperStatusEncoder::OutputStatus(
     lcmt_planar_gripper_finger_status& fstatus = status->finger_status[i];
     fstatus.joint_position[0] = state_value(st_index);
     fstatus.joint_position[1] = state_value(st_index + 1);
-    fstatus.joint_velocity[0] =
-        state_value(num_joints_ + st_index);
-    fstatus.joint_velocity[1] =
-        state_value(num_joints_ + st_index + 1);
+    fstatus.joint_velocity[0] = state_value(num_joints_ + st_index);
+    fstatus.joint_velocity[1] = state_value(num_joints_ + st_index + 1);
     fstatus.fingertip_force.timestamp =
         static_cast<int64_t>(context.get_time() * 1e3);
     fstatus.fingertip_force.fy = force_value(st_index);
@@ -266,8 +262,7 @@ QPBrickControlDecoder::QPBrickControlDecoder(
     multibody::BodyIndex brick_body_index)
     : brick_body_index_(brick_body_index) {
   this->DeclareAbstractInputPort(
-      "spatial_forces_lcm",
-      Value<lcmt_planar_manipuland_spatial_forces>{});
+      "spatial_forces_lcm", Value<lcmt_planar_manipuland_spatial_forces>{});
   this->DeclareAbstractOutputPort("qp_brick_control",
                                   &QPBrickControlDecoder::OutputBrickControl);
   // State holds an abstract value of std::vector of
@@ -276,8 +271,7 @@ QPBrickControlDecoder::QPBrickControlDecoder(
       std::make_unique<Value<
           std::vector<multibody::ExternallyAppliedSpatialForce<double>>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
-      kGripperLcmPeriod, 0.,
-      &QPBrickControlDecoder::UpdateAbstractState);
+      kGripperLcmPeriod, 0., &QPBrickControlDecoder::UpdateAbstractState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedUnrestrictedUpdateEvent(
@@ -298,11 +292,11 @@ systems::EventStatus QPBrickControlDecoder::UpdateAbstractState(
     DRAKE_DEMAND(spatial_forces_lcm.manip_body_name == "brick_link");
     DRAKE_DEMAND(static_cast<int>(spatial_forces_lcm.num_forces) ==
                  static_cast<int>(spatial_forces_lcm.forces.size()));
-    for (auto & spatial_force_lcm : spatial_forces_lcm.forces) {
+    for (auto& spatial_force_lcm : spatial_forces_lcm.forces) {
       DRAKE_DEMAND(spatial_force_lcm.manip_body_name == "brick_link");
       multibody::ExternallyAppliedSpatialForce<double> applied_spatial_force;
       applied_spatial_force.body_index = brick_body_index_;
-      applied_spatial_force.p_BoBq_B(0) = 0;  // x
+      applied_spatial_force.p_BoBq_B(0) = 0;                              // x
       applied_spatial_force.p_BoBq_B(1) = spatial_force_lcm.p_BoBq_B[0];  // y
       applied_spatial_force.p_BoBq_B(2) = spatial_force_lcm.p_BoBq_B[1];  // z
 
@@ -357,9 +351,12 @@ void QPBrickControlEncoder::EncodeBrickControl(
     spatial_force_lcm.finger_name = "";
     spatial_force_lcm.p_BoBq_B[0] = spatial_force.p_BoBq_B(1);  // y
     spatial_force_lcm.p_BoBq_B[1] = spatial_force.p_BoBq_B(2);  // z
-    spatial_force_lcm.force_Bq_W[0] = spatial_force.F_Bq_W.translational()(1);  // fy
-    spatial_force_lcm.force_Bq_W[1] = spatial_force.F_Bq_W.translational()(2);  // fz
-    spatial_force_lcm.torque_Bq_W = spatial_force.F_Bq_W.rotational()(0);  // tx.
+    spatial_force_lcm.force_Bq_W[0] =
+        spatial_force.F_Bq_W.translational()(1);  // fy
+    spatial_force_lcm.force_Bq_W[1] =
+        spatial_force.F_Bq_W.translational()(2);  // fz
+    spatial_force_lcm.torque_Bq_W =
+        spatial_force.F_Bq_W.rotational()(0);  // tx.
     spatial_forces_lcm->forces.push_back(spatial_force_lcm);
   }
 }
@@ -368,19 +365,18 @@ QPFingersControlDecoder::QPFingersControlDecoder(
     multibody::BodyIndex brick_body_index)
     : brick_body_index_(brick_body_index) {
   this->DeclareAbstractInputPort(
-      "spatial_forces_lcm",
-      Value<lcmt_planar_manipuland_spatial_forces>{});
+      "spatial_forces_lcm", Value<lcmt_planar_manipuland_spatial_forces>{});
   this->DeclareAbstractOutputPort(
       "qp_fingers_control", &QPFingersControlDecoder::OutputFingersControl);
 
   // State holds an abstract value of
-  // std::unordered_map<Finger, multibody::ExternallyAppliedSpatialForce<double>>
+  // std::unordered_map<Finger,
+  // multibody::ExternallyAppliedSpatialForce<double>>
   this->DeclareAbstractState(
       std::make_unique<Value<std::unordered_map<
           Finger, multibody::ExternallyAppliedSpatialForce<double>>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
-      kGripperLcmPeriod, 0.,
-      &QPFingersControlDecoder::UpdateAbstractState);
+      kGripperLcmPeriod, 0., &QPFingersControlDecoder::UpdateAbstractState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedUnrestrictedUpdateEvent(
@@ -436,8 +432,8 @@ void QPFingersControlDecoder::OutputFingersControl(
 QPFingersControlEncoder::QPFingersControlEncoder() {
   this->DeclareAbstractInputPort(
       "qp_fingers_control",
-      Value<std::unordered_map<Finger, multibody::ExternallyAppliedSpatialForce<
-                                           double>>>{});
+      Value<std::unordered_map<
+          Finger, multibody::ExternallyAppliedSpatialForce<double>>>{});
   this->DeclareAbstractOutputPort(
       "spatial_forces_lcm", &QPFingersControlEncoder::EncodeFingersControl);
 }
@@ -468,7 +464,8 @@ void QPFingersControlEncoder::EncodeFingersControl(
         finger_force.second.F_Bq_W.translational()(1);  // fy
     spatial_force_lcm.force_Bq_W[1] =
         finger_force.second.F_Bq_W.translational()(2);  // fz
-    spatial_force_lcm.torque_Bq_W = finger_force.second.F_Bq_W.rotational()(0);  // tx.
+    spatial_force_lcm.torque_Bq_W =
+        finger_force.second.F_Bq_W.rotational()(0);  // tx.
     spatial_forces_lcm->forces.push_back(spatial_force_lcm);
   }
 }
@@ -481,8 +478,7 @@ QPEstimatedStateDecoder::QPEstimatedStateDecoder(const int num_plant_states)
                                 systems::BasicVector<double>(num_plant_states),
                                 &QPEstimatedStateDecoder::OutputEstimatedState);
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0.,
-      &QPEstimatedStateDecoder::UpdateDiscreteState);
+      kGripperLcmPeriod, 0., &QPEstimatedStateDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(
@@ -494,8 +490,9 @@ QPEstimatedStateDecoder::QPEstimatedStateDecoder(const int num_plant_states)
 systems::EventStatus QPEstimatedStateDecoder::UpdateDiscreteState(
     const Context<double>& context,
     DiscreteValues<double>* discrete_state) const {
-  const auto& planar_plant_state_lcm = this->GetInputPort("planar_plant_state_lcm")
-                                 .Eval<lcmt_planar_plant_state>(context);
+  const auto& planar_plant_state_lcm =
+      this->GetInputPort("planar_plant_state_lcm")
+          .Eval<lcmt_planar_plant_state>(context);
 
   // If we're using a default constructed message (haven't received
   // a command yet), keep using the initial state.
@@ -504,7 +501,7 @@ systems::EventStatus QPEstimatedStateDecoder::UpdateDiscreteState(
 
   DRAKE_DEMAND(plant_state.size() == num_plant_states_);
   DRAKE_DEMAND(planar_plant_state_lcm.num_states == 0 ||
-      planar_plant_state_lcm.num_states == num_plant_states_);
+               planar_plant_state_lcm.num_states == num_plant_states_);
 
   if (planar_plant_state_lcm.num_states == num_plant_states_) {
     std::copy(planar_plant_state_lcm.plant_state.data(),
@@ -527,14 +524,14 @@ QPEstimatedStateEncoder::QPEstimatedStateEncoder(const int num_plant_states)
   this->DeclareVectorInputPort("qp_estimated_plant_state",
                                systems::BasicVector<double>(num_plant_states));
   this->DeclareAbstractOutputPort(
-      "planar_plant_state_lcm",
-      &QPEstimatedStateEncoder::EncodeEstimatedState);
+      "planar_plant_state_lcm", &QPEstimatedStateEncoder::EncodeEstimatedState);
 }
 
 void QPEstimatedStateEncoder::EncodeEstimatedState(
     const drake::systems::Context<double>& context,
     drake::lcmt_planar_plant_state* planar_plant_state_lcm) const {
-  planar_plant_state_lcm->utime = static_cast<int64_t>(context.get_time() * 1e6);
+  planar_plant_state_lcm->utime =
+      static_cast<int64_t>(context.get_time() * 1e6);
   planar_plant_state_lcm->num_states = num_plant_states_;
   VectorX<double> estimated_plant_state =
       this->EvalVectorInput(
@@ -618,8 +615,8 @@ QPFingerFaceAssignmentsEncoder::QPFingerFaceAssignmentsEncoder() {
 
 void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
     const drake::systems::Context<double>& context,
-    lcmt_planar_gripper_finger_face_assignments*
-        finger_face_assignments_lcm) const {
+    lcmt_planar_gripper_finger_face_assignments* finger_face_assignments_lcm)
+    const {
   auto finger_face_assignments =
       this->GetInputPort("qp_finger_face_assignments")
           .Eval<std::unordered_map<Finger,
@@ -627,7 +624,7 @@ void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
               context);
   size_t num_fingers = finger_face_assignments.size();
   finger_face_assignments_lcm->num_fingers = num_fingers;
-//  finger_face_assignments_lcm->finger_face_assignments.resize(num_fingers);
+  //  finger_face_assignments_lcm->finger_face_assignments.resize(num_fingers);
   finger_face_assignments_lcm->finger_face_assignments.clear();
   finger_face_assignments_lcm->utime =
       static_cast<int64_t>(context.get_time() * 1e6);
@@ -662,8 +659,7 @@ QPBrickDesiredDecoder::QPBrickDesiredDecoder(const int num_brick_states,
       &QPBrickDesiredDecoder::DecodeBrickDesiredAccel);
 
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0.,
-      &QPBrickDesiredDecoder::UpdateDiscreteState);
+      kGripperLcmPeriod, 0., &QPBrickDesiredDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(
@@ -697,15 +693,15 @@ systems::EventStatus QPBrickDesiredDecoder::UpdateDiscreteState(
   DRAKE_DEMAND(brick_accel.size() == num_brick_accels_);
 
   DRAKE_DEMAND(brick_desired_lcm.num_states == 0 ||
-      brick_desired_lcm.num_states == num_brick_states_);
+               brick_desired_lcm.num_states == num_brick_states_);
   DRAKE_DEMAND(brick_desired_lcm.num_accels == 0 ||
-      brick_desired_lcm.num_accels == num_brick_accels_);
+               brick_desired_lcm.num_accels == num_brick_accels_);
 
   if (brick_desired_lcm.num_states == num_brick_states_) {
     DRAKE_DEMAND(static_cast<int>(brick_desired_lcm.desired_state.size()) ==
-        num_brick_states_);
+                 num_brick_states_);
     DRAKE_DEMAND(static_cast<int>(brick_desired_lcm.desired_accel.size()) ==
-        num_brick_accels_);
+                 num_brick_accels_);
     std::copy(brick_desired_lcm.desired_state.data(),
               brick_desired_lcm.desired_state.data() + num_brick_states_,
               brick_state.data());
@@ -734,15 +730,13 @@ void QPBrickDesiredDecoder::DecodeBrickDesiredAccel(
 
 QPBrickDesiredEncoder::QPBrickDesiredEncoder(const int num_brick_states,
                                              const int num_brick_accels)
-    : num_brick_states_(num_brick_states),
-      num_brick_accels_(num_brick_accels) {
+    : num_brick_states_(num_brick_states), num_brick_accels_(num_brick_accels) {
   this->DeclareVectorInputPort("qp_desired_brick_state",
                                systems::BasicVector<double>(num_brick_states_));
   this->DeclareVectorInputPort("qp_desired_brick_accel",
                                systems::BasicVector<double>(num_brick_accels_));
-  this->DeclareAbstractOutputPort(
-      "brick_desired_lcm",
-      &QPBrickDesiredEncoder::EncodeBrickDesired);
+  this->DeclareAbstractOutputPort("brick_desired_lcm",
+                                  &QPBrickDesiredEncoder::EncodeBrickDesired);
 }
 
 void QPBrickDesiredEncoder::EncodeBrickDesired(
@@ -797,15 +791,14 @@ PlanarGripperQPControllerLCM::PlanarGripperQPControllerLCM(
 
   auto qp_brick_control_sub =
       builder.AddSystem(systems::lcm::LcmSubscriberSystem::Make<
-          drake::lcmt_planar_manipuland_spatial_forces>(
+                        drake::lcmt_planar_manipuland_spatial_forces>(
           "QP_BRICK_CONTROL", lcm));
   auto qp_brick_control_dec =
       builder.AddSystem<QPBrickControlDecoder>(brick_index);
   builder.Connect(qp_brick_control_sub->get_output_port(),
                   qp_brick_control_dec->GetInputPort("spatial_forces_lcm"));
-  builder.ExportOutput(
-      qp_brick_control_dec->GetOutputPort("qp_brick_control"),
-      "qp_brick_control");
+  builder.ExportOutput(qp_brick_control_dec->GetOutputPort("qp_brick_control"),
+                       "qp_brick_control");
 
   /*
    * The LCM (publish) outputs from the local simulation, which are sent to the
@@ -844,10 +837,12 @@ PlanarGripperQPControllerLCM::PlanarGripperQPControllerLCM(
       num_brick_states, num_brick_accels);
   builder.Connect(qp_brick_desired_enc->GetOutputPort("brick_desired_lcm"),
                   qp_brick_desired_pub->get_input_port());
-  builder.ExportInput(qp_brick_desired_enc->GetInputPort(
-      "qp_desired_brick_state"), "qp_desired_brick_state");
-  builder.ExportInput(qp_brick_desired_enc->GetInputPort(
-      "qp_desired_brick_accel"), "qp_desired_brick_accel");
+  builder.ExportInput(
+      qp_brick_desired_enc->GetInputPort("qp_desired_brick_state"),
+      "qp_desired_brick_state");
+  builder.ExportInput(
+      qp_brick_desired_enc->GetInputPort("qp_desired_brick_accel"),
+      "qp_desired_brick_accel");
 
   builder.BuildInto(this);
 }
@@ -886,20 +881,19 @@ PlanarGripperSimulationLCM::PlanarGripperSimulationLCM(
                            "qp_finger_face_assignments"),
                        "qp_finger_face_assignments");
 
-  qp_brick_desired_sub_ =
-      builder.AddSystem(systems::lcm::LcmSubscriberSystem::Make<
-          drake::lcmt_planar_manipuland_desired>(
-          "QP_BRICK_DESIRED", lcm));
+  qp_brick_desired_sub_ = builder.AddSystem(
+      systems::lcm::LcmSubscriberSystem::Make<
+          drake::lcmt_planar_manipuland_desired>("QP_BRICK_DESIRED", lcm));
   auto qp_brick_desired_dec = builder.AddSystem<QPBrickDesiredDecoder>(
       num_brick_states, num_brick_accels);
   builder.Connect(qp_brick_desired_sub_->get_output_port(),
                   qp_brick_desired_dec->GetInputPort("brick_desired_lcm"));
-  builder.ExportOutput(qp_brick_desired_dec->GetOutputPort(
-      "qp_desired_brick_state"),
-                       "qp_desired_brick_state");
-  builder.ExportOutput(qp_brick_desired_dec->GetOutputPort(
-      "qp_desired_brick_accel"),
-                       "qp_desired_brick_accel");
+  builder.ExportOutput(
+      qp_brick_desired_dec->GetOutputPort("qp_desired_brick_state"),
+      "qp_desired_brick_state");
+  builder.ExportOutput(
+      qp_brick_desired_dec->GetOutputPort("qp_desired_brick_accel"),
+      "qp_desired_brick_accel");
 
   /*
    * The LCM (publish) outputs of the local QP controller, which are sent to the
@@ -909,27 +903,22 @@ PlanarGripperSimulationLCM::PlanarGripperSimulationLCM(
       builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
                         drake::lcmt_planar_manipuland_spatial_forces>(
           "QP_FINGERS_CONTROL", lcm, publish_period));
-  auto qp_fingers_control_enc =
-      builder.AddSystem<QPFingersControlEncoder>();
-  builder.Connect(
-      qp_fingers_control_enc->GetOutputPort("spatial_forces_lcm"),
-      qp_fingers_control_pub->get_input_port());
+  auto qp_fingers_control_enc = builder.AddSystem<QPFingersControlEncoder>();
+  builder.Connect(qp_fingers_control_enc->GetOutputPort("spatial_forces_lcm"),
+                  qp_fingers_control_pub->get_input_port());
   builder.ExportInput(
       qp_fingers_control_enc->GetInputPort("qp_fingers_control"),
       "qp_fingers_control");
 
   auto qp_brick_control_pub =
       builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
-          drake::lcmt_planar_manipuland_spatial_forces>(
+                        drake::lcmt_planar_manipuland_spatial_forces>(
           "QP_BRICK_CONTROL", lcm, publish_period));
-  auto qp_brick_control_enc =
-      builder.AddSystem<QPBrickControlEncoder>();
-  builder.Connect(
-      qp_brick_control_enc->GetOutputPort("spatial_forces_lcm"),
-      qp_brick_control_pub->get_input_port());
-  builder.ExportInput(
-      qp_brick_control_enc->GetInputPort("qp_brick_control"),
-      "qp_brick_control");
+  auto qp_brick_control_enc = builder.AddSystem<QPBrickControlEncoder>();
+  builder.Connect(qp_brick_control_enc->GetOutputPort("spatial_forces_lcm"),
+                  qp_brick_control_pub->get_input_port());
+  builder.ExportInput(qp_brick_control_enc->GetInputPort("qp_brick_control"),
+                      "qp_brick_control");
 
   builder.BuildInto(this);
 }
