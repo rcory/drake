@@ -4,17 +4,17 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/contact_force_qp.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/multibody/plant/spatial_forces_to_lcm.h"
+#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/solvers/solve.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_value_source.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/trajectory_source.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
-#include "drake/multibody/plant/spatial_forces_to_lcm.h"
-#include "drake/multibody/tree/revolute_joint.h"
 
 namespace drake {
 namespace examples {
@@ -109,7 +109,7 @@ int DoMain() {
   builder.Connect(qp_controller->get_output_port_brick_control(),
                   viz_converter->get_input_port(0));
   builder.Connect(planar_gripper->GetOutputPort("brick_state"),
-                   viz_converter->get_input_port(1));
+                  viz_converter->get_input_port(1));
   lcm::DrakeLcm drake_lcm;
   multibody::ConnectSpatialForcesToDrakeVisualizer(
       &builder, planar_gripper->get_multibody_plant(),
@@ -182,10 +182,9 @@ int DoMain() {
                     qp_controller->get_input_port_desired_state());
   } else {  // regulate
     auto brick_state_traj_source =
-        builder.AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
+        builder.AddSystem<systems::ConstantVectorSource<double>>(des_state_vec);
     builder.Connect(brick_state_traj_source->get_output_port(),
-                     qp_controller->get_input_port_desired_state());
+                    qp_controller->get_input_port_desired_state());
   }
 
   /** Apply zero torque to the joint motor. */
@@ -199,7 +198,7 @@ int DoMain() {
 
   // Publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(
-      planar_gripper->get_multibody_plant(), drake_lcm, 1.0 / 60.0, true);
+      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   frame_viz->get_input_port(0));
 

@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <memory>
+
 #include "drake/systems/framework/abstract_values.h"
 
 namespace drake {
@@ -199,7 +201,7 @@ bool operator==(const PlanarManipulandSpatialForce& f1,
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces(int m_num_forces)
     : num_forces{static_cast<uint32_t>(m_num_forces)},
       forces{num_forces},
-      in_contact(m_num_forces, false){};
+      in_contact(m_num_forces, false) {}
 
 PlanarManipulandSpatialForces::PlanarManipulandSpatialForces()
     : PlanarManipulandSpatialForces(0) {}
@@ -291,7 +293,7 @@ bool operator==(const PlanarPlantState& f1, const PlanarPlantState& f2) {
 
 SimToQPUdpPublisherSystem::SimToQPUdpPublisherSystem(
     double publish_period, int local_port, int remote_port,
-    unsigned long remote_address, int num_plant_states, int num_fingers,
+    uint32_t remote_address, int num_plant_states, int num_fingers,
     int num_brick_states, int num_brick_accels)
     : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
       remote_port_{remote_port},
@@ -716,7 +718,7 @@ void QPtoSimUdpReceiverSystem::OutputBrickDesiredAccel(
 
 QPControlUdpPublisherSystem::QPControlUdpPublisherSystem(
     double publish_period, int local_port, int remote_port,
-    unsigned long remote_address, int num_fingers)
+    uint32_t remote_address, int num_fingers)
     : file_descriptor_{socket(AF_INET, SOCK_DGRAM, 0)},
       local_port_{local_port},
       remote_port_{remote_port},
@@ -825,7 +827,7 @@ systems::EventStatus QPControlUdpPublisherSystem::PublishInputAsUdpMessage(
 PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
     int num_multibody_states, multibody::BodyIndex brick_index, int num_fingers,
     int num_brick_states, int num_brick_accels, int publisher_local_port,
-    int publisher_remote_port, unsigned long publisher_remote_address,
+    int publisher_remote_port, uint32_t publisher_remote_address,
     int receiver_local_port, double publish_period) {
   systems::DiagramBuilder<double> builder;
   // The UDP receiver receives from publisher of the remote QP controller, and
@@ -859,7 +861,7 @@ PlanarGripperQPControllerUDP::PlanarGripperQPControllerUDP(
 PlanarGripperSimulationUDP::PlanarGripperSimulationUDP(
     int num_multibody_states, int num_fingers, int num_brick_states,
     int num_brick_accels, int publisher_local_port, int publisher_remote_port,
-    unsigned long publisher_remote_address, int receiver_local_port,
+    uint32_t publisher_remote_address, int receiver_local_port,
     double publish_period) {
   systems::DiagramBuilder<double> builder;
 

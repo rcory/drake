@@ -1,12 +1,15 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/spatial_force_output.h"
-#include "drake/lcm/drake_lcm.h"
 
 namespace drake {
 namespace examples {
@@ -125,8 +128,7 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
  * @throw If `kNumJoints` does not exactly match plant.num_positions().
  */
 MatrixX<double> ReorderKeyframesForPlant(
-    const MultibodyPlant<double>& plant,
-    const MatrixX<double> keyframes,
+    const MultibodyPlant<double>& plant, const MatrixX<double> keyframes,
     std::map<std::string, int>* finger_joint_name_to_row_index_map);
 
 /// Returns a specific finger's weld angle from the +Gz axis
@@ -140,62 +142,61 @@ void PublishFramesToLcm(
         name_to_frame_map,
     drake::lcm::DrakeLcmInterface* lcm);
 
-void PublishFramesToLcm(
-    const std::string &channel_name,
-    const std::vector<math::RigidTransformd> &frames,
-    const std::vector<std::string> &frame_names,
-    drake::lcm::DrakeLcmInterface *lcm);
+void PublishFramesToLcm(const std::string& channel_name,
+                        const std::vector<math::RigidTransformd>& frames,
+                        const std::vector<std::string>& frame_names,
+                        drake::lcm::DrakeLcmInterface* lcm);
 
 /// Publishes pre-defined body frames once.
-void PublishBodyFrames(systems::Context<double>& plant_context,
+void PublishBodyFrames(const systems::Context<double>& plant_context,
                        const multibody::MultibodyPlant<double>& plant,
-                       lcm::DrakeLcm& lcm);
+                       lcm::DrakeLcm* lcm);
 
 /// Returns the preferred state ordering for the planar gripper states (e.g.,
 /// used to create the state selector matrix using MBP).
 std::vector<std::string> GetPreferredGripperStateOrdering();
 
 /// A system that publishes frames at a specified period.
- class FrameViz final : public systems::LeafSystem<double> {
-  public:
-   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
+class FrameViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FrameViz)
 
-   FrameViz(const multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm& lcm,
-            double period, bool frames_input = false);
+  FrameViz(const multibody::MultibodyPlant<double>& plant, lcm::DrakeLcm* lcm,
+           double period, bool frames_input = false);
 
-  private:
-   systems::EventStatus PublishFramePose(
-       const systems::Context<double>& context) const;
+ private:
+  systems::EventStatus PublishFramePose(
+      const systems::Context<double>& context) const;
 
-   const multibody::MultibodyPlant<double>& plant_;
-   std::unique_ptr<systems::Context<double>> plant_context_;
-   lcm::DrakeLcm& lcm_;
-   bool frames_input_{false};
- };
+  const multibody::MultibodyPlant<double>& plant_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
+  lcm::DrakeLcm* lcm_;
+  bool frames_input_{false};
+};
 
- /// Visualizes the spatial forces via Evan's spatial force visualization PR.
- /// A system that takes an `ExternallyAppliedSpatialForce` as input, and
- /// outputs a std::vector of type `SpatialForceOutput`, which is then used for
- /// visualization. The latter omits the body index, and expresses the contact
- /// point in the world frame, instead of the body frame. The force is expressed
- /// in the world frame for both.
- class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
-  public:
-   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
+/// Visualizes the spatial forces via Evan's spatial force visualization PR.
+/// A system that takes an `ExternallyAppliedSpatialForce` as input, and
+/// outputs a std::vector of type `SpatialForceOutput`, which is then used for
+/// visualization. The latter omits the body index, and expresses the contact
+/// point in the world frame, instead of the body frame. The force is expressed
+/// in the world frame for both.
+class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalSpatialToSpatialViz)
 
-   ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
-                               multibody::ModelInstanceIndex instance,
-                               double force_scale_factor = 10);
+  ExternalSpatialToSpatialViz(const multibody::MultibodyPlant<double>& plant,
+                              multibody::ModelInstanceIndex instance,
+                              double force_scale_factor = 10);
 
-   void CalcOutput(const systems::Context<double>& context,
-                   std::vector<multibody::SpatialForceOutput<double>>*
-                       spatial_forces_viz_output) const;
+  void CalcOutput(const systems::Context<double>& context,
+                  std::vector<multibody::SpatialForceOutput<double>>*
+                      spatial_forces_viz_output) const;
 
-  private:
-   const multibody::MultibodyPlant<double>& plant_;
-   multibody::ModelInstanceIndex instance_;
-   std::unique_ptr<systems::Context<double>> plant_context_;
-   double force_scale_factor_;
+ private:
+  const multibody::MultibodyPlant<double>& plant_;
+  multibody::ModelInstanceIndex instance_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
+  double force_scale_factor_;
 };
 
 /// Takes in a state vector from MBP state output port, and outputs a state

@@ -5,6 +5,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/trajectories/piecewise_polynomial.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 #include "drake/geometry/geometry_visualization.h"
@@ -20,7 +21,6 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
 
 namespace drake {
 namespace examples {
@@ -115,7 +115,7 @@ int DoMain() {
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
-          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmStatusPeriod));
+          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
 
   builder.Connect(planar_gripper->GetOutputPort("gripper_state"),
