@@ -30,7 +30,7 @@ namespace {
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 4.5,
+DEFINE_double(simulation_time, 20,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
@@ -42,11 +42,11 @@ DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 1e-5,
+DEFINE_double(brick_floor_penetration, 0 /* nominally 1e-5 */,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
-DEFINE_string(orientation, "horizontal",
+DEFINE_string(orientation, "vertical",
               "The orientation of the planar gripper. Options are {vertical, "
               "horizontal}.");
 DEFINE_bool(visualize_contacts, true,
@@ -55,9 +55,9 @@ DEFINE_bool(
     use_position_control, true,
     "If true (default) we simulate position control via inverse dynamics "
     "control. If false we actuate torques directly.");
-
-DEFINE_string(keyframes_filename, "postures_horizontal.txt",
+DEFINE_string(keyframes_filename, "postures.txt",
               "The name of the file containing the keyframes.");
+DEFINE_bool(zero_gravity, true, "Set MBP gravity vector to zero?");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
@@ -74,6 +74,7 @@ int DoMain() {
   // Setup the planar brick version of the plant.
   planar_gripper->SetupPlanarBrick(FLAGS_orientation);
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
+  planar_gripper->zero_gravity(FLAGS_zero_gravity);
 
   // Finalize and build the diagram.
   planar_gripper->Finalize();
@@ -133,9 +134,9 @@ int DoMain() {
       "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
-  Vector3<double> brick_initial_2D_pose_G;
+  std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
   std::tie(keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path, &brick_initial_2D_pose_G);
+      ParseKeyframes(keyframe_path, &brick_keyframe_info);
   keyframes =
       ReorderKeyframesForPlant(planar_gripper->get_control_plant(), keyframes,
                                &finger_joint_name_to_row_index_map);
@@ -157,9 +158,15 @@ int DoMain() {
                                      gripper_initial_positions);
 
   std::map<std::string, double> init_brick_pos_map;
-  init_brick_pos_map["brick_translate_y_joint"] = brick_initial_2D_pose_G(0);
-  init_brick_pos_map["brick_translate_z_joint"] = brick_initial_2D_pose_G(1);
-  init_brick_pos_map["brick_revolute_x_joint"] = brick_initial_2D_pose_G(2);
+  const int y_index = brick_keyframe_info.second["brick_translate_y_joint"];
+  const int z_index = brick_keyframe_info.second["brick_translate_z_joint"];
+  const int x_index = brick_keyframe_info.second["brick_revolute_x_joint"];
+  init_brick_pos_map["brick_translate_y_joint"] =
+      brick_keyframe_info.first(y_index, 0);
+  init_brick_pos_map["brick_translate_z_joint"] =
+      brick_keyframe_info.first(z_index, 0);
+  init_brick_pos_map["brick_revolute_x_joint"] =
+      brick_keyframe_info.first(x_index, 0);
   if (FLAGS_orientation == "horizontal") {
     init_brick_pos_map["brick_translate_x_joint"] = 0;
   }
