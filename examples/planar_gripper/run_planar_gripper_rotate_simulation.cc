@@ -3,29 +3,29 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/drake_assert.h"
+#include "drake/examples/planar_gripper/finger_brick.h"
+#include "drake/examples/planar_gripper/finger_brick_control.h"
+#include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
+#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/connect_lcm_scope.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
-#include "drake/multibody/tree/revolute_joint.h"
-#include "drake/examples/planar_gripper/finger_brick_control.h"
-#include "drake/examples/planar_gripper/finger_brick.h"
-#include "drake/lcm/drake_lcm.h"
-#include "drake/systems/lcm/connect_lcm_scope.h"
 
 namespace drake {
 namespace examples {
 namespace planar_gripper {
 namespace {
 
-using multibody::RevoluteJoint;
 using multibody::ContactResults;
+using multibody::RevoluteJoint;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
@@ -36,8 +36,7 @@ DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
-DEFINE_double(penetration_allowance, 0.2,
-              "The contact penetration allowance.");
+DEFINE_double(penetration_allowance, 0.2, "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(floor_coef_static_friction, 0 /*0.5*/,
               "The floor's coefficient of static friction");
@@ -55,7 +54,7 @@ DEFINE_bool(visualize_contacts, true,
 
 // Gripper/brick rotate specific flags
 DEFINE_double(f1_base, -0.55, "f1_base");  // shoulder joint
-DEFINE_double(f1_mid, 1.5, "f1_mid");  // elbow joint
+DEFINE_double(f1_mid, 1.5, "f1_mid");      // elbow joint
 DEFINE_double(f2_base, 0.75, "f2_base");
 DEFINE_double(f2_mid, -0.7, "f2_mid");
 DEFINE_double(f3_base, -0.15, "f3_base");
@@ -119,7 +118,7 @@ DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_a_error, 1, "translational acceleration error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
-DEFINE_double(QP_mu, 1.0, "QP mu");  /* MBP defaults to mu1 == mu2 == 1.0 */
+DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
 
 DEFINE_bool(assume_zero_brick_damping, false,
@@ -158,7 +157,6 @@ GetFingerFaceAssignments() {
     finger_face_assignments.emplace(
         Finger::kFinger2,
         std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
-
   }
   if (FLAGS_use_finger3 || FLAGS_brick_only) {
     finger_face_assignments.emplace(
@@ -169,7 +167,7 @@ GetFingerFaceAssignments() {
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
-                            QPControlOptions* qpoptions) {
+                         QPControlOptions* qpoptions) {
   double brick_rotational_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
     brick_rotational_damping = planar_gripper.GetBrickPinJointDamping();
@@ -268,15 +266,15 @@ int DoMain() {
   GetQPPlannerOptions(*planar_gripper, &qpoptions);
   if (FLAGS_brick_only) {
     if (FLAGS_use_QP == "LCM") {
-      ConnectLCMQPController(*planar_gripper, drake_lcm, std::nullopt,
+      ConnectLCMQPController(*planar_gripper, &drake_lcm, std::nullopt,
                              qpoptions, &builder);
     } else if (FLAGS_use_QP == "UDP") {
       ConnectUDPQPController(
-          *planar_gripper, drake_lcm, std::nullopt, qpoptions,
+          *planar_gripper, &drake_lcm, std::nullopt, qpoptions,
           FLAGS_publisher_local_port, FLAGS_publisher_remote_port,
           FLAGS_publisher_remote_address, FLAGS_receiver_local_port, &builder);
     } else if (FLAGS_use_QP == "local") {
-      ConnectQPController(*planar_gripper, drake_lcm, std::nullopt, qpoptions,
+      ConnectQPController(*planar_gripper, &drake_lcm, std::nullopt, qpoptions,
                           &builder);
     } else {
       throw std::runtime_error("use_QP must be either LCM, UDP or local");
@@ -291,7 +289,7 @@ int DoMain() {
       DRAKE_DEMAND(finger == foptions.finger_to_control_);
       DRAKE_DEMAND(brick_face == foptions.brick_face_);
       ForceController* force_controller =
-          SetupForceController(*planar_gripper, drake_lcm, foptions, &builder);
+          SetupForceController(*planar_gripper, &drake_lcm, foptions, &builder);
       finger_force_control_map.emplace(finger, *force_controller);
     }
     auto force_controllers_to_plant =
@@ -300,15 +298,15 @@ int DoMain() {
     force_controllers_to_plant->ConnectForceControllersToPlant(*planar_gripper,
                                                                &builder);
     if (FLAGS_use_QP == "LCM") {
-      ConnectLCMQPController(*planar_gripper, drake_lcm,
+      ConnectLCMQPController(*planar_gripper, &drake_lcm,
                              finger_force_control_map, qpoptions, &builder);
     } else if (FLAGS_use_QP == "UDP") {
       ConnectUDPQPController(
-          *planar_gripper, drake_lcm, finger_force_control_map, qpoptions,
+          *planar_gripper, &drake_lcm, finger_force_control_map, qpoptions,
           FLAGS_publisher_local_port, FLAGS_publisher_remote_port,
           FLAGS_publisher_remote_address, FLAGS_receiver_local_port, &builder);
     } else if (FLAGS_use_QP == "local") {
-      ConnectQPController(*planar_gripper, drake_lcm, finger_force_control_map,
+      ConnectQPController(*planar_gripper, &drake_lcm, finger_force_control_map,
                           qpoptions, &builder);
     } else {
       throw std::runtime_error("use_QP should be either LCM, UDP or local.");
@@ -317,7 +315,7 @@ int DoMain() {
 
   // publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(
-      planar_gripper->get_multibody_plant(), drake_lcm, 1.0 / 60.0, true);
+      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   frame_viz->get_input_port(0));
 
