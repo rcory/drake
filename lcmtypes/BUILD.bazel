@@ -469,16 +469,16 @@ install(
 install(
     name = "install",
     install_tests = [":test/drake-lcm-spy_install_test.py"],
-    rename = {
-        "share/java/liblcmtypes_drake_java.jar": "lcmtypes_drake.jar",
-        "bin/drake-lcm-spy-launcher.sh": "drake-lcm-spy",
-    },
     targets = [
         ":drake-lcm-spy-launcher",
         ":drake-lcm-spy",
         ":lcmtypes_drake_java",
         ":lcmtypes_drake_py",
     ],
+    rename = {
+        "share/java/liblcmtypes_drake_java.jar": "lcmtypes_drake.jar",
+        "bin/drake-lcm-spy-launcher.sh": "drake-lcm-spy",
+    },
     deps = [
         ":install_drake_cc_headers",
         "//tools/workspace/optitrack_driver:install",
