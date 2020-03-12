@@ -7,13 +7,13 @@
 #include <utility>
 #include <vector>
 
+#include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/mathematical_program.h"
 #include "drake/solvers/mathematical_program_result.h"
 #include "drake/systems/controllers/state_feedback_controller_interface.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "drake/examples/planar_gripper/planar_gripper_common.h"
 
 namespace drake {
 namespace examples {

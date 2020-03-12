@@ -9,10 +9,10 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/lcm/drake_lcm.h"
+#include "drake/lcmt_viewer_draw.hpp"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
-#include "drake/multibody/plant/externally_applied_spatial_force.h"
-#include "drake/lcmt_viewer_draw.hpp"
 
 namespace drake {
 namespace examples {
@@ -310,13 +310,13 @@ MatrixX<double> ReorderKeyframesForPlant(
 
 double FingerWeldAngle(Finger finger) {
   switch (finger) {
-    case Finger::kFinger1 :
+    case Finger::kFinger1:
       return M_PI / 3.0;
       break;
-    case Finger::kFinger2 :
+    case Finger::kFinger2:
       return -M_PI / 3.0;
       break;
-    case Finger::kFinger3 :
+    case Finger::kFinger3:
       return M_PI;
       break;
     default:
@@ -366,14 +366,14 @@ void PublishFramesToLcm(const std::string& channel_name,
   const size_t size_bytes = static_cast<size_t>(num_bytes);
   std::vector<uint8_t> bytes(size_bytes);
   frame_msg.encode(bytes.data(), 0, num_bytes);
-  dlcm->Publish(
-      "DRAKE_DRAW_FRAMES_" + channel_name, bytes.data(), num_bytes, {});
+  dlcm->Publish("DRAKE_DRAW_FRAMES_" + channel_name, bytes.data(), num_bytes,
+                {});
 }
 
 /// Publishes pre-defined body frames once.
-void PublishBodyFrames(systems::Context<double>& plant_context,
+void PublishBodyFrames(const systems::Context<double>& plant_context,
                        const multibody::MultibodyPlant<double>& plant,
-                       lcm::DrakeLcm& lcm, bool brick_only) {
+                       lcm::DrakeLcm* lcm, bool brick_only) {
   std::vector<std::string> body_names;
   std::vector<RigidTransformd> poses;
 
@@ -397,7 +397,7 @@ void PublishBodyFrames(systems::Context<double>& plant_context,
     poses.push_back(X_WB);
   }
 
-  PublishFramesToLcm("SIM", poses, body_names, &lcm);
+  PublishFramesToLcm("SIM", poses, body_names, lcm);
 }
 
 std::vector<std::string> GetPreferredGripperStateOrdering() {
@@ -413,7 +413,7 @@ std::vector<std::string> GetPreferredGripperStateOrdering() {
 
 /// A system that publishes frames at a specified period.
 FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
-                   lcm::DrakeLcm& lcm, double period, bool frames_input)
+                   lcm::DrakeLcm* lcm, double period, bool frames_input)
     : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
   this->DeclareVectorInputPort(
       "x", systems::BasicVector<double>(plant.num_positions() +
@@ -423,8 +423,7 @@ FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
   if (frames_input_) {
     this->DeclareAbstractInputPort(Value<std::vector<math::RigidTransformd>>());
   }
-  this->DeclarePeriodicPublishEvent(period, 0.,
-                                    &FrameViz::PublishFramePose);
+  this->DeclarePeriodicPublishEvent(period, 0., &FrameViz::PublishFramePose);
   plant_context_ = plant.CreateDefaultContext();
 }
 
@@ -461,7 +460,7 @@ ExternalSpatialToSpatialViz::ExternalSpatialToSpatialViz(
 void ExternalSpatialToSpatialViz::CalcOutput(
     const systems::Context<double>& context,
     std::vector<multibody::SpatialForceOutput<double>>*
-    spatial_forces_viz_output) const {
+        spatial_forces_viz_output) const {
   auto external_spatial_forces_vec =
       this->get_input_port(0)
           .Eval<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
