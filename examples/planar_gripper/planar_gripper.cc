@@ -1,3 +1,8 @@
+#include "drake/examples/planar_gripper/planar_gripper.h"
+
+#include <utility>
+#include <vector>
+
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
@@ -9,12 +14,12 @@
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram_builder.h"
-#include "drake/examples/planar_gripper/planar_gripper.h"
 
 namespace drake {
 namespace examples {
 namespace planar_gripper {
 
+using Eigen::Vector3d;
 using geometry::SceneGraph;
 using multibody::JointActuatorIndex;
 using multibody::ModelInstanceIndex;
@@ -22,11 +27,10 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
-using Eigen::Vector3d;
 
 /// Adds a floor to the simulation, modeled as a thin cylinder.
 void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
-              const SceneGraph<double>& scene_graph) {
+                             const SceneGraph<double>& scene_graph) {
   // Get info for the brick from the SceneGraph inspector. This is used to
   // determine placement of the floor in order to achieve the specified
   // brick/floor penetration.
@@ -58,9 +62,10 @@ void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
       floor_coef_static_friction_, floor_coef_kinetic_friction_);
   const math::RigidTransformd X_WF(
       Eigen::AngleAxisd(M_PI_2, Vector3d::UnitY()),
-      Vector3d(kSphereTipXOffset - (kFloorHeight / 2.0) +
-          brick_floor_penetration_, 0, 0));
-//  const Vector4<double> black(0.2, 0.2, 0.2, 1.0);
+      Vector3d(
+          kSphereTipXOffset - (kFloorHeight / 2.0) + brick_floor_penetration_,
+          0, 0));
+  //  const Vector4<double> black(0.2, 0.2, 0.2, 1.0);
   const Vector4<double> white(0.8, 0.8, 0.8, 0.6);
   plant->RegisterVisualGeometry(plant->world_body(), X_WF,
                                 geometry::Cylinder(.125, kFloorHeight),
@@ -179,8 +184,7 @@ void PlanarGripper::SetGripperVelocity(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& v) const {
-  const int num_gripper_velocities =
-      plant_->num_velocities(gripper_index_);
+  const int num_gripper_velocities = plant_->num_velocities(gripper_index_);
   DRAKE_DEMAND(state != nullptr);
   DRAKE_DEMAND(v.size() == num_gripper_velocities);
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
@@ -212,8 +216,7 @@ void PlanarGripper::SetupPlanarBrick(std::string orientation) {
 }
 
 void PlanarGripper::SetupPinBrick(std::string orientation) {
-  SetupPlant(orientation,
-             "drake/examples/planar_gripper/1dof_brick.sdf");
+  SetupPlant(orientation, "drake/examples/planar_gripper/1dof_brick.sdf");
 }
 
 void PlanarGripper::SetupPlant(std::string orientation,
@@ -228,8 +231,7 @@ void PlanarGripper::SetupPlant(std::string orientation,
   WeldGripperFrames<double>(plant_, X_WG_);
 
   // Adds the brick to be manipulated.
-  const std::string brick_full_file_name =
-      FindResourceOrThrow(brick_file_name);
+  const std::string brick_full_file_name = FindResourceOrThrow(brick_file_name);
   brick_index_ = Parser(plant_).AddModelFromFile(brick_full_file_name, "brick");
 
   // When the planar-gripper is welded via WeldGripperFrames(), motion always
@@ -243,11 +245,10 @@ void PlanarGripper::SetupPlant(std::string orientation,
     gravity = Vector3d(
         0, 0, -multibody::UniformGravityFieldElement<double>::kDefaultStrength);
   } else if (orientation == "horizontal") {
-    plant_->AddJoint<PrismaticJoint>(
-        "brick_translate_x_joint",
-        plant_->world_body(), std::nullopt,
-        plant_->GetBodyByName("brick_base_link"), std::nullopt,
-        Vector3d::UnitX());
+    plant_->AddJoint<PrismaticJoint>("brick_translate_x_joint",
+                                     plant_->world_body(), std::nullopt,
+                                     plant_->GetBodyByName("brick_base_link"),
+                                     std::nullopt, Vector3d::UnitX());
     gravity = Vector3d(
         -multibody::UniformGravityFieldElement<double>::kDefaultStrength, 0, 0);
   } else {
@@ -279,7 +280,6 @@ void PlanarGripper::SetupPlant(std::string orientation,
 }
 
 void PlanarGripper::Finalize() {
-
   systems::DiagramBuilder<double> builder;
   builder.AddSystem(std::move(owned_plant_));
   builder.AddSystem(std::move(owned_scene_graph_));
@@ -288,7 +288,9 @@ void PlanarGripper::Finalize() {
     // Create the gains for the inverse dynamics controller. These gains were
     // chosen arbitrarily.
     Vector<double, kNumGripperJoints> Kp, Kd, Ki;
-    Kp.setConstant(1500); Kd.setConstant(500); Ki.setConstant(500);
+    Kp.setConstant(1500);
+    Kd.setConstant(500);
+    Ki.setConstant(500);
 
     auto id_controller =
         builder.AddSystem<systems::controllers::InverseDynamicsController>(
@@ -315,8 +317,7 @@ void PlanarGripper::Finalize() {
     builder.ExportInput(plant_->get_actuation_input_port(), "actuation");
   }
 
-  builder.ExportOutput(plant_->get_state_output_port(),
-                       "plant_state");
+  builder.ExportOutput(plant_->get_state_output_port(), "plant_state");
   builder.ExportOutput(plant_->get_state_output_port(gripper_index_),
                        "gripper_state");
   builder.ExportOutput(plant_->get_state_output_port(brick_index_),
@@ -395,7 +396,7 @@ VectorX<double> PlanarGripper::MakePositionVector(
   // }
 
   std::map<int, std::string> index_joint_map;
-  for (auto & iter : map_in) {
+  for (auto& iter : map_in) {
     auto joint_pos_start_index =
         plant_->GetJointByName(iter.first).position_start();
     index_joint_map[joint_pos_start_index] = iter.first;
@@ -405,14 +406,14 @@ VectorX<double> PlanarGripper::MakePositionVector(
   // and assume that MBP's SetPositions(model_instance) takes in a position
   // subvector in that ordering.
   int vector_index = 0;
-  for (auto & iter : index_joint_map) {
+  for (auto& iter : index_joint_map) {
     position_vector(vector_index++) = map_in.at(iter.second);
   }
   return position_vector;
 }
 
 void PlanarGripper::SetBrickPosition(
-    drake::systems::Context<double>& diagram_context,
+    const drake::systems::Context<double>& diagram_context,
     drake::systems::State<double>* state,
     const Eigen::Ref<const VectorX<double>>& q) const {
   const int kNumBrickPositions = get_num_brick_positions();
@@ -427,8 +428,7 @@ void PlanarGripper::SetBrickVelocity(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& v) const {
-  const int num_brick_velocities =
-      plant_->num_velocities(brick_index_);
+  const int num_brick_velocities = plant_->num_velocities(brick_index_);
   DRAKE_DEMAND(state != nullptr);
   DRAKE_DEMAND(v.size() == num_brick_velocities);
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
@@ -439,18 +439,17 @@ void PlanarGripper::SetBrickVelocity(
 double PlanarGripper::GetBrickPinJointDamping() const {
   std::string joint_name = "brick_revolute_x_joint";
   if (!plant_->HasJointNamed(joint_name)) {
-    throw std::logic_error(
-        "Joint " + joint_name + " does not exist in the MBP");
+    throw std::logic_error("Joint " + joint_name +
+                           " does not exist in the MBP");
   }
-  return plant_->GetJointByName<RevoluteJoint>(joint_name)
-      .damping();
+  return plant_->GetJointByName<RevoluteJoint>(joint_name).damping();
 }
 
 Vector3d PlanarGripper::GetBrickMoments() const {
   std::string frame_name = "brick_link";
   if (!plant_->HasFrameNamed(frame_name)) {
-    throw std::logic_error(
-        "Frame " + frame_name + " does not exist in the MBP");
+    throw std::logic_error("Frame " + frame_name +
+                           " does not exist in the MBP");
   }
   return dynamic_cast<const multibody::RigidBody<double>&>(
              plant_->GetFrameByName(frame_name).body())
@@ -461,8 +460,8 @@ Vector3d PlanarGripper::GetBrickMoments() const {
 double PlanarGripper::GetBrickMass() const {
   std::string frame_name = "brick_link";
   if (!plant_->HasFrameNamed(frame_name)) {
-    throw std::logic_error(
-        "Frame " + frame_name + " does not exist in the MBP");
+    throw std::logic_error("Frame " + frame_name +
+                           " does not exist in the MBP");
   }
   return dynamic_cast<const multibody::RigidBody<double>&>(
              plant_->GetFrameByName("brick_link").body())

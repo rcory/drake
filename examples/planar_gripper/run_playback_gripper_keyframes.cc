@@ -17,8 +17,6 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
-#include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/systems/rendering/multibody_position_to_geometry_pose.h"
 
 namespace drake {
@@ -27,9 +25,9 @@ namespace planar_gripper {
 namespace {
 
 using geometry::SceneGraph;
+using multibody::ModelInstanceIndex;
 using multibody::Parser;
 using multibody::PrismaticJoint;
-using multibody::ModelInstanceIndex;
 
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
@@ -92,11 +90,10 @@ int DoMain() {
     gravity = Vector3d(
         0, 0, -multibody::UniformGravityFieldElement<double>::kDefaultStrength);
   } else if (FLAGS_orientation == "horizontal") {
-    plant.AddJoint<PrismaticJoint>(
-        "brick_translate_x_joint",
-        plant.world_body(), std::nullopt,
-        plant.GetBodyByName("brick_base_link"), std::nullopt,
-        Vector3d::UnitX());
+    plant.AddJoint<PrismaticJoint>("brick_translate_x_joint",
+                                   plant.world_body(), std::nullopt,
+                                   plant.GetBodyByName("brick_base_link"),
+                                   std::nullopt, Vector3d::UnitX());
     gravity = Vector3d(
         -multibody::UniformGravityFieldElement<double>::kDefaultStrength, 0, 0);
   } else {
@@ -148,3 +145,4 @@ int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   return drake::examples::planar_gripper::DoMain();
 }
+

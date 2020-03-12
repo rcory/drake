@@ -1,6 +1,9 @@
 #include "drake/examples/planar_gripper/finger_brick.h"
-#include "drake/multibody/tree/weld_joint.h"
+
+#include <string>
+
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/multibody/tree/weld_joint.h"
 
 namespace drake {
 namespace examples {
@@ -45,11 +48,9 @@ geometry::GeometryId GetBrickGeometryId(
     const geometry::SceneGraph<double>& scene_graph) {
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
-  const geometry::GeometryId brick_geometry_id =
-      inspector.GetGeometryIdByName(
-          plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName("brick_link").index()),
-          geometry::Role::kProximity, "brick::box_collision");
+  const geometry::GeometryId brick_geometry_id = inspector.GetGeometryIdByName(
+      plant.GetBodyFrameIdOrThrow(plant.GetBodyByName("brick_link").index()),
+      geometry::Role::kProximity, "brick::box_collision");
   return brick_geometry_id;
 }
 
@@ -92,9 +93,9 @@ multibody::BodyIndex GetTipLinkBodyIndex(
 
 // TODO(rcory) This method only exists for planar_finger_qp_test. Remove this
 //  once I remove the dependency in that test.
-double GetFingerTipSphereRadius(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, Finger finger) {
+double GetFingerTipSphereRadius(const multibody::MultibodyPlant<double>& plant,
+                                const geometry::SceneGraph<double>& scene_graph,
+                                Finger finger) {
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
@@ -134,11 +135,10 @@ int GetContactPairIndex(const multibody::MultibodyPlant<double>& plant,
   for (pair_index = 0; pair_index < contact_results.num_point_pair_contacts();
        pair_index++) {
     auto info = contact_results.point_pair_contact_info(pair_index);
-    if (info.bodyA_index() == brick_index &&
-        info.bodyB_index() == ftip_index) {
+    if (info.bodyA_index() == brick_index && info.bodyB_index() == ftip_index) {
       break;
     } else if (info.bodyA_index() == ftip_index &&
-        info.bodyB_index() == brick_index) {
+               info.bodyB_index() == brick_index) {
       break;
     }
   }
@@ -167,13 +167,14 @@ ContactPointInBrickFrame::ContactPointInBrickFrame(
                                 &ContactPointInBrickFrame::CalcOutput);
 
   this->DeclareAbstractOutputPort("b_in_contact",
-                                &ContactPointInBrickFrame::in_contact);
+                                  &ContactPointInBrickFrame::in_contact);
 
   // This provides the geometry query object, which can compute the witness
   // points between fingertip and box (used in impedance control).
-  geometry_query_input_port_ = this->DeclareAbstractInputPort(
-      "geometry_query", Value<geometry::QueryObject<double>>{}).get_index();
-
+  geometry_query_input_port_ =
+      this->DeclareAbstractInputPort("geometry_query",
+                                     Value<geometry::QueryObject<double>>{})
+          .get_index();
 }
 
 void ContactPointInBrickFrame::in_contact(
@@ -191,7 +192,6 @@ void ContactPointInBrickFrame::in_contact(
 void ContactPointInBrickFrame::CalcOutput(
     const drake::systems::Context<double>& context,
     systems::BasicVector<double>* output) const {
-
   // Get the actual contact force.
   const auto& contact_results =
       this->get_input_port(0).Eval<ContactResults<double>>(context);
@@ -210,8 +210,7 @@ void ContactPointInBrickFrame::CalcOutput(
   const multibody::Frame<double>& brick_frame =
       plant_.GetFrameByName("brick_link");
 
-  const multibody::Frame<double>& world_frame =
-      plant_.world_frame();
+  const multibody::Frame<double>& world_frame = plant_.world_frame();
 
   auto p_BCb = output->get_mutable_value();
 
@@ -224,14 +223,13 @@ void ContactPointInBrickFrame::CalcOutput(
   // If we found a fingertip/brick contact then the contact point is given by
   // the contact result's point pair information.
   if (pair_index < contact_results.num_point_pair_contacts()) {
-
     Eigen::Vector3d result;
     auto p_WCb =
         contact_results.point_pair_contact_info(pair_index).contact_point();
-    plant_.CalcPointsPositions(*plant_context_, world_frame,
-                               p_WCb, brick_frame, &result);
+    plant_.CalcPointsPositions(*plant_context_, world_frame, p_WCb, brick_frame,
+                               &result);
     p_BCb = result.tail<2>();
-  } else { // Use the closest point (distance-wise) to the brick.
+  } else {  // Use the closest point (distance-wise) to the brick.
     // First, obtain the closest point on the brick from the fingertip sphere.
     auto pairs_vec =
         geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
@@ -264,8 +262,9 @@ void ContactPointInBrickFrame::CalcOutput(
 
 // TODO(rcory) Remove this method (see header).
 ContactPointsToFingerFaceAssignments::ContactPointsToFingerFaceAssignments(
-    std::vector<Finger> fingers) : fingers_(fingers){
-  for (auto & finger : fingers) {
+    std::vector<Finger> fingers)
+    : fingers_(fingers) {
+  for (auto& finger : fingers) {
     if (finger == Finger::kFinger1) {
       this->DeclareVectorInputPort("finger1_contact_point",
                                    systems::BasicVector<double>(2));
@@ -304,10 +303,9 @@ void ContactPointsToFingerFaceAssignments::CalcOutput(
         GetInputPort(to_string(finger) + "_b_in_contact").Eval<bool>(context);
     if (b_in_contact) {
       Eigen::Vector2d finger_contact_pos =
-          GetInputPort(to_string(finger) + "_contact_point")
-              .Eval(context);
+          GetInputPort(to_string(finger) + "_contact_point").Eval(context);
       BrickFace brick_face = GetInputPort(to_string(finger) + "_contact_face")
-          .Eval<BrickFace>(context);
+                                 .Eval<BrickFace>(context);
       finger_face_assignments->emplace(
           finger, std::make_pair(brick_face, finger_contact_pos));
     }
@@ -331,20 +329,22 @@ ForceDemuxer::ForceDemuxer(const multibody::MultibodyPlant<double>& plant,
           .get_index();
 
   contact_results_vec_output_port_ =
-      this->DeclareVectorOutputPort(
-              "contact_res_forces", systems::BasicVector<double>(3),
-              &ForceDemuxer::SetContactResultsForceOutput)
+      this->DeclareVectorOutputPort("contact_res_forces",
+                                    systems::BasicVector<double>(3),
+                                    &ForceDemuxer::SetContactResultsForceOutput)
           .get_index();
 
   reaction_forces_vec_output_port_ =
-      this->DeclareVectorOutputPort(
-              "reaction_forces", systems::BasicVector<double>(3),
-              &ForceDemuxer::SetReactionForcesOutput)
+      this->DeclareVectorOutputPort("reaction_forces",
+                                    systems::BasicVector<double>(3),
+                                    &ForceDemuxer::SetReactionForcesOutput)
           .get_index();
 
-  state_input_port_ = this->DeclareVectorInputPort(
-      "x", systems::BasicVector<double>(
-               plant_.num_multibody_states() /* plant state */)).get_index();
+  state_input_port_ =
+      this->DeclareVectorInputPort(
+              "x", systems::BasicVector<double>(
+                       plant_.num_multibody_states() /* plant state */))
+          .get_index();
 }
 
 void ForceDemuxer::SetContactResultsForceOutput(
@@ -362,7 +362,6 @@ void ForceDemuxer::SetContactResultsForceOutput(
   if (contact_results.num_point_pair_contacts() > 0) {
     output_value = contact_results.point_pair_contact_info(0).contact_force();
   }
-
 }
 
 void ForceDemuxer::SetReactionForcesOutput(

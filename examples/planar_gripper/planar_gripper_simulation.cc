@@ -324,7 +324,7 @@ int DoMain() {
   if (FLAGS_use_position_control) {
     // Create the gains for the inverse dynamics controller. These gains were
     // chosen arbitrarily.
-    Vector<double, kNumJoints> Kp, Kd, Ki;
+    Vector<double, kNumGripperJoints> Kp, Kd, Ki;
     Kp.setConstant(1500); Kd.setConstant(500); Ki.setConstant(500);
 
     auto id_controller =
@@ -362,7 +362,7 @@ int DoMain() {
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
-          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmStatusPeriod));
+          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
   builder.Connect(plant.get_state_output_port(gripper_index),
                   status_encoder->get_state_input_port());
@@ -390,9 +390,9 @@ int DoMain() {
 
   // Create the initial condition vector. Set initial joint velocities to zero.
   VectorX<double> gripper_initial_conditions =
-      VectorX<double>::Zero(kNumJoints * 2);
-  gripper_initial_conditions.head(kNumJoints) =
-      keyframes.block(0, 0, kNumJoints, 1);
+      VectorX<double>::Zero(kNumGripperJoints * 2);
+  gripper_initial_conditions.head(kNumGripperJoints) =
+      keyframes.block(0, 0, kNumGripperJoints, 1);
 
   // Create a context for this system:
   std::unique_ptr<systems::Context<double>> diagram_context =
@@ -405,7 +405,7 @@ int DoMain() {
   command_decoder->set_initial_position(
       &diagram->GetMutableSubsystemContext(*command_decoder,
                                            &simulator_context),
-      gripper_initial_conditions.head(kNumJoints));
+      gripper_initial_conditions.head(kNumGripperJoints));
 
   // All fingers consist of two joints: a base joint and a mid joint.
   // Set the initial finger joint positions.
