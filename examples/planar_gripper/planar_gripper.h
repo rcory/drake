@@ -101,8 +101,7 @@ class PlanarGripper : public systems::Diagram<double> {
                        q);
   }
 
-  /// Convenience method for getting all of the joint velocities of the Kuka
-  // IIWA.  This does not include the gripper.
+  /// Convenience method for getting all of the joint velocities of the gripper.
   VectorX<double> GetGripperVelocity(
       const systems::Context<double>& diagram_context) const;
 
