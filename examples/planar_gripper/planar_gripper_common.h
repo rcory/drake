@@ -85,8 +85,12 @@ void WeldGripperFrames(MultibodyPlant<T>* plant,
  * Parses a text file containing keyframe joint positions for the planar gripper
  * and the planar brick (the object being manipulated).
  * @param[in] name The file name to parse.
- * @param[out] brick_initial_pose A vector containing the initial brick pose,
- * expressed in the gripper frame G.
+ * @param[out] brick_keyframe_info A std::pair containing a matrix of brick
+ * joint position keyframes (each matrix column represents a single keyframe
+ * containing values for all joint positions) and a std::map containing the
+ * mapping between each brick joint name and the corresponding row index in the
+ * keyframe matrix containing the data for that joint. Values are expressed in
+ * the gripper frame G.
  * @return A std::pair containing a matrix of finger joint position keyframes
  * (each matrix column represents a single keyframe containing values for all
  * joint positions) and a std::map containing the mapping between each finger
@@ -105,31 +109,34 @@ void WeldGripperFrames(MultibodyPlant<T>* plant,
  * behavior of parsing is undefined if these conditions are not met.
  */
 std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
-    const std::string& name, EigenPtr<Vector3<double>> brick_initial_pose =
-                                 EigenPtr<Vector3<double>>(nullptr));
+    const std::string& name,
+    std::pair<MatrixX<double>, std::map<std::string, int>>*
+        brick_keyframe_info = nullptr);
 
 /**
  * Reorders the joint keyframe matrix data contained in `keyframes` such that
  * joint keyframes (rows) are ordered according to the `plant`'s joint velocity
- * index ordering, making it compatible with the inverse dynamics controller's
- * desired state input port ordering. The incoming `plant` is the MultibodyPlant
- * used for inverse dynamics control, i.e., the "control plant". The number of
+ * index ordering. This is useful, for example, in making the keyframe matrix
+ * data compatible with the inverse dynamics controller's desired state input
+ * port ordering. In this case, the incoming `plant` is the MultibodyPlant used
+ * for inverse dynamics control, i.e., the "control plant". The number of
  * planar-gripper joints `kNumJoints` must exactly match plant.num_positions().
  * @param[in] plant The MultibodyPlant providing the velocity index ordering.
- * @param[in] keyframes The planar gripper keyframes.
- * @param[out] finger_joint_name_to_row_index_map A std::map which contains the
+ * @param[in] keyframes The keyframes data.
+ * @param[out] joint_name_to_row_index_map A std::map which contains the
  * incoming joint name to row index ordering. This map is updated to reflect the
  * new keyframe reordering.
  * @return A MatrixX containing the reordered keyframes.
  * @throw If the number of keyframe rows does not match the size of
- * `finger_joint_name_to_row_index_map`
+ * `joint_name_to_row_index_map`
  * @throw If the number of keyframe rows does not match the number of
  * planar-gripper joints.
- * @throw If `kNumJoints` does not exactly match plant.num_positions().
+ * @throw If the number of keyframe rows does not exactly match
+ * plant.num_positions().
  */
 MatrixX<double> ReorderKeyframesForPlant(
     const MultibodyPlant<double>& plant, const MatrixX<double> keyframes,
-    std::map<std::string, int>* finger_joint_name_to_row_index_map);
+    std::map<std::string, int>* joint_name_to_row_index_map);
 
 /// Returns a specific finger's weld angle from the +Gz axis
 /// (gripper frame, +z axis)
