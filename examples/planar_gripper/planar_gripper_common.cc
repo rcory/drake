@@ -198,7 +198,9 @@ MatrixX<double> MakeKeyframes(MatrixX<double> all_keyframes,
 }
 
 std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
-    const std::string& name, EigenPtr<Vector3<double>> brick_initial_pose) {
+    const std::string& name,
+    std::pair<MatrixX<double>, std::map<std::string, int>>*
+        brick_keyframe_info) {
   const std::string keyframe_path = FindResourceOrThrow(name);
   std::fstream file;
   file.open(keyframe_path, std::fstream::in);
@@ -239,6 +241,25 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
     }
   }
 
+  // Find the columns in the keyframe data for just the brick joints and create
+  // the corresponding keyframe matrix. Note: Only the first keyframe is used to
+  // set the brick's initial position. All other brick keyframe data is unused.
+  std::vector<std::string> brick_joint_ordering = {"brick_translate_y_joint",
+                                                   "brick_translate_z_joint",
+                                                   "brick_revolute_x_joint"};
+  MatrixX<double> brick_joint_keyframes =
+      MakeKeyframes(all_keyframes, brick_joint_ordering, headers);
+  if (brick_keyframe_info != nullptr) {
+    brick_joint_keyframes.transposeInPlace();
+    // Create the brick joint name to row index map.
+    std::map<std::string, int> brick_joint_name_to_row_index_map;
+    for (size_t i = 0; i < brick_joint_ordering.size(); i++) {
+      brick_joint_name_to_row_index_map[brick_joint_ordering[i]] = i;
+    }
+    brick_keyframe_info->first = brick_joint_keyframes;
+    brick_keyframe_info->second = brick_joint_name_to_row_index_map;
+  }
+
   // Find the columns in the keyframe data for just the finger joints and
   // create the corresponding keyframe matrix.
   std::vector<std::string> finger_joint_ordering = {
@@ -246,24 +267,6 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
       "finger1_MidJoint",  "finger2_MidJoint",  "finger3_MidJoint"};
   MatrixX<double> finger_joint_keyframes =
       MakeKeyframes(all_keyframes, finger_joint_ordering, headers);
-
-  // Find the columns in the keyframe data for just the brick joints and create
-  // the corresponding keyframe matrix. Note: Only the first keyframe is used to
-  // set the brick's initial position. All other brick keyframe data is unused.
-  std::vector<std::string> brick_joint_ordering = {"brick_translate_y_joint",
-                                                   "brick_translate_z_joint",
-                                                   "brick_revolute_x_joint"};
-  std::map<std::string, int> brick_joint_name_to_col_index_map;
-  MatrixX<double> brick_joint_keyframes =
-      MakeKeyframes(all_keyframes, brick_joint_ordering, headers);
-
-  // Set the brick's initial pose (expressed in the gripper frame G).
-  if (brick_initial_pose != EigenPtr<Vector3<double>>(nullptr)) {
-    (*brick_initial_pose)(0) = brick_joint_keyframes(0, 0);  // y-translate
-    (*brick_initial_pose)(1) = brick_joint_keyframes(0, 1);  // z-translate
-    (*brick_initial_pose)(2) = brick_joint_keyframes(0, 2);  // x-revolute
-  }
-
   finger_joint_keyframes.transposeInPlace();
 
   // Create the finger joint name to row index map.
@@ -278,32 +281,27 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
 
 MatrixX<double> ReorderKeyframesForPlant(
     const MultibodyPlant<double>& plant, const MatrixX<double> keyframes,
-    std::map<std::string, int>* finger_joint_name_to_row_index_map) {
-  DRAKE_DEMAND(finger_joint_name_to_row_index_map != nullptr);
-  if (static_cast<int>(finger_joint_name_to_row_index_map->size()) !=
+    std::map<std::string, int>* joint_name_to_row_index_map) {
+  DRAKE_DEMAND(joint_name_to_row_index_map != nullptr);
+  if (static_cast<int>(joint_name_to_row_index_map->size()) !=
       keyframes.rows()) {
     throw std::runtime_error(
         "The number of keyframe rows must match the size of "
-        "finger_joint_name_to_row_index_map.");
+        "joint_name_to_row_index_map.");
   }
-  if (keyframes.rows() != kNumGripperJoints) {
-    throw std::runtime_error(
-        "The number of keyframe rows must match the number of planar-gripper "
-        "joints");
-  }
-  if (plant.num_positions() != kNumGripperJoints) {
+  if (keyframes.rows() != plant.num_positions()) {
     throw std::runtime_error(
         "The number of plant positions must exactly match the number of "
-        "planar-gripper joints.");
+        "keyframe rows.");
   }
-  std::map<std::string, int> original_map = *finger_joint_name_to_row_index_map;
+  std::map<std::string, int> original_map = *joint_name_to_row_index_map;
   MatrixX<double> reordered_keyframes(keyframes);
   for (auto iter = original_map.begin(); iter != original_map.end(); ++iter) {
     auto joint_vel_start_index =
         plant.GetJointByName(iter->first).velocity_start();
     reordered_keyframes.row(joint_vel_start_index) =
         keyframes.row(iter->second);
-    (*finger_joint_name_to_row_index_map)[iter->first] = joint_vel_start_index;
+    (*joint_name_to_row_index_map)[iter->first] = joint_vel_start_index;
   }
   return reordered_keyframes;
 }
@@ -471,9 +469,6 @@ void ExternalSpatialToSpatialViz::CalcOutput(
   for (size_t i = 0; i < external_spatial_forces_vec.size(); i++) {
     // Convert contact point from brick frame to world frame
     auto ext_spatial_force = external_spatial_forces_vec[i];
-    //     drake::log()->info("p: \n{}", ext_spatial_force.p_BoBq_B);
-    //     drake::log()->info("f: \n{}",
-    //     ext_spatial_force.F_Bq_W.translational());
 
     auto& body = plant_.get_body(ext_spatial_force.body_index);
     auto& X_WB = plant_.EvalBodyPoseInWorld(*plant_context_, body);

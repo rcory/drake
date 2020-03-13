@@ -379,12 +379,12 @@ int DoMain() {
   // Extract the initial gripper and brick poses by parsing the keyframe file.
   // The brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/postures_vertical.txt";
+      "drake/examples/planar_gripper/postures.txt";
   MatrixX<double> keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
-  Vector3<double> brick_initial_2D_pose_G;
+  std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
   std::tie(keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path, &brick_initial_2D_pose_G);
+      ParseKeyframes(keyframe_path, &brick_keyframe_info);
   keyframes = ReorderKeyframesForPlant(control_plant, keyframes,
                                        &finger_joint_name_to_row_index_map);
 
@@ -428,9 +428,9 @@ int DoMain() {
       plant.GetJointByName<PrismaticJoint>("brick_translate_z_joint");
   const RevoluteJoint<double>& x_revolute =
       plant.GetJointByName<RevoluteJoint>("brick_revolute_x_joint");
-  y_translate.set_translation(&plant_context, brick_initial_2D_pose_G(0));
-  z_translate.set_translation(&plant_context, brick_initial_2D_pose_G(1));
-  x_revolute.set_angle(&plant_context, brick_initial_2D_pose_G(2));
+  y_translate.set_translation(&plant_context, brick_keyframe_info.first(0, 0));
+  z_translate.set_translation(&plant_context, brick_keyframe_info.first(1, 0));
+  x_revolute.set_angle(&plant_context, brick_keyframe_info.first(2, 0));
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
