@@ -75,10 +75,10 @@ int DoMain() {
   planar_gripper->Finalize();
 
   // Setup the QP controller parameters.
-  const Eigen::Matrix2d Kp_tr = Eigen::Vector2d(150, 150).asDiagonal();
-  const Eigen::Matrix2d Kd_tr = Eigen::Vector2d(50, 50).asDiagonal();
-  double Kp_ro = 150;
-  double Kd_ro = 50;
+  const Eigen::Matrix2d Kp_t = Eigen::Vector2d(150, 150).asDiagonal();
+  const Eigen::Matrix2d Kd_t = Eigen::Vector2d(50, 50).asDiagonal();
+  double Kp_r = 150;
+  double Kd_r = 50;
   double weight_a_error = 1;
   double weight_thetaddot_error = 1;
   double weight_f_Cb_B = 1;
@@ -92,8 +92,8 @@ int DoMain() {
   double brick_revolute_damping = planar_gripper->GetBrickPinJointDamping();
 
   auto qp_controller = builder.AddSystem<InstantaneousContactForceQPController>(
-      brick_type, &planar_gripper->get_multibody_plant(), Kp_tr, Kd_tr, Kp_ro,
-      Kd_ro, weight_a_error, weight_thetaddot_error, weight_f_Cb_B, mu,
+      brick_type, &planar_gripper->get_multibody_plant(), Kp_t, Kd_t, Kp_r,
+      Kd_r, weight_a_error, weight_thetaddot_error, weight_f_Cb_B, mu,
       brick_translational_damping, brick_revolute_damping, I_B, mass_B);
 
   // Connect the QP controller.
