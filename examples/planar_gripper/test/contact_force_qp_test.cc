@@ -108,9 +108,12 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   drake::log()->info("p_BFingerTip: \n{}", p_BFingerTip);
 
-  const double theta_planned = 0.05;
-  const double thetadot_planned = 0.12;
-  const double thetaddot_planned = 0.23;
+  const double theta_desired = 0.05;
+  const double thetadot_desired = 0.12;
+  const double thetaddot_feedforward = 0.23;
+  const Eigen::Vector2d brick_state_desired(theta_desired, thetadot_desired);
+  const Vector1d brick_accel_feedforward(thetaddot_feedforward);
+
   const double Kp = 0.1;
   const double Kd = 0.2;
   const double weight_thetaddot_error = 0.5;
@@ -130,17 +133,16 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   Eigen::Vector2d p_BCb(p_BFingerTip(1), p_BFingerTip(2) - finger_tip_radius);
 
   Vector6<double> brick_state;
-  brick_state << 0, 0, theta, 0, 0, thetadot;
+  brick_state << theta, thetadot;
   std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
       finger_face_assignment;
   finger_face_assignment.emplace(Finger::kFinger1,
                                  std::make_pair(BrickFace::kPosZ, p_BCb));
   Eigen::Vector2d zero2d = Eigen::Vector2d::Zero();
   InstantaneousContactForceQP qp2(
-      BrickType::PinBrick, zero2d, zero2d, zero2d, theta_planned,
-      thetadot_planned, thetaddot_planned, zero2d, zero2d, Kp, Kd, brick_state,
-      finger_face_assignment, 0, weight_thetaddot_error, weight_f_Cb, mu, I_B,
-      1, damping, 0);
+      BrickType::PinBrick, brick_state, brick_state_desired,
+      brick_accel_feedforward, zero2d, zero2d, Kp, Kd, finger_face_assignment,
+      0, weight_thetaddot_error, weight_f_Cb, mu, I_B, 1, damping, 0);
 
   auto qp_result = solvers::Solve(qp2.prog());
   EXPECT_TRUE(qp_result.is_success());
@@ -158,8 +160,9 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   // Now check the cost. First compute the angular acceleration.
   double thetaddot =
       (p_BCb(0) * f_Cb_B(1) - p_BCb(1) * f_Cb_B(0) - damping * thetadot) / I_B;
-  double thetaddot_des = Kp * (theta_planned - theta) +
-                         Kd * (thetadot_planned - thetadot) + thetaddot_planned;
+  double thetaddot_des = Kp * (theta_desired - theta) +
+                         Kd * (thetadot_desired - thetadot) +
+                         thetaddot_feedforward;
   double cost_expected =
       weight_thetaddot_error * std::pow(thetaddot - thetaddot_des, 2) +
       weight_f_Cb * f_Cb_B.squaredNorm();
