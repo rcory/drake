@@ -730,7 +730,7 @@ void DoConnectGripperQPController(
     const std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
   systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
-  systems::ConstantVectorSource<double>* brick_state_traj_source;
+  systems::ConstantVectorSource<double>* brick_planned_state_traj_source;
 
   if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
     // brick accel planned is 0 {yddot, zddot, thetaddot}. Use a constant
@@ -744,10 +744,10 @@ void DoConnectGripperQPController(
     // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
     Eigen::VectorXd des_state_vec(6);
     des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;
-    brick_state_traj_source =
+    brick_planned_state_traj_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             des_state_vec);
-    builder->Connect(brick_state_traj_source->get_output_port(),
+    builder->Connect(brick_planned_state_traj_source->get_output_port(),
                      in_ports.at("qp_desired_brick_state"));
   } else {
     // brick accel planned is 0 {thetaddot}. Use a constant source.
@@ -759,16 +759,17 @@ void DoConnectGripperQPController(
 
     // Just use a constant state target...{theta, thetadot}
     Eigen::Vector2d des_state_vec(qpoptions.thetaf_, 0);
-    brick_state_traj_source =
+    brick_planned_state_traj_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             des_state_vec);
-    builder->Connect(brick_state_traj_source->get_output_port(),
+    builder->Connect(brick_planned_state_traj_source->get_output_port(),
                      in_ports.at("qp_desired_brick_state"));
   }
 
   // Spit out to scope
-  systems::lcm::ConnectLcmScope(brick_state_traj_source->get_output_port(),
-                                "BRICK_STATE_TRAJ", builder, lcm);
+  systems::lcm::ConnectLcmScope(
+      brick_planned_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
+      builder, lcm);
 
   // Connect the plant state to the QP controller
   builder->Connect(out_ports.at("plant_state"),
