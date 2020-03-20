@@ -36,9 +36,6 @@ namespace planar_gripper {
 using systems::InputPort;
 using systems::OutputPort;
 
-// By default the planar gripper has 3 fingers.
-constexpr int kGripperDefaultNumFingers = 3;
-
 // This is rather arbitrary, for now.
 // TODO(rcory) Refine this value once the planner comes online.
 constexpr double kGripperLcmPeriod = 0.002;
@@ -57,7 +54,7 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
 
   /// Constructor.
   /// @param num_fingers The total number of fingers used on the planar-gripper.
-  explicit GripperCommandDecoder(int num_fingers = kGripperDefaultNumFingers);
+  explicit GripperCommandDecoder(int num_fingers = kNumFingers);
 
   /// Sets the initial position of the controlled gripper prior to any
   /// commands being received.  @p x contains the starting position.
@@ -115,7 +112,7 @@ class GripperCommandEncoder : public systems::LeafSystem<double> {
 
   /// Constructor.
   /// @param num_joints The total number of fingers used on the planar-gripper.
-  explicit GripperCommandEncoder(int num_fingers = kGripperDefaultNumFingers);
+  explicit GripperCommandEncoder(int num_fingers = kNumFingers);
 
   const systems::InputPort<double>& get_state_input_port() const {
     DRAKE_DEMAND(state_input_port_ != nullptr);
@@ -153,7 +150,7 @@ class GripperStatusDecoder : public systems::LeafSystem<double> {
 
   /// Constructor.
   /// @param num_fingers The total number of fingers used on the planar-gripper.
-  explicit GripperStatusDecoder(int num_fingers = kGripperDefaultNumFingers);
+  explicit GripperStatusDecoder(int num_fingers = kNumFingers);
 
   const systems::OutputPort<double>& get_state_output_port() const {
     DRAKE_DEMAND(state_output_port_ != nullptr);
@@ -201,7 +198,7 @@ class GripperStatusEncoder : public systems::LeafSystem<double> {
 
   /// Constructor.
   /// @param num_joints The total number of fingers used on the planar-gripper.
-  explicit GripperStatusEncoder(int num_fingers = kGripperDefaultNumFingers);
+  explicit GripperStatusEncoder(int num_fingers = kNumFingers);
 
   const systems::InputPort<double>& get_state_input_port() const {
     DRAKE_DEMAND(state_input_port_ != nullptr);
