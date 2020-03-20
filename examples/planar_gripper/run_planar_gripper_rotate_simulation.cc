@@ -30,7 +30,7 @@ using multibody::RevoluteJoint;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 3.0,
+DEFINE_double(simulation_time, 4.0,
               "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
@@ -104,17 +104,33 @@ DEFINE_bool(use_finger1, true, "Use finger1?");
 DEFINE_bool(use_finger2, true, "Use finger2?");
 DEFINE_bool(use_finger3, true, "Use finger3?");
 
-// QP task parameters
-DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
+// Boundary conditions.
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
+DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
+DEFINE_double(y0, 0.01, "initial brick y position (m).");
+DEFINE_double(z0, 0, "initial brick y position (m).");
+DEFINE_double(yf, 0, "final brick y position (m).");
+DEFINE_double(zf, 0, "final brick y position (m).");
 DEFINE_double(T, 1.5, "time horizon (s)");
+
+// QP task parameters.
+DEFINE_string(brick_type, "pinned",
+              "Defines the brick type: {pinned, planar}.");
 DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 
 DEFINE_string(use_QP, "local",
               "We provide 3 types of QP controller, LCM, UDP or local.");
-DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
-DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
+DEFINE_double(QP_Kp_t, 350, "QP controller translational Kp gain.");
+DEFINE_double(QP_Kd_t, 100, "QP controller translational Kd gain.");
+DEFINE_double(QP_Kp_r_pinned, 150,
+              "QP controller rotational Kp gain for pinned brick.");
+DEFINE_double(QP_Kd_r_pinned, 50,
+              "QP controller rotational Kd gain for pinned brick.");
+DEFINE_double(QP_Kp_r_planar, 195,
+              "QP controller rotational Kp gain for planar brick.");
+DEFINE_double(QP_Kd_r_planar, 120,
+              "QP controller rotational Kd gain for planar brick.");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_a_error, 1, "translational acceleration error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
@@ -126,7 +142,7 @@ DEFINE_bool(assume_zero_brick_damping, false,
 
 DEFINE_int32(publisher_local_port, 1103, "local port number for UDP publisher");
 // publisher_remote_port should be the same as the receiver_local_port in
-// run_planar_gripper_qp_udp_controller
+// run_planar_gripper_qp_udp_controller.
 DEFINE_int32(publisher_remote_port, 1102,
              "remote port number for UDP publisher");
 // I convert the IP address of my computer to unsigned long through
@@ -167,6 +183,7 @@ GetFingerFaceAssignments() {
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
+                         const BrickType& brick_type,
                          QPControlOptions* qpoptions) {
   double brick_rotational_damping = 0;
   if (!FLAGS_assume_zero_brick_damping) {
@@ -179,10 +196,19 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->theta0_ = FLAGS_theta0;
+  qpoptions->yf_ = FLAGS_yf;
+  qpoptions->zf_ = FLAGS_zf;
   qpoptions->thetaf_ = FLAGS_thetaf;
-  qpoptions->QP_Kp_ro_ = FLAGS_QP_Kp_ro;
-  qpoptions->QP_Kd_ro_ = FLAGS_QP_Kd_ro;
+  qpoptions->QP_Kp_r_ =
+      (brick_type == BrickType::PinBrick ? FLAGS_QP_Kp_r_pinned
+                                         : FLAGS_QP_Kp_r_planar);
+  qpoptions->QP_Kd_r_ =
+      (brick_type == BrickType::PinBrick ? FLAGS_QP_Kd_r_pinned
+                                         : FLAGS_QP_Kd_r_planar);
+  qpoptions->QP_Kp_t_ =
+      Eigen::Vector2d(FLAGS_QP_Kp_t, FLAGS_QP_Kp_t).asDiagonal();
+  qpoptions->QP_Kd_t_ =
+      Eigen::Vector2d(FLAGS_QP_Kd_t, FLAGS_QP_Kd_t).asDiagonal();
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_acceleration_error_ = FLAGS_QP_weight_a_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
@@ -193,8 +219,8 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->brick_translational_damping_ = 0;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_mass_ = brick_mass;
-  qpoptions->brick_type_ = BrickType::PinBrick;
   qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+  qpoptions->brick_type_ = brick_type;
 }
 
 void GetForceControllerOptions(const PlanarGripper& planar_gripper,
@@ -251,7 +277,16 @@ int DoMain() {
       math::RollPitchYaw<double>(FLAGS_G_ROT * M_PI / 180, 0, 0),
       Eigen::Vector3d::Zero());
   planar_gripper->set_X_WG(X_WG);
-  planar_gripper->SetupPinBrick(FLAGS_orientation);
+  BrickType brick_type;
+  if (FLAGS_brick_type == "pinned") {
+    planar_gripper->SetupPinBrick(FLAGS_orientation);
+    brick_type = BrickType::PinBrick;
+  } else if (FLAGS_brick_type == "planar") {
+    planar_gripper->SetupPlanarBrick(FLAGS_orientation);
+    brick_type = BrickType::PlanarBrick;
+  } else {
+    throw std::runtime_error("Unknown BrickType.");
+  }
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
   planar_gripper->set_stiction_tolerance(FLAGS_stiction_tolerance);
 
@@ -263,7 +298,7 @@ int DoMain() {
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>(&drake_lcm);
 
   QPControlOptions qpoptions;
-  GetQPPlannerOptions(*planar_gripper, &qpoptions);
+  GetQPPlannerOptions(*planar_gripper, brick_type, &qpoptions);
   if (FLAGS_brick_only) {
     if (FLAGS_use_QP == "LCM") {
       ConnectLCMQPController(*planar_gripper, &drake_lcm, std::nullopt,
@@ -365,9 +400,24 @@ int DoMain() {
   init_gripper_pos_map["finger2_MidJoint"] = FLAGS_f2_mid;
   init_gripper_pos_map["finger3_BaseJoint"] = FLAGS_f3_base;
   init_gripper_pos_map["finger3_MidJoint"] = FLAGS_f3_mid;
-
   auto gripper_initial_positions =
       planar_gripper->MakeGripperPositionVector(init_gripper_pos_map);
+
+  // Set the initial conditions for the brick.
+  std::map<std::string, double> init_brick_pos_map;
+  std::map<std::string, double> init_brick_vel_map;
+  init_brick_pos_map["brick_revolute_x_joint"] = FLAGS_theta0;
+  init_brick_vel_map["brick_revolute_x_joint"] = FLAGS_thetadot0;
+  if (brick_type == BrickType::PlanarBrick) {
+    init_brick_pos_map["brick_translate_y_joint"] = FLAGS_y0;
+    init_brick_pos_map["brick_translate_z_joint"] = FLAGS_z0;
+    init_brick_vel_map["brick_translate_y_joint"] = 0;
+    init_brick_vel_map["brick_translate_z_joint"] = 0;
+  }
+  auto brick_initial_positions =
+      planar_gripper->MakeBrickPositionVector(init_brick_pos_map);
+  auto brick_initial_velocities =
+      planar_gripper->MakeBrickVelocityVector(init_brick_vel_map);
 
   // Create a context for the diagram.
   std::unique_ptr<systems::Context<double>> diagram_context =
@@ -381,9 +431,9 @@ int DoMain() {
   planar_gripper->SetGripperVelocity(&planar_gripper_context,
                                      Eigen::VectorXd::Zero(kNumGripperJoints));
   planar_gripper->SetBrickPosition(&planar_gripper_context,
-                                   Vector1d(FLAGS_theta0));
+                                   brick_initial_positions);
   planar_gripper->SetBrickVelocity(&planar_gripper_context,
-                                   Vector1d(FLAGS_thetadot0));
+                                   brick_initial_velocities);
 
   // If we are only simulating the brick, then ignore the force controller by
   // fixing the plant's actuation input port to zero.

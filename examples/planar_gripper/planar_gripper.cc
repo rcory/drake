@@ -374,7 +374,7 @@ VectorX<double> PlanarGripper::MakeBrickPositionVector(
   const int kNumBrickPositions = get_num_brick_positions();
   if (static_cast<int>(map_in.size()) != kNumBrickPositions) {
     throw std::runtime_error(
-        "The number initial condition positions must match the number of "
+        "The number of initial condition positions must match the number of "
         "planar-gripper positions");
   }
   return MakePositionVector(map_in, kNumBrickPositions);
@@ -391,7 +391,7 @@ VectorX<double> PlanarGripper::MakePositionVector(
   //
   // for (auto & iter : map_in) {
   //   auto joint_pos_start_index =
-  //       plant_->GetJointByName(iter.first).position_start();
+  //       plant_->GetJointByName(iter.first).position_start(model_instance);
   //   position_vector(joint_pos_start_index) = iter.second;
   // }
 
@@ -410,6 +410,49 @@ VectorX<double> PlanarGripper::MakePositionVector(
     position_vector(vector_index++) = map_in.at(iter.second);
   }
   return position_vector;
+}
+
+VectorX<double> PlanarGripper::MakeBrickVelocityVector(
+    const std::map<std::string, double>& map_in) {
+  const int kNumBrickVelocities = get_num_brick_velocities();
+  if (static_cast<int>(map_in.size()) != kNumBrickVelocities) {
+    throw std::runtime_error(
+        "The number of initial condition velocities must match the number of "
+        "planar-gripper velocities");
+  }
+  return MakeVelocityVector(map_in, kNumBrickVelocities);
+}
+
+VectorX<double> PlanarGripper::MakeVelocityVector(
+    const std::map<std::string, double>& map_in,
+    const int num_velocities) const {
+  VectorX<double> velocity_vector = VectorX<double>::Zero(num_velocities);
+
+  // TODO(rcory) use this code block once MBP supports getting velocity_start
+  //  index for a model instance velocity vector (not the full plant's velocity
+  //  vector).
+  //
+  // for (auto & iter : map_in) {
+  //   auto joint_vel_start_index =
+  //       plant_->GetJointByName(iter.first).velocity_start(model_instance);
+  //   velocity_vector(joint_vel_start_index) = iter.second;
+  // }
+
+  std::map<int, std::string> index_joint_map;
+  for (auto& iter : map_in) {
+    auto joint_vel_start_index =
+        plant_->GetJointByName(iter.first).velocity_start();
+    index_joint_map[joint_vel_start_index] = iter.first;
+  }
+
+  // Assume the index_joint_map is ordered according to joint velocity index,
+  // and assume that MBP's SetVelocities(model_instance) takes in a velocity
+  // subvector in that ordering.
+  int vector_index = 0;
+  for (auto& iter : index_joint_map) {
+    velocity_vector(vector_index++) = map_in.at(iter.second);
+  }
+  return velocity_vector;
 }
 
 void PlanarGripper::SetBrickPosition(
