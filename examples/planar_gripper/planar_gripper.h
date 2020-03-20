@@ -131,6 +131,16 @@ class PlanarGripper : public systems::Diagram<double> {
       const std::map<std::string, double>& map_in,
       const int num_positions) const;
 
+  /// Creates a velocity vector (in MBP joint velocity index ordering)
+  /// from the named joints and values in `map_in`.
+  VectorX<double> MakeBrickVelocityVector(
+      const std::map<std::string, double>& map_in);
+
+  /// Utility function for creating position vectors.
+  VectorX<double> MakeVelocityVector(
+      const std::map<std::string, double>& map_in,
+      const int num_velocities) const;
+
   /// Convenience method for setting all of the joint angles of the brick.
   /// @p q must have size 3 (y, z, theta).
   // TODO(rcory) Implement the const Context version that sets State instead.

@@ -76,7 +76,7 @@ class InstantaneousContactForceQP {
    * @param weight_thetaddot_error The weight of the angular acceleration error
    * in the cost. This error is made up of a PD term and a FF term.
    * @param weight_f_Cb The weight of the contact force in the cost.
-   * @param mu The brick/floor coefficient of static friction (stiction).
+   * @param mu The brick/fingertip coefficient of static friction (stiction).
    * @param I_B The brick's rotational moment of inertia around its axis of
    * rotation.
    * @param mass_B The mass of the brick.
@@ -157,9 +157,9 @@ class InstantaneousContactForceQPController
    */
   InstantaneousContactForceQPController(
       BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kp_tr,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_tr, double Kp_ro,
-      double Kd_ro, double weight_a_error, double weight_thetaddot_error,
+      const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
+      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r,
+      double Kd_r, double weight_a_error, double weight_thetaddot_error,
       double weight_f_Cb_B, double mu, double translational_damping,
       double rotational_damping, double I_B, double mass_B);
 
