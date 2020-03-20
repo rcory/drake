@@ -743,7 +743,7 @@ void DoConnectGripperQPController(
 
     // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
     Eigen::VectorXd des_state_vec(6);
-    des_state_vec << 0, 0, qpoptions.thetaf_, 0, 0, 0;
+    des_state_vec << qpoptions.yf_, qpoptions.zf_, qpoptions.thetaf_, 0, 0, 0;
     brick_planned_state_traj_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             des_state_vec);
@@ -946,8 +946,10 @@ void AddGripperQPControllerToDiagram(
     std::map<std::string, const InputPort<double>&>* in_ports,
     std::map<std::string, const OutputPort<double>&>* out_ports) {
   // QP controller
-  double Kp_ro = qpoptions.QP_Kp_ro_;
-  double Kd_ro = qpoptions.QP_Kd_ro_;
+  Eigen::Matrix2d Kp_t = qpoptions.QP_Kp_t_;
+  Eigen::Matrix2d Kd_t = qpoptions.QP_Kd_t_;
+  double Kp_r = qpoptions.QP_Kp_r_;
+  double Kd_r = qpoptions.QP_Kd_r_;
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
   double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
@@ -957,18 +959,11 @@ void AddGripperQPControllerToDiagram(
   double I_B = qpoptions.brick_inertia_;
   double mass_B = qpoptions.brick_mass_;
 
-  // TODO(rcory) Remove this once planar brick is fully supported.
-  if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
-    throw std::logic_error("Planar Brick not supported yet.");
-  }
-
-  Eigen::Matrix2d zero_2d_mat = Eigen::Matrix2d::Zero();
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
-          qpoptions.brick_type_, &plant, zero_2d_mat /* Kp_tr */,
-          zero_2d_mat /* Kd_tr */, Kp_ro, Kd_ro, weight_acceleration_error,
-          weight_thetaddot_error, weight_f_Cb_B, mu, translational_damping,
-          rotational_damping, I_B, mass_B);
+          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Kp_r, Kd_r,
+          weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
+          translational_damping, rotational_damping, I_B, mass_B);
 
   // Insert a zero order hold on the output of the controller, so that its
   // output (and hence it's computation of the QP) is only pulled at the
