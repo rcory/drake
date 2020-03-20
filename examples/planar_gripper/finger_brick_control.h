@@ -203,17 +203,20 @@ struct QPControlOptions {
   //  of kGripperLcmPeriod.
   double plan_dt{0.01};
 
-  double theta0_{0};  // initial rotation angle (rad)
-  double thetaf_{0};  // final rotation angle (rad)
+  double yf_{0};  // final y position (m).
+  double zf_{0};  // final z position (m).
+  double thetaf_{0};  // final rotation angle (rad).
 
-  double QP_Kp_ro_{0};                      // QP controller rotational Kp gain
-  double QP_Kd_ro_{0};                      // QP controller rotational Kd gain
-  double QP_weight_thetaddot_error_{0};     // thetaddot error weight
+  double QP_Kp_r_{0};  // rotational Kp gain.
+  double QP_Kd_r_{0};  // rotational Kd gain.
+  Eigen::Matrix2d QP_Kp_t_{Eigen::Matrix2d::Zero()};  // translational Kp gain.
+  Eigen::Matrix2d QP_Kd_t_{Eigen::Matrix2d::Zero()};  // translational Kd gain.
+  double QP_weight_thetaddot_error_{0};  // thetaddot error weight.
   double QP_weight_acceleration_error_{0};  // tran. acceleration error weight.
-  double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight
-  double QP_mu_{0};             // QP mu value
+  double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight.
+  double QP_mu_{0};  // coefficient of static friction between brick/fingertip.
 
-  bool brick_only_{false};  // only control brick (no finger)
+  bool brick_only_{false};  // only control brick (no finger).
   double viz_force_scale_{
       0};  // scale factor for visualizing spatial force arrow.
 
