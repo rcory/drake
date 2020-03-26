@@ -1,6 +1,7 @@
 #include "drake/examples/planar_gripper/finger_brick_control.h"
 
 #include <cmath>
+#include <optional>
 #include <vector>
 
 #include "drake/common/trajectories/piecewise_polynomial.h"
