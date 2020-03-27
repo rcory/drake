@@ -2,9 +2,9 @@ name: C/C++ CI
 
 on:
   push:
-    branches: [ planar_finger_brick_rotate_lcm ]
+    branches: [ planar_gripper_simulation]
   pull_request:
-    branches: [ planar_finger_brick_rotate_lcm ]
+    branches: [ planar_gripper_simulation]
 
 jobs:
   build:
