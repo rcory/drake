@@ -269,14 +269,8 @@ void PlanarGripper::SetupPlant(std::string orientation,
   is_plant_finalized_ = true;
 
   // Set the gravity field.
-  if (zero_gravity_) {
-    plant_->mutable_gravity_field().set_gravity_vector(Vector3d::Zero());
-    control_plant_->mutable_gravity_field().set_gravity_vector(
-        Vector3d::Zero());
-  } else {
-    plant_->mutable_gravity_field().set_gravity_vector(gravity);
-    control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
-  }
+  plant_->mutable_gravity_field().set_gravity_vector(gravity);
+  control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
 }
 
 void PlanarGripper::Finalize() {
