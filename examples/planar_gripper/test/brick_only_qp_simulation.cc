@@ -42,7 +42,7 @@ int DoMain() {
 
   auto planar_gripper =
       builder.AddSystem<PlanarGripper>(FLAGS_time_step, false);
-  planar_gripper->zero_gravity(true);
+  planar_gripper->zero_gravity();
   planar_gripper->set_brick_floor_penetration(0);
 
   BrickType brick_type;
