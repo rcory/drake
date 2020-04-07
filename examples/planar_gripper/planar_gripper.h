@@ -222,13 +222,16 @@ class PlanarGripper : public systems::Diagram<double> {
 
   void set_X_WG(math::RigidTransformd X_WG) { X_WG_ = X_WG; }
 
-  // Zero gravity always?
-  void zero_gravity(bool value) {
+  // Zero gravity always.
+  void zero_gravity() {
     if (is_diagram_finalized_) {
       throw std::logic_error(
           "zero_gravity() must be called before Finalize().");
     }
-    zero_gravity_ = value;
+    // Set the gravity field to zero.
+    plant_->mutable_gravity_field().set_gravity_vector(Vector3d::Zero());
+    control_plant_->mutable_gravity_field().set_gravity_vector(
+        Vector3d::Zero());
   }
 
   ModelInstanceIndex get_brick_index() const { return brick_index_; }
@@ -285,7 +288,6 @@ class PlanarGripper : public systems::Diagram<double> {
   double brick_floor_penetration_{0};  // For the vertical case.
   double floor_coef_static_friction_{0};
   double floor_coef_kinetic_friction_{0};
-  bool zero_gravity_{false};
 
   // The planar gripper frame G's transform w.r.t. the world frame W.
   math::RigidTransformd X_WG_;
