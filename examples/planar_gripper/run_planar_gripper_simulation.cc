@@ -74,7 +74,9 @@ int DoMain() {
   // Setup the planar brick version of the plant.
   planar_gripper->SetupPlanarBrick(FLAGS_orientation);
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
-  planar_gripper->zero_gravity(FLAGS_zero_gravity);
+  if (FLAGS_zero_gravity) {
+    planar_gripper->zero_gravity();
+  }
 
   // Finalize and build the diagram.
   planar_gripper->Finalize();
