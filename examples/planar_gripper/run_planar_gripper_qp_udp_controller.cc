@@ -122,7 +122,7 @@ int DoMain() {
 
   PlanarGripper planar_gripper;
   planar_gripper.SetupPinBrick("vertical");
-  planar_gripper.zero_gravity(true);
+  planar_gripper.zero_gravity();
   planar_gripper.Finalize();
 
   // Create a std::map to hold all input/output ports.
