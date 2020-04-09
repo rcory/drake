@@ -134,8 +134,9 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_trajectory_publisher.cc"],
     data = [
         ":models",
+        "//examples/planar_gripper:pinned_brick_postures_01.txt",
+        "//examples/planar_gripper:pinned_brick_postures_02.txt",
         "//examples/planar_gripper:postures.txt",
-        "//examples/planar_gripper:postures_new.txt",
     ],
     deps = [
         ":planar_gripper_common",
@@ -239,7 +240,6 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         "//examples/planar_gripper:postures.txt",
-        "//examples/planar_gripper:postures_new.txt",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
