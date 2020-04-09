@@ -352,7 +352,7 @@ int DoMain() {
 
   // publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(
-      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
+      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, false);
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   frame_viz->get_input_port(0));
 
@@ -363,7 +363,7 @@ int DoMain() {
   // Connect drake visualizer.
   geometry::ConnectDrakeVisualizer(
       &builder, planar_gripper->get_mutable_scene_graph(),
-      planar_gripper->GetOutputPort("pose_bundle"));
+      planar_gripper->GetOutputPort("pose_bundle"), &drake_lcm);
 
   // Publish contact results for visualization.
   if (FLAGS_visualize_contacts) {
