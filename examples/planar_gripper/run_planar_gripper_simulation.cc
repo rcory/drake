@@ -1,3 +1,60 @@
+/// @file
+///
+/// This demo simulates a planar-gripper (three two-degree-of-freedom fingers
+/// moving in a plane) which manipulates a brick through contact-interactions.
+///
+/// This simulation can be configured to run in one of two control modes:
+/// position control or torque control. In position control mode, desired state
+/// is communicated via LCM and fed into a trajectory tracking
+/// InverseDynamicsController (within the PlanarGripper diagram). In torque
+/// control mode, desired torques are communicated via LCM but are instead
+/// directly fed into the actuation input port of the MBP. The control mode can
+/// be configured by setting the flag `use_position_control` to true (default)
+/// for position control mode, and setting it to false for torque control mode.
+///
+/// The planar-gripper coordinate frame is illustrated in
+/// `planar_gripper_common.h`. Users have the option to either orient the
+/// gravity vector to point along the -Gz axis, i.e., simulating the case when
+/// the planar-gripper is stood up vertically, or have gravity point along the
+/// -Gx axis, i.e., simulating the case when the planar-gripper is laid down
+/// flat on the floor.
+///
+/// To support the vertical case (gravity acting along -Gz) in hardware, we use
+/// a plexiglass lid (ceiling) that is opposite the planar-gripper floor in
+/// order to keep the brick's motion constrained to the Gy-Gz plane. That is,
+/// when the lid is closed the brick is "squeezed" between the ceiling and floor
+/// and is also physically constrained along the Gx-axis due to contact with
+/// these surfaces. For simulation, we mimic this contact interaction by fixing
+/// the amount by which the brick geometry penetrates the floor geometry
+/// (without considering the ceiling), and can specify this penetration depth
+/// via the flag `brick_floor_penetration'. To enforce zero contact between the
+/// brick and floor, set this flag to zero.
+///
+/// For the horizontal case in hardware, gravity (acting along -Gx) keeps the
+/// brick's motion constrained to lie in the Gy-Gz plane (no ceiling required),
+/// and therefore the plexiglass lid is left open. This means surface contact
+/// only occurs between the brick and the floor. In simulation, we define an
+/// additional prismatic degree of freedom for the brick along the Gx axis, such
+/// that the brick's position along Gx (i.e., it's contact penetration) is
+/// determined by the gravitational and floor contact forces acting on the
+/// brick. In this case, the `brick_floor_penetration` flag specifies only the
+/// initial brick/floor penetration depth.
+///
+/// @Note: The keyframes contained in `postures.txt` are strictly for simulating
+///        the vertical case with gravity off. Using these keyframes to simulate
+///        any other case may cause the simulation to fail.
+///
+/// Example usage:
+///
+/// # Terminal 1
+/// ./bazel-bin/examples/planar_gripper/run_planar_gripper_trajectory_publisher
+///
+/// # Terminal 2
+/// ./bazel-bin/examples/planar_gripper/run_planar_gripper_simulation
+
+// TODO(rcory) Include a README.md that explains the use cases for this
+//  example.
+
 #include <memory>
 
 #include <gflags/gflags.h>
@@ -42,7 +99,7 @@ DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 0 /* nominally 1e-5 */,
+DEFINE_double(brick_floor_penetration, 1e-5,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -81,8 +138,9 @@ int DoMain() {
   // Finalize and build the diagram.
   planar_gripper->Finalize();
 
+  lcm::DrakeLcm drake_lcm;
   systems::lcm::LcmInterfaceSystem* lcm =
-      builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
+      builder.AddSystem<systems::lcm::LcmInterfaceSystem>(&drake_lcm);
 
   auto command_sub = builder.AddSystem(
       systems::lcm::LcmSubscriberSystem::Make<
@@ -104,9 +162,10 @@ int DoMain() {
                     planar_gripper->GetInputPort("actuation"));
   }
 
-  geometry::ConnectDrakeVisualizer(
-      &builder, planar_gripper->get_mutable_scene_graph(),
-      planar_gripper->GetOutputPort("pose_bundle"));
+  geometry::ConnectDrakeVisualizer(&builder,
+                                   planar_gripper->get_mutable_scene_graph(),
+                                   planar_gripper->GetOutputPort("pose_bundle"),
+                                   lcm, geometry::Role::kIllustration);
 
   // Publish contact results for visualization.
   if (FLAGS_visualize_contacts) {
