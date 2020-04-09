@@ -419,7 +419,8 @@ FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
   // if true, then we create an additional input port which takes arbitrary
   // frames to visualize (a vector of type RigidTransform).
   if (frames_input_) {
-    this->DeclareAbstractInputPort(Value<std::vector<math::RigidTransformd>>());
+    this->DeclareAbstractInputPort("poses",
+                                   Value<std::vector<math::RigidTransformd>>());
   }
   this->DeclarePeriodicPublishEvent(period, 0., &FrameViz::PublishFramePose);
   plant_context_ = plant.CreateDefaultContext();
@@ -427,9 +428,22 @@ FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
 
 systems::EventStatus FrameViz::PublishFramePose(
     const drake::systems::Context<double>& context) const {
-  auto state = this->EvalVectorInput(context, 0)->get_value();
-  plant_.SetPositionsAndVelocities(plant_context_.get(), state);
-  PublishBodyFrames(*plant_context_, plant_, lcm_, true /* brick only */);
+  if (frames_input_) {
+    const auto frames_vec =
+        this->GetInputPort("poses").Eval<std::vector<math::RigidTransformd>>(
+            context);
+    std::vector<std::string> frames_names;
+    for (auto iter = frames_vec.begin(); iter != frames_vec.end(); iter++) {
+      std::string name =
+          "sim_frame_" + std::to_string(iter - frames_vec.begin());
+      frames_names.push_back(name);
+    }
+    PublishFramesToLcm("SIM", frames_vec, frames_names, lcm_);
+  } else {
+    auto state = this->EvalVectorInput(context, 0)->get_value();
+    plant_.SetPositionsAndVelocities(plant_context_.get(), state);
+    PublishBodyFrames(*plant_context_, plant_, lcm_, true /* brick only */);
+  }
   return systems::EventStatus::Succeeded();
 }
 
