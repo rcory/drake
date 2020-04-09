@@ -208,33 +208,6 @@ drake_cc_library(
 )
 
 drake_cc_binary(
-    name = "planar_gripper_simulation",
-    srcs = ["planar_gripper_simulation.cc"],
-    add_test_rule = 1,
-    data = [
-        ":models",
-        "//examples/planar_gripper:postures.txt",
-    ],
-    test_rule_args = [
-        "--simulation_time=0.1",
-        "--target_realtime_rate=0",
-    ],
-    deps = [
-        ":planar_gripper_common",
-        ":planar_gripper_lcm",
-        "//common:find_resource",
-        "//geometry:geometry_visualization",
-        "//multibody/parsing",
-        "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
-        "//systems/analysis:simulator",
-        "//systems/controllers:inverse_dynamics_controller",
-        "//systems/framework:diagram",
-        "@gflags",
-    ],
-)
-
-drake_cc_binary(
     name = "run_planar_gripper_simulation",
     srcs = ["run_planar_gripper_simulation.cc"],
     add_test_rule = 1,
