@@ -27,6 +27,7 @@ namespace {
 using multibody::ContactResults;
 using multibody::RevoluteJoint;
 
+// TODO(rcory) Move all common flags to a shared YAML file.
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
@@ -109,9 +110,9 @@ DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(y0, 0.01, "initial brick y position (m).");
-DEFINE_double(z0, 0, "initial brick y position (m).");
+DEFINE_double(z0, 0, "initial brick z position (m).");
 DEFINE_double(yf, 0, "final brick y position (m).");
-DEFINE_double(zf, 0, "final brick y position (m).");
+DEFINE_double(zf, 0, "final brick z position (m).");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
 // QP task parameters.
@@ -152,6 +153,9 @@ DEFINE_uint64(publisher_remote_address, 0,
 // receiver_local_port should be the same as the publisher_remote_port in
 // run_planar_gripper_qp_udp_controller.
 DEFINE_int32(receiver_local_port, 1100, "local port number for UDP receiver");
+DEFINE_bool(add_floor, true, "Adds a floor to the simulation.");
+DEFINE_bool(test, false,
+            "If true, checks the simulation result against a known value.");
 
 /// Note: finger_face_assignments_ should only be used for brick only
 /// simulation. However, currently I (rcory) don't have a good way of computing
@@ -262,7 +266,7 @@ int DoMain() {
 
   systems::DiagramBuilder<double> builder;
   auto planar_gripper = builder.AddSystem<PlanarGripper>(
-      FLAGS_time_step, false /* no position control */);
+      FLAGS_time_step, ControlType::kTorque, FLAGS_add_floor);
 
   // Set some plant parameters.
   planar_gripper->set_floor_coef_static_friction(
@@ -379,7 +383,7 @@ int DoMain() {
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
   auto state_remapper = builder.AddSystem<MapStateToUserOrderedState>(
       planar_gripper->get_multibody_plant(),
-      GetPreferredGripperStateOrdering());
+      GetPreferredGripperJointOrdering());
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   state_remapper->get_input_port(0));
   builder.Connect(state_remapper->get_output_port(0),
@@ -442,13 +446,31 @@ int DoMain() {
   if (FLAGS_brick_only) {
     Eigen::VectorXd tau_actuation = Eigen::VectorXd::Zero(kNumGripperJoints);
     planar_gripper_context.FixInputPort(
-        planar_gripper->GetInputPort("actuation").get_index(), tau_actuation);
+        planar_gripper->GetInputPort("torque_control_u").get_index(),
+        tau_actuation);
   }
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);
+
+  // TODO(rcory) Implement a proper unit test once all shared parameters are
+  //  moved to a YAML file.
+  if (FLAGS_test) {
+    VectorX<double> x_known(20);
+    x_known << -0.6800471, 0.4573093, -0.7392040, 0.7826728, 0.6850969,
+        -1.2507011, 1.1179451, 0.0039154, -0.0008141, 0.0006618, -0.0015522,
+        -0.0076635, 0.0001395, -0.0014288;
+    const auto& post_sim_context = simulator.get_context();
+    const auto& post_plant_context = diagram->GetSubsystemContext(
+        planar_gripper->get_mutable_multibody_plant(), post_sim_context);
+    const auto post_plant_state =
+        planar_gripper->get_multibody_plant().GetPositionsAndVelocities(
+            post_plant_context);
+    // Check to within an arbitrary threshold.
+    DRAKE_DEMAND(x_known.isApprox(post_plant_state, 1e-6));
+  }
 
   return 0;
 }
