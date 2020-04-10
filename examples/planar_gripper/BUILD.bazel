@@ -387,8 +387,10 @@ drake_cc_googletest(
         ":planar_gripper_common",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/inverse_kinematics",
         "//multibody/parsing",
         "//multibody/plant",
+        "//solvers:solve",
     ],
 )
 
