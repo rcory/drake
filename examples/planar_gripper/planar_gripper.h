@@ -222,8 +222,16 @@ class PlanarGripper : public systems::Diagram<double> {
 
   void set_X_WG(math::RigidTransformd X_WG) { X_WG_ = X_WG; }
 
-  // Zero gravity always.
+  /// Sets gravity to zero in the MBP.
+  /// @pre Must be called after configuring the MBP by calling either
+  ///      SetupPlanarBrick() or SetupPinBrick().
+  /// @pre Must be called before finalizing the diagram via Finalize().
   void zero_gravity() {
+    if (!is_plant_finalized_) {
+      throw std::logic_error(
+          "zero_gravity() must be called after SetupPlanarBrick() or "
+          "SetupPinBrick().");
+    }
     if (is_diagram_finalized_) {
       throw std::logic_error(
           "zero_gravity() must be called before Finalize().");

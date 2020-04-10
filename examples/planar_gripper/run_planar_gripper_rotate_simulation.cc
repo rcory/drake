@@ -270,9 +270,6 @@ int DoMain() {
   planar_gripper->set_floor_coef_kinetic_friction(
       FLAGS_floor_coef_kinetic_friction);
   planar_gripper->set_brick_floor_penetration(FLAGS_brick_floor_penetration);
-  if (FLAGS_zero_gravity) {
-    planar_gripper->zero_gravity();
-  }
 
   // Setup the 1-dof brick version of the plant.
   auto X_WG = math::RigidTransformd(
@@ -291,6 +288,9 @@ int DoMain() {
   }
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
   planar_gripper->set_stiction_tolerance(FLAGS_stiction_tolerance);
+  if (FLAGS_zero_gravity) {
+    planar_gripper->zero_gravity();
+  }
 
   // Finalize and build the diagram.
   planar_gripper->Finalize();
