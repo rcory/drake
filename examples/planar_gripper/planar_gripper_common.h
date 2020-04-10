@@ -24,11 +24,12 @@ constexpr int kNumJointsPerFinger = 2;
 constexpr int kNumGripperJoints = kNumFingers * kNumJointsPerFinger;
 
 enum class Finger {
-  kFinger1,
+  kFinger1 = 1,
   kFinger2,
   kFinger3,
 };
 std::string to_string(Finger finger);
+std::string to_string_from_finger_num(int i);
 int to_num(Finger finger);
 Finger to_Finger(int i);
 Finger to_Finger(std::string finger_name);
@@ -159,9 +160,14 @@ void PublishBodyFrames(const systems::Context<double>& plant_context,
                        const multibody::MultibodyPlant<double>& plant,
                        lcm::DrakeLcm* lcm);
 
-/// Returns the preferred state ordering for the planar gripper states (e.g.,
-/// used to create the state selector matrix using MBP).
-std::vector<std::string> GetPreferredGripperStateOrdering();
+/// Returns the preferred joint ordering for an individual finger.
+std::vector<std::string> GetPreferredFingerJointOrdering();
+
+/// Returns the preferred joint ordering for the planar gripper only (e.g.,
+/// used to create the state selector matrix using MBP). The preferred
+/// ordering defined here ensures joint ordering is by finger number, and each
+/// finger is ordered according to GetPreferredFingerJointOrdering().
+std::vector<std::string> GetPreferredGripperJointOrdering();
 
 /// A system that publishes frames at a specified period.
 class FrameViz final : public systems::LeafSystem<double> {
