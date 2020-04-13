@@ -1,5 +1,6 @@
 #include "drake/examples/planar_gripper/planar_gripper.h"
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -73,6 +74,15 @@ void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
   plant->RegisterCollisionGeometry(
       plant->world_body(), X_WF, geometry::Cylinder(.125, kFloorHeight),
       "FloorCollisionGeometry", coef_friction_floor);
+}
+
+geometry::GeometryId PlanarGripper::fingertip_sphere_geometry_id(
+    Finger finger) const {
+  return fingertip_sphere_geometry_ids_.at(finger);
+}
+
+geometry::GeometryId PlanarGripper::brick_geometry_id() const {
+  return brick_geometry_id_;
 }
 
 /// Reorders the generalized force output vector of the ID controller
@@ -271,6 +281,22 @@ void PlanarGripper::SetupPlant(std::string orientation,
   // Set the gravity field.
   plant_->mutable_gravity_field().set_gravity_vector(gravity);
   control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
+
+  const auto& inspector = scene_graph_->model_inspector();
+  for (const auto& finger :
+       {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
+    fingertip_sphere_geometry_ids_.emplace(
+        finger,
+        inspector.GetGeometryIdByName(
+            plant_->GetBodyFrameIdOrThrow(
+                plant_->GetBodyByName(to_string(finger) + "_tip_link").index()),
+            geometry::Role::kProximity,
+            "planar_gripper::tip_sphere_collision"));
+  }
+  brick_geometry_id_ = inspector.GetGeometryIdByName(
+      plant_->GetBodyFrameIdOrThrow(
+          plant_->GetBodyByName("brick_link").index()),
+      geometry::Role::kProximity, "brick::box_collision");
 }
 
 void PlanarGripper::Finalize() {
@@ -503,6 +529,37 @@ double PlanarGripper::GetBrickMass() const {
   return dynamic_cast<const multibody::RigidBody<double>&>(
              plant_->GetFrameByName("brick_link").body())
       .default_mass();
+}
+
+std::unordered_set<BrickFace> PlanarGripper::GetClosestFacesToFinger(
+    const systems::Context<double>& plant_context, Finger finger) const {
+  const auto& inspector = scene_graph_->model_inspector();
+
+  const auto finger_sphere_geometry_id =
+      fingertip_sphere_geometry_ids_.at(finger);
+
+  const auto& query_port = plant_->get_geometry_query_input_port();
+  const auto& query_object =
+      query_port.template Eval<geometry::QueryObject<double>>(plant_context);
+  const geometry::SignedDistancePair<double> signed_distance_pair =
+      query_object.ComputeSignedDistancePairClosestPoints(
+          finger_sphere_geometry_id, brick_geometry_id_);
+  const geometry::Box& box_shape = dynamic_cast<const geometry::Box&>(
+      inspector.GetShape(brick_geometry_id_));
+  std::unordered_set<BrickFace> closest_faces;
+  if (std::abs(signed_distance_pair.p_BCb(1) - box_shape.depth() / 2) < 1e-3) {
+    closest_faces.insert(BrickFace::kPosY);
+  } else if (std::abs(signed_distance_pair.p_BCb(1) + box_shape.depth() / 2) <
+             1e-3) {
+    closest_faces.insert(BrickFace::kNegY);
+  }
+  if (std::abs(signed_distance_pair.p_BCb(2) - box_shape.height() / 2) < 1e-3) {
+    closest_faces.insert(BrickFace::kPosZ);
+  } else if (std::abs(signed_distance_pair.p_BCb(2) + box_shape.height() / 2) <
+             1e-3) {
+    closest_faces.insert(BrickFace::kNegZ);
+  }
+  return closest_faces;
 }
 
 }  // namespace planar_gripper
