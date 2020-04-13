@@ -522,46 +522,6 @@ void MapStateToUserOrderedState::CalcOutput(
   output_value.setZero();
   output_value = Sx_ * plant_state;  // User ordered state.
 }
-
-std::unordered_set<BrickFace> GetClosestFacesToFinger(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph,
-    const systems::Context<double>& plant_context, Finger finger) {
-  const auto& inspector = scene_graph.model_inspector();
-
-  const auto brick_geometry_id = inspector.GetGeometryIdByName(
-      plant.GetBodyFrameIdOrThrow(plant.GetBodyByName("brick_link").index()),
-      geometry::Role::kProximity, "brick::box_collision");
-
-  const auto finger_sphere_geometry_id = inspector.GetGeometryIdByName(
-      plant.GetBodyFrameIdOrThrow(
-          plant.GetBodyByName(to_string(finger) + "_tip_link").index()),
-      geometry::Role::kProximity, "planar_gripper::tip_sphere_collision");
-
-  const auto& query_port = plant.get_geometry_query_input_port();
-  const auto& query_object =
-      query_port.template Eval<geometry::QueryObject<double>>(plant_context);
-  const geometry::SignedDistancePair<double> signed_distance_pair =
-      query_object.ComputeSignedDistancePairClosestPoints(
-          finger_sphere_geometry_id, brick_geometry_id);
-  const geometry::Box& box_shape =
-      dynamic_cast<const geometry::Box&>(inspector.GetShape(brick_geometry_id));
-  std::unordered_set<BrickFace> closest_faces;
-  if (std::abs(signed_distance_pair.p_BCb(1) - box_shape.depth() / 2) < 1e-3) {
-    closest_faces.insert(BrickFace::kPosY);
-  } else if (std::abs(signed_distance_pair.p_BCb(1) + box_shape.depth() / 2) <
-             1e-3) {
-    closest_faces.insert(BrickFace::kNegY);
-  }
-  if (std::abs(signed_distance_pair.p_BCb(2) - box_shape.height() / 2) < 1e-3) {
-    closest_faces.insert(BrickFace::kPosZ);
-  } else if (std::abs(signed_distance_pair.p_BCb(2) + box_shape.height() / 2) <
-             1e-3) {
-    closest_faces.insert(BrickFace::kNegZ);
-  }
-  return closest_faces;
-}
-
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake
