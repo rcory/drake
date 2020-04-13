@@ -75,19 +75,6 @@ void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
       plant->world_body(), X_WF, geometry::Cylinder(.125, kFloorHeight),
       "FloorCollisionGeometry", coef_friction_floor);
 
-  for (const auto& finger :
-       {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
-    fingertip_sphere_geometry_ids_.emplace(
-        finger,
-        inspector.GetGeometryIdByName(
-            plant->GetBodyFrameIdOrThrow(
-                plant->GetBodyByName(to_string(finger) + "_tip_link").index()),
-            geometry::Role::kProximity,
-            "planar_gripper::tip_sphere_collision"));
-  }
-  brick_geometry_id_ = inspector.GetGeometryIdByName(
-      plant->GetBodyFrameIdOrThrow(plant->GetBodyByName("brick_link").index()),
-      geometry::Role::kProximity, "brick::box_collision");
 }
 
 geometry::GeometryId PlanarGripper::fingertip_sphere_geometry_id(
@@ -295,6 +282,22 @@ void PlanarGripper::SetupPlant(std::string orientation,
   // Set the gravity field.
   plant_->mutable_gravity_field().set_gravity_vector(gravity);
   control_plant_->mutable_gravity_field().set_gravity_vector(gravity);
+
+  const auto& inspector = scene_graph_->model_inspector();
+  for (const auto& finger :
+       {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
+    fingertip_sphere_geometry_ids_.emplace(
+        finger,
+        inspector.GetGeometryIdByName(
+            plant_->GetBodyFrameIdOrThrow(
+                plant_->GetBodyByName(to_string(finger) + "_tip_link").index()),
+            geometry::Role::kProximity,
+            "planar_gripper::tip_sphere_collision"));
+  }
+  brick_geometry_id_ = inspector.GetGeometryIdByName(
+      plant_->GetBodyFrameIdOrThrow(
+          plant_->GetBodyByName("brick_link").index()),
+      geometry::Role::kProximity, "brick::box_collision");
 }
 
 void PlanarGripper::Finalize() {

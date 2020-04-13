@@ -4,10 +4,8 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
-#include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/solvers/solve.h"
 
 namespace drake {
 namespace examples {
@@ -99,7 +97,6 @@ GTEST_TEST(ReorderKeyframesTest, Test) {
                                &finger_joint_name_to_row_index_map_new),
       std::runtime_error);
 }
-
 
 }  // namespace planar_gripper
 }  // namespace examples

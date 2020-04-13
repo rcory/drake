@@ -4,7 +4,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -223,6 +222,7 @@ class MapStateToUserOrderedState final : public systems::LeafSystem<double> {
  private:
   MatrixX<double> Sx_;  // state selector matrix.
 };
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

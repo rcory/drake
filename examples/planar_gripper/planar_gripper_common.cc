@@ -522,6 +522,7 @@ void MapStateToUserOrderedState::CalcOutput(
   output_value.setZero();
   output_value = Sx_ * plant_state;  // User ordered state.
 }
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake
