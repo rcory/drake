@@ -387,8 +387,10 @@ drake_cc_googletest(
         ":planar_gripper_common",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/inverse_kinematics",
         "//multibody/parsing",
         "//multibody/plant",
+        "//solvers:solve",
     ],
 )
 
@@ -407,7 +409,6 @@ drake_cc_googletest(
         "//multibody/inverse_kinematics",
         "//multibody/parsing",
         "//multibody/plant",
-        "//solvers:solve",
         "//systems/framework:diagram",
     ],
 )
@@ -417,6 +418,15 @@ drake_cc_googletest(
     deps = [
         ":planar_gripper_udp",
         "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "planar_gripper_test",
+    deps = [
+        ":planar_gripper",
+        "//multibody/inverse_kinematics",
+        "//solvers:solve",
     ],
 )
 
