@@ -3,6 +3,8 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
@@ -274,6 +276,30 @@ class PlanarGripper : public systems::Diagram<double> {
   Vector3d GetBrickMoments() const;
   double GetBrickMass() const;
 
+  /**
+   * Get the geometry id of the finger tip sphere in the plant.
+   */
+  geometry::GeometryId fingertip_sphere_geometry_id(Finger finger) const;
+
+  /**
+   * Get the geometry id of the brick in the plant.
+   */
+  geometry::GeometryId brick_geometry_id() const;
+
+  /**
+   * Compute the closest face(s) to a center finger given the posture.
+   * When the witness point on the brick is at the vertex of the brick, then
+   * we return the two neighbouring faces of that vertex. Otherwise we return
+   * the unique face on which the witness point lives.
+   * @param plant_context The context of @p plant.
+   * @param finger The finger to which the closest faces are queried.
+   * @return closest_faces When the witness point on the brick is at the vertex
+   * of the brick, then we return the two neighbouring faces of that vertex.
+   * Otherwise we return the unique face on which the witness point lives.
+   */
+  std::unordered_set<BrickFace> GetClosestFacesToFinger(
+      const systems::Context<double>& plant_context, Finger finger) const;
+
  private:
   void SetupPlant(std::string orientation, std::string brick_file_name);
 
@@ -299,6 +325,10 @@ class PlanarGripper : public systems::Diagram<double> {
 
   // The planar gripper frame G's transform w.r.t. the world frame W.
   math::RigidTransformd X_WG_;
+
+  std::unordered_map<Finger, geometry::GeometryId>
+      fingertip_sphere_geometry_ids_;
+  geometry::GeometryId brick_geometry_id_;
 };
 
 }  // namespace planar_gripper
