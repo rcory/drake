@@ -531,7 +531,8 @@ double PlanarGripper::GetBrickMass() const {
       .default_mass();
 }
 
-std::unordered_set<BrickFace> PlanarGripper::GetClosestFacesToFinger(
+std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
+PlanarGripper::GetClosestFacesToFinger(
     const systems::Context<double>& plant_context, Finger finger) const {
   const auto& inspector = scene_graph_->model_inspector();
 
@@ -547,6 +548,8 @@ std::unordered_set<BrickFace> PlanarGripper::GetClosestFacesToFinger(
   const geometry::Box& box_shape = dynamic_cast<const geometry::Box&>(
       inspector.GetShape(brick_geometry_id_));
   std::unordered_set<BrickFace> closest_faces;
+  const Eigen::Vector3d p_BCb =
+      inspector.GetPoseInFrame(brick_geometry_id_) * signed_distance_pair.p_BCb;
   if (std::abs(signed_distance_pair.p_BCb(1) - box_shape.depth() / 2) < 1e-3) {
     closest_faces.insert(BrickFace::kPosY);
   } else if (std::abs(signed_distance_pair.p_BCb(1) + box_shape.depth() / 2) <
@@ -559,7 +562,7 @@ std::unordered_set<BrickFace> PlanarGripper::GetClosestFacesToFinger(
              1e-3) {
     closest_faces.insert(BrickFace::kNegZ);
   }
-  return closest_faces;
+  return std::make_pair(closest_faces, p_BCb);
 }
 
 }  // namespace planar_gripper
