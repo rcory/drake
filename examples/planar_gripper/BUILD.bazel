@@ -425,6 +425,7 @@ drake_cc_googletest(
     name = "planar_gripper_test",
     deps = [
         ":planar_gripper",
+        "//common/test_utilities:eigen_matrix_compare",
         "//multibody/inverse_kinematics",
         "//solvers:solve",
     ],
