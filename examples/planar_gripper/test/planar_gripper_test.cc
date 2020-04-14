@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -60,10 +61,10 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
   const auto& brick_frame = planar_gripper->get_multibody_plant()
                                 .GetBodyByName("brick_link")
                                 .body_frame();
-  ik1.AddPositionConstraint(planar_gripper->get_multibody_plant()
-                                .GetBodyByName("finger1_tip_link")
-                                .body_frame(),
-                            p_L2S, brick_frame,
+  const auto& finger1_tip_frame = planar_gripper->get_multibody_plant()
+                                      .GetBodyByName("finger1_tip_link")
+                                      .body_frame();
+  ik1.AddPositionConstraint(finger1_tip_frame, p_L2S, brick_frame,
                             Eigen::Vector3d(0., -0.05, 0.08),
                             Eigen::Vector3d(0., 0.05, 0.2));
   Eigen::VectorXd x_init =
@@ -71,40 +72,49 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
                 planar_gripper->get_multibody_plant().num_positions());
   auto result = solvers::Solve(ik1.prog(), x_init);
   assert(result.is_success());
-  EXPECT_EQ(
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1),
-      std::unordered_set<BrickFace>({BrickFace::kPosZ}));
+  std::unordered_set<BrickFace> closest_faces;
+  Eigen::Vector3d p_BCb;
+  std::tie(closest_faces, p_BCb) =
+      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>({BrickFace::kPosZ}));
+  // position of finger tip sphere center S in the brick frame B.
+  Eigen::Vector3d p_BS;
+  planar_gripper->get_multibody_plant().CalcPointsPositions(
+      *plant_context, finger1_tip_frame, p_L2S, brick_frame, &p_BS);
+  EXPECT_TRUE(
+      CompareMatrices((p_BS - p_BCb).normalized(), Eigen::Vector3d::UnitZ()));
 
   // Solve an IK problem such that finger 1 sphere is inside the brick with -z
   // as the closest face.
   multibody::InverseKinematics ik2(planar_gripper->get_multibody_plant(),
                                    plant_context);
-  ik2.AddPositionConstraint(planar_gripper->get_multibody_plant()
-                                .GetBodyByName("finger1_tip_link")
-                                .body_frame(),
-                            p_L2S, brick_frame,
+  ik2.AddPositionConstraint(finger1_tip_frame, p_L2S, brick_frame,
                             Eigen::Vector3d(0., -0.03, -0.05),
                             Eigen::Vector3d(0., 0.03, -0.04));
   result = solvers::Solve(ik2.prog(), x_init);
   assert(result.is_success());
-  EXPECT_EQ(
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1),
-      std::unordered_set<BrickFace>({BrickFace::kNegZ}));
+  std::tie(closest_faces, p_BCb) =
+      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>({BrickFace::kNegZ}));
+  planar_gripper->get_multibody_plant().CalcPointsPositions(
+      *plant_context, finger1_tip_frame, p_L2S, brick_frame, &p_BS);
+  EXPECT_TRUE(CompareMatrices((p_BS - p_BCb).normalized(),
+                              Eigen::Vector3d::UnitZ(), 1e-14));
 
   // Solve an IK problem such that finger 1 sphere is closest to the corner
   // neighbouring +z and -y faces.
   multibody::InverseKinematics ik3(planar_gripper->get_multibody_plant(),
                                    plant_context);
-  ik3.AddPositionConstraint(planar_gripper->get_multibody_plant()
-                                .GetBodyByName("finger1_tip_link")
-                                .body_frame(),
-                            p_L2S, brick_frame, Eigen::Vector3d(0., -0.2, 0.05),
+  ik3.AddPositionConstraint(finger1_tip_frame, p_L2S, brick_frame,
+                            Eigen::Vector3d(0., -0.2, 0.05),
                             Eigen::Vector3d(0., -0.05, 0.2));
   result = solvers::Solve(ik3.prog(), x_init);
   assert(result.is_success());
-  EXPECT_EQ(
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1),
-      std::unordered_set<BrickFace>({BrickFace::kPosZ, BrickFace::kNegY}));
+  std::tie(closest_faces, p_BCb) =
+      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>(
+                               {BrickFace::kPosZ, BrickFace::kNegY}));
+  EXPECT_TRUE(CompareMatrices(p_BCb, Eigen::Vector3d(0, -0.05, 0.05)));
 }
 }  // namespace planar_gripper
 }  // namespace examples
