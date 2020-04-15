@@ -37,10 +37,15 @@ GTEST_TEST(TestPlanarGripper, constructor) {
 }
 
 GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
+  // Test GetClosestFacesToFinger and also FingerFaceAssigner class.
   systems::DiagramBuilder<double> builder;
   auto planar_gripper = builder.AddSystem<PlanarGripper>(0.1, false);
   planar_gripper->SetupPlanarBrick("horizontal");
   planar_gripper->Finalize();
+  auto finger_face_assigner = builder.AddSystem<FingerFaceAssigner>(
+      planar_gripper->get_multibody_plant(), planar_gripper->get_scene_graph());
+  builder.Connect(planar_gripper->GetOutputPort("scene_graph_query"),
+                  finger_face_assigner->get_geometry_query_input_port());
   auto diagram = builder.Build();
   auto diagram_context = diagram->CreateDefaultContext();
   auto plant_context = &diagram->GetMutableSubsystemContext(
@@ -74,8 +79,9 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
   assert(result.is_success());
   std::unordered_set<BrickFace> closest_faces;
   Eigen::Vector3d p_BCb;
-  std::tie(closest_faces, p_BCb) =
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  std::tie(closest_faces, p_BCb) = GetClosestFacesToFinger(
+      planar_gripper->get_multibody_plant(), planar_gripper->get_scene_graph(),
+      *plant_context, Finger::kFinger1);
   EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>({BrickFace::kPosZ}));
   // position of finger tip sphere center S in the brick frame B.
   Eigen::Vector3d p_BS;
@@ -83,6 +89,16 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
       *plant_context, finger1_tip_frame, p_L2S, brick_frame, &p_BS);
   EXPECT_TRUE(
       CompareMatrices((p_BS - p_BCb).normalized(), Eigen::Vector3d::UnitZ()));
+  // Also check if FingerFaceAssigner generates the right output.
+  auto finger_face_assigner_output =
+      finger_face_assigner->get_finger_face_assignments_output_port()
+          .Eval<std::unordered_map<Finger,
+                                   std::pair<BrickFace, Eigen::Vector2d>>>(
+              diagram->GetSubsystemContext(*finger_face_assigner,
+                                           *diagram_context));
+  EXPECT_EQ(finger_face_assigner_output.size(), kNumFingers);
+  EXPECT_EQ(finger_face_assigner_output.at(Finger::kFinger1),
+            std::make_pair(BrickFace::kPosZ, Eigen::Vector2d(p_BCb.tail<2>())));
 
   // Solve an IK problem such that finger 1 sphere is inside the brick with -z
   // as the closest face.
@@ -93,8 +109,9 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
                             Eigen::Vector3d(0., 0.03, -0.04));
   result = solvers::Solve(ik2.prog(), x_init);
   assert(result.is_success());
-  std::tie(closest_faces, p_BCb) =
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  std::tie(closest_faces, p_BCb) = GetClosestFacesToFinger(
+      planar_gripper->get_multibody_plant(), planar_gripper->get_scene_graph(),
+      *plant_context, Finger::kFinger1);
   EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>({BrickFace::kNegZ}));
   planar_gripper->get_multibody_plant().CalcPointsPositions(
       *plant_context, finger1_tip_frame, p_L2S, brick_frame, &p_BS);
@@ -110,12 +127,28 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
                             Eigen::Vector3d(0., -0.05, 0.2));
   result = solvers::Solve(ik3.prog(), x_init);
   assert(result.is_success());
-  std::tie(closest_faces, p_BCb) =
-      planar_gripper->GetClosestFacesToFinger(*plant_context, Finger::kFinger1);
+  std::tie(closest_faces, p_BCb) = GetClosestFacesToFinger(
+      planar_gripper->get_multibody_plant(), planar_gripper->get_scene_graph(),
+      *plant_context, Finger::kFinger1);
   EXPECT_EQ(closest_faces, std::unordered_set<BrickFace>(
                                {BrickFace::kPosZ, BrickFace::kNegY}));
   EXPECT_TRUE(CompareMatrices(p_BCb, Eigen::Vector3d(0, -0.05, 0.05)));
+  finger_face_assigner_output =
+      finger_face_assigner->get_finger_face_assignments_output_port()
+          .Eval<std::unordered_map<Finger,
+                                   std::pair<BrickFace, Eigen::Vector2d>>>(
+              diagram->GetSubsystemContext(*finger_face_assigner,
+                                           *diagram_context));
+  EXPECT_EQ(finger_face_assigner_output.size(), kNumFingers);
+  EXPECT_TRUE(finger_face_assigner_output.at(Finger::kFinger1).first ==
+                  BrickFace::kPosZ ||
+              finger_face_assigner_output.at(Finger::kFinger1).first ==
+                  BrickFace::kNegY);
+  EXPECT_TRUE(
+      CompareMatrices(finger_face_assigner_output.at(Finger::kFinger1).second,
+                      p_BCb.tail<2>()));
 }
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake
