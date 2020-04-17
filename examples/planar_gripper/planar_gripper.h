@@ -79,10 +79,6 @@ class PlanarGripper : public systems::Diagram<double> {
     return *owned_control_plant_;
   }
 
-  /// Get the number of joints in the gripper (only -- does not include the
-  /// brick).
-  int num_gripper_joints() const { return kNumGripperJoints; }
-
   /// Creates a position vector (in the simulation MBP joint position index
   /// ordering) from the named joints and values in `map_in`.
   VectorX<double> MakeGripperPositionVector(
@@ -99,7 +95,7 @@ class PlanarGripper : public systems::Diagram<double> {
       const systems::Context<double>& diagram_context) const;
 
   /// Convenience method for setting all of the joint angles of the gripper.
-  /// @p q must have size num_gripper_joints().
+  /// @p q must have size get_num_gripper_positions().
   /// @pre `state` must be the systems::State<double> object contained in
   /// `diagram_context`.
   void SetGripperPosition(const systems::Context<double>& diagram_context,
@@ -107,7 +103,7 @@ class PlanarGripper : public systems::Diagram<double> {
                           const Eigen::Ref<const VectorX<double>>& q) const;
 
   /// Convenience method for setting all of the joint angles of gripper.
-  /// @p q must have size num_gripper_joints().
+  /// @p q must have size get_num_gripper_positions().
   void SetGripperPosition(systems::Context<double>* diagram_context,
                           const Eigen::Ref<const VectorX<double>>& q) const {
     SetGripperPosition(*diagram_context, &diagram_context->get_mutable_state(),
@@ -119,7 +115,7 @@ class PlanarGripper : public systems::Diagram<double> {
       const systems::Context<double>& diagram_context) const;
 
   /// Convenience method for setting all of the joint velocities of the Gripper.
-  /// @v must have size num_gripper_joints().
+  /// @v must have size get_num_gripper_velocities().
   /// @pre `state` must be the systems::State<double> object contained in
   /// `diagram_context`.
   void SetGripperVelocity(const systems::Context<double>& diagram_context,
@@ -127,7 +123,7 @@ class PlanarGripper : public systems::Diagram<double> {
                           const Eigen::Ref<const VectorX<double>>& v) const;
 
   /// Convenience method for setting all of the joint velocities of the gripper.
-  /// @v must have size num_gripper_joints().
+  /// @v must have size get_num_gripper_velocities().
   void SetGripperVelocity(systems::Context<double>* diagram_context,
                           const Eigen::Ref<const VectorX<double>>& v) const {
     SetGripperVelocity(*diagram_context, &diagram_context->get_mutable_state(),
