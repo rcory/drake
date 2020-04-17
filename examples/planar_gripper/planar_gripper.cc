@@ -193,7 +193,7 @@ class HybridControlSwitch : public systems::LeafSystem<double> {
         &HybridControlSwitch::SetOutput);
   }
 
-  Finger get_finger() {
+  Finger get_finger() const {
     return finger_;
   }
 
@@ -450,9 +450,8 @@ void PlanarGripper::SetGripperVelocity(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& v) const {
-  const int num_gripper_velocities = plant_->num_velocities(gripper_index_);
   DRAKE_DEMAND(state != nullptr);
-  DRAKE_DEMAND(v.size() == num_gripper_velocities);
+  DRAKE_DEMAND(v.size() == get_num_gripper_velocities());
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
   auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
   plant_->SetVelocities(plant_context, &plant_state, gripper_index_, v);
@@ -730,9 +729,8 @@ void PlanarGripper::SetGripperPosition(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& q) const {
-  const int kNumGripperPositions = get_num_gripper_positions();
   DRAKE_DEMAND(state != nullptr);
-  DRAKE_DEMAND(q.size() == kNumGripperPositions);
+  DRAKE_DEMAND(q.size() == get_num_gripper_positions());
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
   auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
   plant_->SetPositions(plant_context, &plant_state, gripper_index_, q);
@@ -740,13 +738,12 @@ void PlanarGripper::SetGripperPosition(
 
 VectorX<double> PlanarGripper::MakeBrickPositionVector(
     const std::map<std::string, double>& map_in) {
-  const int kNumBrickPositions = get_num_brick_positions();
-  if (static_cast<int>(map_in.size()) != kNumBrickPositions) {
+  if (static_cast<int>(map_in.size()) != get_num_brick_positions()) {
     throw std::runtime_error(
         "The number of initial condition positions must match the number of "
         "planar-gripper positions");
   }
-  return MakePositionVector(map_in, kNumBrickPositions);
+  return MakePositionVector(map_in, get_num_brick_positions());
 }
 
 VectorX<double> PlanarGripper::MakePositionVector(

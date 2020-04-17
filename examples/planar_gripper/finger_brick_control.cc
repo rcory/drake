@@ -1138,7 +1138,7 @@ void ConnectUDPQPController(
   auto qp_controller = builder->AddSystem<PlanarGripperQPControllerUDP>(
       planar_gripper.get_multibody_plant().num_multibody_states(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()),
-      planar_gripper.num_gripper_joints() / 2,
+      kNumFingers,
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(), publisher_local_port,
       publisher_remote_port, publisher_remote_address, receiver_local_port,
