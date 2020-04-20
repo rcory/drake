@@ -16,6 +16,7 @@
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/primitives/demultiplexer.h"
 
 namespace drake {
 namespace examples {
@@ -86,6 +87,29 @@ geometry::GeometryId PlanarGripper::brick_geometry_id() const {
   return brick_geometry_id_;
 }
 
+void PlanarGripper::SetInverseDynamicsControlGains(
+    const Eigen::Ref<VectorX<double>> Kp, const Eigen::Ref<VectorX<double>> Ki,
+    const Eigen::Ref<VectorX<double>> Kd) {
+  if (Kp.size() != kNumGripperJoints || Ki.rows() != kNumGripperJoints ||
+      Kd.rows() != kNumGripperJoints) {
+    throw std::logic_error(
+        "SetInverseDynamicsCOntrolGains: Incorrect vector sizes.");
+  }
+  Kp_ = Kp; Ki_ = Ki; Kd_ = Kd;
+}
+
+void PlanarGripper::GetInverseDynamicsControlGains(
+    EigenPtr<VectorX<double>> Kp,
+    EigenPtr<VectorX<double>> Ki,
+    EigenPtr<VectorX<double>> Kd) {
+  if (Kp->rows() != kNumGripperJoints || Ki->rows() != kNumGripperJoints ||
+      Kd->rows() != kNumGripperJoints) {
+    throw std::logic_error(
+        "GetInverseDynamicsControlGains: Incorrect vector sizes.");
+  }
+  *Kp = Kp_; *Ki = Ki_; *Kd = Kd_;
+}
+
 /// Reorders the generalized force output vector of the ID controller
 /// (internally using a control plant with only the gripper) to match the
 /// actuation input ordering for the full simulation plant (containing gripper
@@ -133,18 +157,16 @@ class ForceSensorEvaluator : public systems::LeafSystem<double> {
     }
     this->DeclareAbstractInputPort(
             "spatial_forces_in",
-            Value<std::vector<multibody::SpatialForce<double>>>())
-        .get_index();
+            Value<std::vector<multibody::SpatialForce<double>>>());
     this->DeclareVectorOutputPort("force_sensors_out",
                                   systems::BasicVector<double>(num_sensors * 2),
-                                  &ForceSensorEvaluator::SetOutput)
-        .get_index();
+                                  &ForceSensorEvaluator::SetOutput);
   }
 
   void SetOutput(const drake::systems::Context<double>& context,
                  drake::systems::BasicVector<double>* output) const {
     const std::vector<multibody::SpatialForce<double>>& spatial_vec =
-        this->get_input_port(0)
+        this->GetInputPort("spatial_forces_in")
             .Eval<std::vector<multibody::SpatialForce<double>>>(context);
     auto output_value = output->get_mutable_value();
     // Force sensor (fy, fz) values, measured in the "tip_link" frame.
@@ -160,8 +182,255 @@ class ForceSensorEvaluator : public systems::LeafSystem<double> {
   std::vector<multibody::JointIndex> sensor_joint_indices_;
 };
 
+/**
+ * If the PlanarGripper control type is ControlType::kHybrid, this system
+ * allows switching controllers on the fly (between joint torque control and joint
+ * position control) for a single finger. The constructor takes in the
+ * number of joints on this finger. This system declares three input ports. The
+ * first two are vector input ports of size kNumJointsPerFinger. The first of
+ * these takes in the position control actuation command (typically the output
+ * of the InverseDynamicsController), and the second takes in the joint torque
+ * command (typically the output of the ForceController). The third input port
+ * is an abstract input port of type `ControlType`, which indicates which
+ * actuation command (position-control or torque-control) should be copied to
+ * the output. The vector valued inputs/outputs are ordered according to a
+ * preferred finger joint ordering, as given by
+ * GetPreferredFingerJointOrdering().
+ */
+class HybridControlSwitch : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(HybridControlSwitch);
+  explicit HybridControlSwitch(Finger finger)
+      : finger_(finger) {
+    // Input ports.
+    this->DeclareVectorInputPort(
+        "position_control_u",
+        systems::BasicVector<double>(kNumJointsPerFinger));
+    this->DeclareVectorInputPort(
+        "torque_control_u",
+        systems::BasicVector<double>(kNumJointsPerFinger));
+    this->DeclareAbstractInputPort("control_type", Value<ControlType>());
+
+    // Output ports.
+    this->DeclareVectorOutputPort(
+        "u_output", systems::BasicVector<double>(kNumJointsPerFinger),
+        &HybridControlSwitch::SetOutput);
+  }
+
+  Finger get_finger() const {
+    return finger_;
+  }
+
+ private:
+  void SetOutput(const drake::systems::Context<double>& context,
+                 drake::systems::BasicVector<double>* u_output) const {
+    const ControlType& control_type =
+        this->GetInputPort("control_type").Eval<ControlType>(context);
+    if (control_type == ControlType::kPosition) {
+      auto position_port_index =
+          this->GetInputPort("position_control_u").get_index();
+      VectorX<double> u_position_input =
+          this->EvalVectorInput(context, position_port_index)->get_value();
+      DRAKE_DEMAND(u_position_input.size() == kNumJointsPerFinger);
+      u_output->get_mutable_value() = u_position_input;
+    } else if (control_type == ControlType::kTorque) {
+      auto torque_port_index =
+          this->GetInputPort("torque_control_u").get_index();
+      VectorX<double> u_torque_input =
+          this->EvalVectorInput(context, torque_port_index)->get_value();
+      DRAKE_DEMAND(u_torque_input.size() == kNumJointsPerFinger);
+      u_output->get_mutable_value() = u_torque_input;
+    } else {
+      throw std::logic_error(
+          "HybridControlSwitcher: Control type input port options are "
+          "{kPosition, "
+          "kTorque}");
+    }
+  }
+
+  // Indicates which finger this switcher is associated with.
+  const Finger finger_;
+};
+
+/**
+ * This system declares a set of n input ports each of size (2 *
+ * kNumJointsPerFinger), where n is the number of fingers in the plant. Input
+ * port n corresponds to finger n, and takes in the state of finger n in the
+ * order: {fn_positions, fn_velocities}, where positions and velocities
+ * are ordered according to GetPreferredFingerJointOrdering(). The system
+ * declares a single output port of size (2 * kNumGripperJoints), which contains
+ * the state of the planar gripper in MBP joint velocity index ordering (e.g.,
+ * as needed by the desired state input port of the InverseDynamicsController).
+ */
+class FingersStateToGripperState final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersStateToGripperState);
+  explicit FingersStateToGripperState(const PlanarGripper& planar_gripper)
+      : planar_gripper_(planar_gripper) {
+    // Define separate desired state inputs for each of the fingers.
+    for (int i = 1; i <= kNumFingers; i++) {
+      this->DeclareInputPort(to_string_from_finger_num(i) + "_desired_state",
+                             systems::kVectorValued, 2 * kNumJointsPerFinger);
+    }
+    this->DeclareVectorOutputPort(
+        "gripper_desired_state",
+        systems::BasicVector<double>(kNumGripperJoints * 2),
+        &FingersStateToGripperState::SetOutput);
+  }
+
+ private:
+  void SetOutput(const systems::Context<double>& context,
+                 systems::BasicVector<double>* output_vector) const {
+    // This defines the joint name to value pairs for the concatenated
+    // finger positions/velocities extracted from the input ports.
+    std::map<std::string, double> gripper_position_map;
+    std::map<std::string, double> gripper_velocity_map;
+
+    // Get the preferred finger joint ordering.
+    std::vector<std::string> finger_joint_ordering =
+        GetPreferredFingerJointOrdering();
+
+    // Record position and velocity values ordered by finger number.
+    for (int i = 1; i <= kNumFingers; i++) {
+      auto finger_name = to_string_from_finger_num(i);
+      auto finger_port_index =
+          this->GetInputPort(finger_name + "_desired_state").get_index();
+      auto finger_state =
+          this->EvalVectorInput(context, finger_port_index)->get_value();
+      DRAKE_DEMAND(finger_state.size() == (2 * kNumJointsPerFinger));
+
+      int joint_index = 0;
+      for (const auto& joint_name : finger_joint_ordering) {
+        std::string full_joint_name = finger_name + "_" + joint_name;
+        gripper_position_map[full_joint_name] =
+            finger_state(joint_index);
+        gripper_velocity_map[full_joint_name] =
+            finger_state(kNumJointsPerFinger + joint_index);
+        joint_index++;
+      }
+    }
+    VectorX<double> gripper_state(2 * kNumGripperJoints);
+    gripper_state.head<kNumGripperJoints>() =
+        planar_gripper_.MakeGripperPositionVector(gripper_position_map);
+    gripper_state.tail<kNumGripperJoints>() =
+        planar_gripper_.MakeGripperVelocityVector(gripper_velocity_map);
+    output_vector->get_mutable_value() = gripper_state;
+  }
+  // TODO(rcory) Eliminate the need for this member variable once
+  //  MakeGripperPositionVector and MakeGripperVelocityVector methods are moved
+  //  to common utilities.
+  const PlanarGripper& planar_gripper_;
+};
+
+/**
+ * This system takes an input vector u of actuator values for the planar gripper
+ * (no brick), with size kNumGripperJoints. The input vector is assumed to be
+ * ordered according to joint actuator index, ensuring we can connect the output
+ * of GeneralizedForceToActuationOrdering to this system's input. This system
+ * declares a single output port which produces a reordered actuation vector
+ * according to GetPreferredGripperJointOrdering().
+ */
+class GripperActuationToPreferredOrdering final
+    : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GripperActuationToPreferredOrdering);
+  explicit GripperActuationToPreferredOrdering(
+      const MultibodyPlant<double>& plant) {
+    this->DeclareVectorInputPort(
+        "gripper_u_in", systems::BasicVector<double>(kNumGripperJoints));
+    this->DeclareVectorOutputPort(
+        "gripper_u_out", systems::BasicVector<double>(kNumGripperJoints),
+        &GripperActuationToPreferredOrdering::SetOutput);
+    std::vector<std::string> preferred_joint_ordering =
+        GetPreferredGripperJointOrdering();
+    std::vector<multibody::JointIndex> joint_index_vector;
+    for (const auto& iter : preferred_joint_ordering) {
+      joint_index_vector.push_back(plant.GetJointByName(iter).index());
+    }
+    // Create the Sᵤ matrix inverse.
+    actuation_selector_matrix_inv_ =
+        plant.MakeActuatorSelectorMatrix(joint_index_vector).inverse();
+  }
+
+ private:
+  void SetOutput(const systems::Context<double>& context,
+                 systems::BasicVector<double>* output_vector) const {
+    const auto input_port_index =
+        this->GetInputPort("gripper_u_in").get_index();
+    VectorX<double> gripper_u =
+        this->EvalVectorInput(context, input_port_index)->get_value();
+    DRAKE_DEMAND(gripper_u.size() == kNumGripperJoints);
+
+    // Reorder the gripper actuation input vector to the preferred ordering.
+    VectorX<double> gripper_u_reordered =
+        actuation_selector_matrix_inv_ * gripper_u;
+
+    DRAKE_DEMAND(gripper_u_reordered.size() == kNumGripperJoints);
+    output_vector->get_mutable_value() = gripper_u_reordered;
+  }
+
+  MatrixX<double> actuation_selector_matrix_inv_;
+};
+
+/**
+ * This system declares kNumFingers input ports, taking in vectors of size
+ * kNumJointsPerFinger, where each input vector consists of actuator values for
+ * a single finger (ordered by GetPreferredFingerJointOrdering()). The system
+ * declares a single output port, which outputs a vector u of planar gripper
+ * actuation values, ordered according to the plant's joint actuator index, and
+ * is of size kNumGripperJoints.
+ */
+class FingersToGripperActuation final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersToGripperActuation);
+  explicit FingersToGripperActuation(const MultibodyPlant<double>& plant) {
+    // Define separate actuation inputs for each of the fingers.
+    for (int i = 1; i <= kNumFingers; i++) {
+      std::string finger_name = to_string_from_finger_num(i);
+      this->DeclareInputPort(finger_name + "_u",
+                             systems::kVectorValued, kNumJointsPerFinger);
+    }
+    this->DeclareVectorOutputPort(
+        "gripper_u", systems::BasicVector<double>(kNumGripperJoints),
+        &FingersToGripperActuation::SetOutput);
+
+    std::vector<std::string> preferred_joint_ordering =
+        GetPreferredGripperJointOrdering();
+    std::vector<multibody::JointIndex> joint_index_vector;
+    for (const auto& iter : preferred_joint_ordering) {
+      joint_index_vector.push_back(plant.GetJointByName(iter).index());
+    }
+    // Create the Sᵤ matrix.
+    actuation_selector_matrix_ =
+        plant.MakeActuatorSelectorMatrix(joint_index_vector);
+  }
+
+ private:
+  void SetOutput(const systems::Context<double>& context,
+                 systems::BasicVector<double>* output_vector) const {
+    VectorX<double> gripper_u(kNumGripperJoints);  /* in preferred ordering */
+
+    // Record actuation values ordered by finger number.
+    for (int i = 0; i < kNumFingers; i++) {
+      auto finger_name = to_string_from_finger_num(i + 1);
+      auto finger_port_index =
+          this->GetInputPort(finger_name + "_u").get_index();
+      auto finger_u =
+          this->EvalVectorInput(context, finger_port_index)->get_value();
+      DRAKE_DEMAND(finger_u.size() == kNumJointsPerFinger);
+      gripper_u.segment(i * 2, kNumJointsPerFinger) = finger_u;
+    }
+    // Convert to plant's actuator index ordering.
+    output_vector->get_mutable_value() = actuation_selector_matrix_ * gripper_u;
+  }
+
+  // Selector matrix that converts an actuation vector in preferred ordering to
+  // an actuation vector in MBP actuator index ordering.
+  MatrixX<double> actuation_selector_matrix_;
+};
+
 VectorX<double> PlanarGripper::MakeGripperPositionVector(
-    const std::map<std::string, double>& map_in) {
+    const std::map<std::string, double>& map_in) const {
   const int kNumGripperPositions = get_num_gripper_positions();
   if (kNumGripperJoints != kNumGripperPositions) {
     throw std::runtime_error(
@@ -175,6 +444,17 @@ VectorX<double> PlanarGripper::MakeGripperPositionVector(
         "joints");
   }
   return MakePositionVector(map_in, kNumGripperPositions);
+}
+
+VectorX<double> PlanarGripper::MakeGripperVelocityVector(
+    const std::map<std::string, double>& map_in) const {
+  const int kNumGripperVelocities = get_num_gripper_velocities();
+  if (static_cast<int>(map_in.size()) != kNumGripperVelocities) {
+    throw std::runtime_error(
+        "The number of initial condition velocities must match the number of "
+        "planar-gripper velocities");
+  }
+  return MakeVelocityVector(map_in, kNumGripperVelocities);
 }
 
 VectorX<double> PlanarGripper::GetGripperPosition(
@@ -195,19 +475,20 @@ void PlanarGripper::SetGripperVelocity(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& v) const {
-  const int num_gripper_velocities = plant_->num_velocities(gripper_index_);
   DRAKE_DEMAND(state != nullptr);
-  DRAKE_DEMAND(v.size() == num_gripper_velocities);
+  DRAKE_DEMAND(v.size() == get_num_gripper_velocities());
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
   auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
   plant_->SetVelocities(plant_context, &plant_state, gripper_index_, v);
 }
 
-PlanarGripper::PlanarGripper(double time_step, bool use_position_control)
-    : owned_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
+PlanarGripper::PlanarGripper(double time_step, ControlType control_type,
+                             bool add_floor)
+    : owned_control_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
+      owned_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
       owned_scene_graph_(std::make_unique<SceneGraph<double>>()),
-      owned_control_plant_(std::make_unique<MultibodyPlant<double>>(time_step)),
-      use_position_control_(use_position_control),
+      control_type_(control_type),
+      add_floor_(add_floor),
       X_WG_(math::RigidTransformd::Identity()) {
   // This class holds the unique_ptrs explicitly for plant and scene_graph
   // until Finalize() is called (when they are moved into the Diagram). Grab
@@ -218,6 +499,12 @@ PlanarGripper::PlanarGripper(double time_step, bool use_position_control)
   plant_->RegisterAsSourceForSceneGraph(scene_graph_);
   scene_graph_->set_name("scene_graph");
   plant_->set_name("plant");
+
+  // Create the default gains for the inverse dynamics controller. These gains
+  // were chosen arbitrarily.
+  Kp_.setConstant(1500);
+  Kd_.setConstant(500);
+  Ki_.setConstant(500);
 
   this->set_name("planar_gripper_diagram");
 }
@@ -235,10 +522,11 @@ void PlanarGripper::SetupPlant(std::string orientation,
   Vector3d gravity = Vector3d::Zero();
 
   // Make and add the planar_gripper model.
-  const std::string full_name =
+  const std::string gripper_full_name =
       FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
 
-  gripper_index_ = Parser(plant_, scene_graph_).AddModelFromFile(full_name);
+  gripper_index_ = Parser(plant_, scene_graph_)
+                       .AddModelFromFile(gripper_full_name, "planar_gripper");
   WeldGripperFrames<double>(plant_, X_WG_);
 
   // Adds the brick to be manipulated.
@@ -267,11 +555,13 @@ void PlanarGripper::SetupPlant(std::string orientation,
   }
 
   // Create the controlled plant. Contains only the fingers (no bricks).
-  Parser(control_plant_).AddModelFromFile(full_name);
+  Parser(control_plant_).AddModelFromFile(gripper_full_name);
   WeldGripperFrames<double>(control_plant_, X_WG_);
 
-  // Adds a thin floor that can provide friction against the brick.
-  AddFloor(plant_, *scene_graph_);
+  if (add_floor_) {
+    // Adds a thin floor that can provide friction against the brick.
+    AddFloor(plant_, *scene_graph_);
+  }
 
   // Finalize the simulation and control plants.
   plant_->Finalize();
@@ -292,42 +582,123 @@ void PlanarGripper::SetupPlant(std::string orientation,
   brick_geometry_id_ = GetBrickGeometryId(*plant_, inspector);
 }
 
+// Adds an inverse dynamics controller and internally remaps its generalized
+// forces to actuation vector u, which is then connected to `u_input` input
+// port.
+systems::controllers::InverseDynamicsController<double>*
+PlanarGripper::AddInverseDynamicsController(
+    const systems::InputPort<double>& u_input,
+    systems::DiagramBuilder<double>* builder) {
+  systems::controllers::InverseDynamicsController<double>* id_controller;
+  id_controller =
+      builder->AddSystem<systems::controllers::InverseDynamicsController>(
+          *control_plant_, Kp_, Ki_, Kd_, false);
+  id_controller->set_name("inverse_dynamics_controller");
+
+  // Connect the ID controller.
+  builder->Connect(plant_->get_state_output_port(gripper_index_),
+                  id_controller->get_input_port_estimated_state());
+
+  // The inverse dynamics controller internally uses a "controlled plant",
+  // which contains the gripper model *only* (i.e., no brick). Therefore, its
+  // output must be re-mapped to the actuation input of the full "simulation
+  // plant", which contains both gripper and brick. The system
+  // GeneralizedForceToActuationOrdering fills this role.
+  auto force_to_actuation =
+      builder->AddSystem<GeneralizedForceToActuationOrdering>(*control_plant_);
+  force_to_actuation->set_name("force_to_actuation_ordering");
+  builder->Connect(*id_controller, *force_to_actuation);
+  builder->Connect(force_to_actuation->GetOutputPort("u"), u_input);
+
+  return id_controller;
+}
+
 void PlanarGripper::Finalize() {
   systems::DiagramBuilder<double> builder;
-  builder.AddSystem(std::move(owned_plant_));
-  builder.AddSystem(std::move(owned_scene_graph_));
+  builder.AddSystem(std::move(owned_plant_))->set_name("multibody_plant");
+  builder.AddSystem(std::move(owned_scene_graph_))->set_name("scene_graph");
 
-  if (use_position_control_) {
-    // Create the gains for the inverse dynamics controller. These gains were
-    // chosen arbitrarily.
-    Vector<double, kNumGripperJoints> Kp, Kd, Ki;
-    Kp.setConstant(1500);
-    Kd.setConstant(500);
-    Ki.setConstant(500);
-
-    auto id_controller =
-        builder.AddSystem<systems::controllers::InverseDynamicsController>(
-            *control_plant_, Kp, Ki, Kd, false);
-
-    // Connect the ID controller.
-    builder.Connect(plant_->get_state_output_port(gripper_index_),
-                    id_controller->get_input_port_estimated_state());
-
+  if (control_type_ == ControlType::kPosition) {
+    auto id_controller = AddInverseDynamicsController(
+        plant_->get_actuation_input_port(gripper_index_), &builder);
     builder.ExportInput(id_controller->get_input_port_desired_state(),
                         "desired_gripper_state");
+  } else if (control_type_ == ControlType::kTorque) {
+    builder.ExportInput(plant_->get_actuation_input_port(), "torque_control_u");
+  } else if (control_type_ == ControlType::kHybrid) {
+    // System to convert individual finger states to a concatenated gripper
+    // state.
+    auto fingers_to_gripper_desired_state_sys =
+        builder.AddSystem<FingersStateToGripperState>(*this);
 
-    // The inverse dynamics controller internally uses a "controlled plant",
-    // which contains the gripper model *only* (i.e., no brick). Therefore, its
-    // output must be re-mapped to the actuation input of the full "simulation
-    // plant", which contains both gripper and brick. The system
-    // GeneralizedForceToActuationOrdering fills this role.
-    auto force_to_actuation =
-        builder.AddSystem<GeneralizedForceToActuationOrdering>(*control_plant_);
-    builder.Connect(*id_controller, *force_to_actuation);
-    builder.Connect(force_to_actuation->get_output_port(0),
-                    plant_->get_actuation_input_port(gripper_index_));
-  } else {  // Use torque control.
-    builder.ExportInput(plant_->get_actuation_input_port(), "actuation");
+    // System that reorders all fingers' u vectors, which are output from the
+    // hybrid switcher system and then input to this system. Provides an output
+    // with the entire gripper u in the plant's actuator ordering.
+    auto fingers_to_gripper_actuation =
+        builder.AddSystem<FingersToGripperActuation>(*plant_);
+
+    // System that reorders the actuation vector u for the gripper. Input is in
+    // actuator index ordering, and output is in preferred ordering.
+    auto gripper_u_reorder_sys =
+        builder.AddSystem<GripperActuationToPreferredOrdering>(*plant_);
+
+    // Adds an inverse dynamics controller and internally remaps its generalized
+    // forces to actuation vector u, which is then connected to the input port
+    // passed in here.
+    auto id_controller = AddInverseDynamicsController(
+        gripper_u_reorder_sys->GetInputPort("gripper_u_in"), &builder);
+
+    builder.Connect(fingers_to_gripper_desired_state_sys->GetOutputPort(
+        "gripper_desired_state"),
+                    id_controller->get_input_port_desired_state());
+
+    // Demuxer to reorder the gripper u (originating from inverse dynamics
+    // control) into individual finger u's. Note that the reordered input into
+    // the demuxer is already ordered according to a preferred ordering.
+    auto idc_u_demuxer = builder.AddSystem<systems::Demultiplexer<double>>(
+        kNumGripperJoints, kNumJointsPerFinger);
+    builder.Connect(gripper_u_reorder_sys->GetOutputPort("gripper_u_out"),
+                    idc_u_demuxer->get_input_port(0));
+
+    // Now connect the concatenated actuation vector u (ordered in the plant's
+    // actuator ordering) to the plant's actuation input port.
+    builder.Connect(fingers_to_gripper_actuation->GetOutputPort("gripper_u"),
+                    plant_->get_actuation_input_port());
+
+    for (int i = 1; i <= kNumFingers; i++) {  /* iterate over finger numbers */
+      std::string finger_name = to_string_from_finger_num(i);
+
+      // Export an input port for each finger's desired state.
+      builder.ExportInput(fingers_to_gripper_desired_state_sys->GetInputPort(
+          finger_name + "_desired_state"), finger_name + "_desired_state");
+
+      // Each finger can individually operate in position or force control, so
+      // we create a hybrid switch for each finger in the plant. We also export
+      // the torque control input port and control-type input port for each
+      // finger.
+      auto hybrid_control_switch =
+          builder.AddSystem<HybridControlSwitch>(to_Finger(i));
+      builder.ExportInput(
+          hybrid_control_switch->GetInputPort("torque_control_u"),
+          finger_name + "_torque_control_u");
+      builder.ExportInput(hybrid_control_switch->GetInputPort("control_type"),
+                          finger_name + "_control_type");
+
+      // Connect the output of the demuxer for this finger into the
+      // corresponding input of this finger's switcher.
+      builder.Connect(
+          idc_u_demuxer->get_output_port(i - 1),
+          hybrid_control_switch->GetInputPort("position_control_u"));
+
+      // Connect the output of the switcher to the appropriate input port of the
+      // finger-to-gripper actuation concatenator.
+      builder.Connect(
+          hybrid_control_switch->GetOutputPort("u_output"),
+          fingers_to_gripper_actuation->GetInputPort(finger_name + "_u"));
+    }
+  } else {
+    throw std::runtime_error(
+        "Unknown control type. Options are {kPosition, kTorque, kHybrid}.");
   }
 
   builder.ExportOutput(plant_->get_state_output_port(), "plant_state");
@@ -374,9 +745,8 @@ void PlanarGripper::SetGripperPosition(
     const drake::systems::Context<double>& diagram_context,
     systems::State<double>* state,
     const Eigen::Ref<const drake::VectorX<double>>& q) const {
-  const int kNumGripperPositions = get_num_gripper_positions();
   DRAKE_DEMAND(state != nullptr);
-  DRAKE_DEMAND(q.size() == kNumGripperPositions);
+  DRAKE_DEMAND(q.size() == get_num_gripper_positions());
   auto& plant_context = this->GetSubsystemContext(*plant_, diagram_context);
   auto& plant_state = this->GetMutableSubsystemState(*plant_, state);
   plant_->SetPositions(plant_context, &plant_state, gripper_index_, q);
@@ -384,13 +754,12 @@ void PlanarGripper::SetGripperPosition(
 
 VectorX<double> PlanarGripper::MakeBrickPositionVector(
     const std::map<std::string, double>& map_in) {
-  const int kNumBrickPositions = get_num_brick_positions();
-  if (static_cast<int>(map_in.size()) != kNumBrickPositions) {
+  if (static_cast<int>(map_in.size()) != get_num_brick_positions()) {
     throw std::runtime_error(
         "The number of initial condition positions must match the number of "
         "planar-gripper positions");
   }
-  return MakePositionVector(map_in, kNumBrickPositions);
+  return MakePositionVector(map_in, get_num_brick_positions());
 }
 
 VectorX<double> PlanarGripper::MakePositionVector(
@@ -431,7 +800,7 @@ VectorX<double> PlanarGripper::MakeBrickVelocityVector(
   if (static_cast<int>(map_in.size()) != kNumBrickVelocities) {
     throw std::runtime_error(
         "The number of initial condition velocities must match the number of "
-        "planar-gripper velocities");
+        "brick velocities");
   }
   return MakeVelocityVector(map_in, kNumBrickVelocities);
 }
