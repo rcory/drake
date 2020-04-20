@@ -87,6 +87,29 @@ geometry::GeometryId PlanarGripper::brick_geometry_id() const {
   return brick_geometry_id_;
 }
 
+void PlanarGripper::SetInverseDynamicsControlGains(
+    const Eigen::Ref<VectorX<double>> Kp, const Eigen::Ref<VectorX<double>> Ki,
+    const Eigen::Ref<VectorX<double>> Kd) {
+  if (Kp.size() != kNumGripperJoints || Ki.rows() != kNumGripperJoints ||
+      Kd.rows() != kNumGripperJoints) {
+    throw std::logic_error(
+        "SetInverseDynamicsCOntrolGains: Incorrect vector sizes.");
+  }
+  Kp_ = Kp; Ki_ = Ki; Kd_ = Kd;
+}
+
+void PlanarGripper::GetInverseDynamicsControlGains(
+    EigenPtr<VectorX<double>> Kp,
+    EigenPtr<VectorX<double>> Ki,
+    EigenPtr<VectorX<double>> Kd) {
+  if (Kp->rows() != kNumGripperJoints || Ki->rows() != kNumGripperJoints ||
+      Kd->rows() != kNumGripperJoints) {
+    throw std::logic_error(
+        "GetInverseDynamicsControlGains: Incorrect vector sizes.");
+  }
+  *Kp = Kp_; *Ki = Ki_; *Kd = Kd_;
+}
+
 /// Reorders the generalized force output vector of the ID controller
 /// (internally using a control plant with only the gripper) to match the
 /// actuation input ordering for the full simulation plant (containing gripper
@@ -239,7 +262,7 @@ class HybridControlSwitch : public systems::LeafSystem<double> {
  * the state of the planar gripper in MBP joint velocity index ordering (e.g.,
  * as needed by the desired state input port of the InverseDynamicsController).
  */
-class FingersStateToGripperState : public systems::LeafSystem<double> {
+class FingersStateToGripperState final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersStateToGripperState);
   explicit FingersStateToGripperState(const PlanarGripper& planar_gripper)
@@ -307,7 +330,8 @@ class FingersStateToGripperState : public systems::LeafSystem<double> {
  * declares a single output port which produces a reordered actuation vector
  * according to GetPreferredGripperJointOrdering().
  */
-class GripperActuationToPreferredOrdering : public systems::LeafSystem<double> {
+class GripperActuationToPreferredOrdering final
+    : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GripperActuationToPreferredOrdering);
   explicit GripperActuationToPreferredOrdering(
@@ -356,7 +380,7 @@ class GripperActuationToPreferredOrdering : public systems::LeafSystem<double> {
  * actuation values, ordered according to the plant's joint actuator index, and
  * is of size kNumGripperJoints.
  */
-class FingersToGripperActuation : public systems::LeafSystem<double> {
+class FingersToGripperActuation final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingersToGripperActuation);
   explicit FingersToGripperActuation(const MultibodyPlant<double>& plant) {
@@ -476,6 +500,12 @@ PlanarGripper::PlanarGripper(double time_step, ControlType control_type,
   scene_graph_->set_name("scene_graph");
   plant_->set_name("plant");
 
+  // Create the default gains for the inverse dynamics controller. These gains
+  // were chosen arbitrarily.
+  Kp_.setConstant(1500);
+  Kd_.setConstant(500);
+  Ki_.setConstant(500);
+
   this->set_name("planar_gripper_diagram");
 }
 
@@ -559,17 +589,10 @@ systems::controllers::InverseDynamicsController<double>*
 PlanarGripper::AddInverseDynamicsController(
     const systems::InputPort<double>& u_input,
     systems::DiagramBuilder<double>* builder) {
-  // Create the gains for the inverse dynamics controller. These gains were
-  // chosen arbitrarily.
-  Vector<double, kNumGripperJoints> Kp, Kd, Ki;
-  Kp.setConstant(1500);
-  Kd.setConstant(500);
-  Ki.setConstant(500);
-
   systems::controllers::InverseDynamicsController<double>* id_controller;
   id_controller =
       builder->AddSystem<systems::controllers::InverseDynamicsController>(
-          *control_plant_, Kp, Ki, Kd, false);
+          *control_plant_, Kp_, Ki_, Kd_, false);
   id_controller->set_name("inverse_dynamics_controller");
 
   // Connect the ID controller.

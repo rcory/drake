@@ -11,7 +11,8 @@ namespace planar_gripper {
 GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
   // Test GetClosestFacesToFinger and also FingerFaceAssigner class.
   systems::DiagramBuilder<double> builder;
-  auto planar_gripper = builder.AddSystem<PlanarGripper>(0.1, false);
+  auto planar_gripper = builder.AddSystem<PlanarGripper>(
+      0.1, ControlType::kTorque, false /* no floor */);
   planar_gripper->SetupPlanarBrick("horizontal");
   planar_gripper->Finalize();
   auto finger_face_assigner = builder.AddSystem<FingerFaceAssigner>(

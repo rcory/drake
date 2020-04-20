@@ -34,6 +34,38 @@ GTEST_TEST(TestPlanarGripper, constructor) {
           geometry::Role::kProximity, "brick::box_collision"));
 }
 
+GTEST_TEST(TestPlanarGripper, InverseDynamicsGains) {
+  PlanarGripper planar_gripper(0.1, ControlType::kPosition,
+                               false /* no floor */);
+
+  // Create correct size matrix. And make sure constructor allocates gains
+  // properly.
+  Vector<double, kNumGripperJoints> Kp_good, Ki_good, Kd_good;
+  EXPECT_NO_THROW(planar_gripper.GetInverseDynamicsControlGains(
+      &Kp_good, &Ki_good, &Kd_good));
+
+  // Set the gains.
+  Kp_good.setConstant(1.2);
+  Ki_good.setConstant(2.3);
+  Kd_good.setConstant(4.5);
+  EXPECT_NO_THROW(
+      planar_gripper.SetInverseDynamicsControlGains(Kp_good, Ki_good, Kd_good));
+
+  // Check the gains.
+  Vector<double, kNumGripperJoints> Kp_ret, Ki_ret, Kd_ret;
+  EXPECT_NO_THROW(
+      planar_gripper.GetInverseDynamicsControlGains(&Kp_ret, &Ki_ret, &Kd_ret));
+  EXPECT_TRUE(CompareMatrices(Kp_ret, Kp_good));
+  EXPECT_TRUE(CompareMatrices(Ki_ret, Ki_good));
+  EXPECT_TRUE(CompareMatrices(Kd_ret, Kd_good));
+
+  // Create an incorrect size matrix.
+  Vector<double, kNumGripperJoints - 1> Kp_bad, Ki_bad, Kd_bad;
+  EXPECT_THROW(
+      planar_gripper.GetInverseDynamicsControlGains(&Kp_bad, &Ki_bad, &Kd_bad),
+      std::logic_error);
+}
+
 GTEST_TEST(TestPlanarGripper, PositionControlSetup) {
   systems::DiagramBuilder<double> builder;
   auto planar_gripper = builder.AddSystem<PlanarGripper>(

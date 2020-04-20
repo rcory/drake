@@ -297,6 +297,17 @@ class PlanarGripper : public systems::Diagram<double> {
    */
   geometry::GeometryId brick_geometry_id() const;
 
+  /**
+   * Sets the gains for the internal inverse dynamics controller.
+   */
+  void SetInverseDynamicsControlGains(const Eigen::Ref<VectorX<double>> Kp,
+                                      const Eigen::Ref<VectorX<double>> Ki,
+                                      const Eigen::Ref<VectorX<double>> Kd);
+
+  void GetInverseDynamicsControlGains(EigenPtr<VectorX<double>> Kp,
+                                      EigenPtr<VectorX<double>> Ki,
+                                      EigenPtr<VectorX<double>> Kd);
+
  private:
   void SetupPlant(std::string orientation, std::string brick_file_name);
 
@@ -328,6 +339,11 @@ class PlanarGripper : public systems::Diagram<double> {
   double brick_floor_penetration_{0};  // For the vertical case.
   double floor_coef_static_friction_{0};
   double floor_coef_kinetic_friction_{0};
+
+  // Inverse Dynamics Controller gains.
+  Vector<double, kNumGripperJoints> Kp_;
+  Vector<double, kNumGripperJoints> Ki_;
+  Vector<double, kNumGripperJoints> Kd_;
 
   // The planar gripper frame G's transform w.r.t. the world frame W.
   math::RigidTransformd X_WG_;
