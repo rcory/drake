@@ -3,6 +3,7 @@
 #include <string>
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/multibody/tree/weld_joint.h"
 
 namespace drake {
@@ -43,30 +44,6 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
 
 template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant);
 
-geometry::GeometryId GetBrickGeometryId(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph) {
-  const geometry::SceneGraphInspector<double>& inspector =
-      scene_graph.model_inspector();
-  const geometry::GeometryId brick_geometry_id = inspector.GetGeometryIdByName(
-      plant.GetBodyFrameIdOrThrow(plant.GetBodyByName("brick_link").index()),
-      geometry::Role::kProximity, "brick::box_collision");
-  return brick_geometry_id;
-}
-
-geometry::GeometryId GetFingerTipGeometryId(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const Finger finger) {
-  std::string fnum = to_string(finger);
-  const geometry::SceneGraphInspector<double>& inspector =
-      scene_graph.model_inspector();
-  const geometry::GeometryId finger_tip_geometry_id =
-      inspector.GetGeometryIdByName(
-          plant.GetBodyFrameIdOrThrow(
-              plant.GetBodyByName(fnum + "_tip_link").index()),
-          geometry::Role::kProximity, "planar_gripper::tip_sphere_collision");
-  return finger_tip_geometry_id;
-}
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,
@@ -74,7 +51,8 @@ Eigen::Vector3d GetFingerTipSpherePositionInLt(
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph, finger);
+      GetFingertipSphereGeometryId(plant, scene_graph.model_inspector(),
+                                   finger);
   Eigen::Vector3d p_LtTip =  // position of sphere center in tip-link frame
       inspector.GetPoseInFrame(finger_tip_geometry_id).translation();
   return p_LtTip;
@@ -99,7 +77,8 @@ double GetFingerTipSphereRadius(const multibody::MultibodyPlant<double>& plant,
   const geometry::SceneGraphInspector<double>& inspector =
       scene_graph.model_inspector();
   const geometry::GeometryId finger_tip_geometry_id =
-      GetFingerTipGeometryId(plant, scene_graph, finger);
+      GetFingertipSphereGeometryId(plant, scene_graph.model_inspector(),
+                                   finger);
   const geometry::Shape& fingertip_shape =
       inspector.GetShape(finger_tip_geometry_id);
   double finger_tip_radius =
@@ -235,9 +214,10 @@ void ContactPointInBrickFrame::CalcOutput(
         geometry_query_obj.ComputeSignedDistancePairwiseClosestPoints();
     DRAKE_DEMAND(pairs_vec.size() >= 1);
 
-    geometry::GeometryId brick_id = GetBrickGeometryId(plant_, scene_graph_);
-    geometry::GeometryId ftip_id =
-        GetFingerTipGeometryId(plant_, scene_graph_, finger_);
+    const geometry::GeometryId brick_id =
+        GetBrickGeometryId(plant_, scene_graph_.model_inspector());
+    const geometry::GeometryId ftip_id = GetFingertipSphereGeometryId(
+        plant_, scene_graph_.model_inspector(), finger_);
 
     // Find the pair that contains the brick geometry.
     int pairs_index;

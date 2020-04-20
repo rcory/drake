@@ -4,8 +4,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
-#include <utility>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
@@ -286,23 +284,6 @@ class PlanarGripper : public systems::Diagram<double> {
    * Get the geometry id of the brick in the plant.
    */
   geometry::GeometryId brick_geometry_id() const;
-
-  /**
-   * Compute the closest face(s) to a center finger given the posture.
-   * When the witness point on the brick is at the vertex of the brick, then
-   * we return the two neighbouring faces of that vertex. Otherwise we return
-   * the unique face on which the witness point lives.
-   * @param plant_context The context of @p plant.
-   * @param finger The finger to which the closest faces are queried.
-   * @return (closest_faces, p_BCb) When the witness point Cb on the brick is at
-   * the vertex of the brick, then we return the two neighbouring faces of that
-   * vertex. Otherwise we return the unique face on which the witness point Cb
-   * lives. p_BCb is a 3 x 1 position vector, it is the position of the brick
-   * witness point Cb on the brick frame B.
-   */
-  std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
-  GetClosestFacesToFinger(const systems::Context<double>& plant_context,
-                          Finger finger) const;
 
  private:
   void SetupPlant(std::string orientation, std::string brick_file_name);
