@@ -1138,7 +1138,7 @@ void ConnectUDPQPController(
   auto qp_controller = builder->AddSystem<PlanarGripperQPControllerUDP>(
       planar_gripper.get_multibody_plant().num_multibody_states(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()),
-      planar_gripper.num_gripper_joints() / 2,
+      kNumFingers,
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(), publisher_local_port,
       publisher_remote_port, publisher_remote_address, receiver_local_port,
@@ -1292,55 +1292,6 @@ void PlantStateToFingerStateSelector::CalcOutput(
   output->get_mutable_value() = state_selector_matrix_ * plant_state;
 }
 
-FingerToPlantActuationMap::FingerToPlantActuationMap(
-    const MultibodyPlant<double>& plant, const Finger finger)
-    : finger_(finger) {
-  std::vector<multibody::JointIndex> joint_index_vector;
-
-  // Create the Sᵤ matrix.
-  for (int i = 0; i < kNumFingers; i++) {
-    joint_index_vector.push_back(
-        plant.GetJointByName("finger" + std::to_string(i + 1) + "_BaseJoint")
-            .index());
-    joint_index_vector.push_back(
-        plant.GetJointByName("finger" + std::to_string(i + 1) + "_MidJoint")
-            .index());
-  }
-  actuation_selector_matrix_ =
-      plant.MakeActuatorSelectorMatrix(joint_index_vector);
-  actuation_selector_matrix_inv_ = actuation_selector_matrix_.inverse();
-
-  this->DeclareVectorInputPort("u_in", /* in plant actuator ordering */
-                               systems::BasicVector<double>(kNumGripperJoints));
-
-  this->DeclareVectorInputPort(
-      "u_fn", /* override value for finger_n actuation {fn_base_u, fn_mid_u} */
-      systems::BasicVector<double>(kNumJointsPerFinger));
-
-  this->DeclareVectorOutputPort("u_out",
-                                systems::BasicVector<double>(kNumGripperJoints),
-                                &FingerToPlantActuationMap::CalcOutput);
-}
-
-void FingerToPlantActuationMap::CalcOutput(
-    const drake::systems::Context<double>& context,
-    drake::systems::BasicVector<double>* output) const {
-  VectorX<double> u_all_in = this->EvalVectorInput(context, 0)->get_value();
-  Vector2<double> u_fn_in = /* {fn_base_u, fn_mid_u} */
-      this->EvalVectorInput(context, 1)->get_value();
-
-  // Reorder the gripper actuation to: {f1_base_u, f1_mid_u, ...}
-  VectorX<double> u_s = actuation_selector_matrix_inv_ * u_all_in;
-
-  // Replace finger n actuation values with the torque control actuation values.
-  u_s.segment((to_num(finger_) - 1) * kNumJointsPerFinger,
-              kNumJointsPerFinger) = u_fn_in;
-
-  // Set the output.
-  auto u = actuation_selector_matrix_ * u_s;
-  output->get_mutable_value() = u;
-}
-
 ForceControllersToPlantActuationMap::ForceControllersToPlantActuationMap(
     const MultibodyPlant<double>& plant,
     std::unordered_map<Finger, ForceController&> finger_force_control_map)
@@ -1411,7 +1362,7 @@ void ForceControllersToPlantActuationMap::ConnectForceControllersToPlant(
                      this->get_input_port(input_port_index));
   }
   builder->Connect(this->GetOutputPort("u_out"),
-                   planar_gripper.GetInputPort("actuation"));
+                   planar_gripper.GetInputPort("torque_control_u"));
 }
 
 }  // namespace planar_gripper
