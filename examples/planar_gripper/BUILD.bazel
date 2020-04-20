@@ -223,6 +223,8 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_simulation.cc"],
     add_test_rule = 1,
     data = [
+        "//examples/planar_gripper:pinned_brick_postures_01.txt",
+        "//examples/planar_gripper:pinned_brick_postures_02.txt",
         "//examples/planar_gripper:postures.txt",
     ],
     test_rule_args = [
@@ -275,7 +277,8 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_rotate_simulation.cc"],
     add_test_rule = 1,
     test_rule_args = [
-        "--simulation_time=0.1",
+        "--test",
+        "--simulation_time=3.5",
         "--target_realtime_rate=0",
     ],
     deps = [
@@ -333,6 +336,11 @@ drake_cc_binary(
     name = "brick_only_qp_simulation",
     srcs = ["test/brick_only_qp_simulation.cc"],
     add_test_rule = 1,
+    test_rule_args = [
+        "--test",
+        "--simulation_time=2.3",
+        "--target_realtime_rate=0",
+    ],
     deps = [
         ":contact_force_qp",
         ":planar_gripper",
@@ -437,6 +445,7 @@ drake_cc_googletest(
     name = "planar_gripper_test",
     deps = [
         ":planar_gripper",
+        "//common/test_utilities:eigen_matrix_compare",
     ],
 )
 

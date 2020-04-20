@@ -320,28 +320,6 @@ class PlantStateToFingerStateSelector : public systems::LeafSystem<double> {
   MatrixX<double> state_selector_matrix_;
 };
 
-/// Has two input ports. The first input is a vector of actuation values
-/// for the planar-gripper (6 x 1, in joint-actuator ordering). Typically this
-/// is the output of GeneralizedForceToActuationOrdering(control_plant). The
-/// second input is a vector of actuation values for finger n given as:
-/// {fn_base_u, fn_mid_u}.
-/// This system has a single output port, which produces actuation
-/// values for the gripper/brick MBP (in the plant's joint-actuator ordering).
-class FingerToPlantActuationMap : public systems::LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingerToPlantActuationMap);
-  FingerToPlantActuationMap(const MultibodyPlant<double>& plant,
-                            const Finger finger);
-
-  void CalcOutput(const drake::systems::Context<double>& context,
-                  drake::systems::BasicVector<double>* output) const;
-
- private:
-  MatrixX<double> actuation_selector_matrix_;
-  MatrixX<double> actuation_selector_matrix_inv_;
-  const Finger finger_;
-};
-
 /// This system has n vector-valued input ports of size `kNumJointsPerFinger`,
 /// where n is the number of force controllers (typically one force controller
 /// per finger). n is equal to the size of `finger_force_control_map`. Input
