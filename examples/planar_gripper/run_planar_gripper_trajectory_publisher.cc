@@ -37,7 +37,7 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
-DEFINE_double(keyframe_dt, 0.1,
+DEFINE_double(keyframe_dt, 0.02,
               "Defines a uniform time step between `break` points in our "
               "spline interpolator (see "
               "PiecewisePolynomial::CubicShapePreserving), where each keyframe "

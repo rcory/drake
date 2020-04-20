@@ -36,12 +36,14 @@ DEFINE_double(brick_theta0, -M_PI_4 + 0.2,
 DEFINE_double(brick_thetaf, M_PI_4, "The final rotation of the brick. (rad)");
 DEFINE_string(control_task_type, "track",
               "Control task type: {track, regulate}.");
+DEFINE_bool(test, false,
+            "If true, checks the simulation result against a known value.");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
 
   auto planar_gripper =
-      builder.AddSystem<PlanarGripper>(FLAGS_time_step, false);
+      builder.AddSystem<PlanarGripper>(FLAGS_time_step, ControlType::kTorque);
   planar_gripper->set_brick_floor_penetration(0);
 
   BrickType brick_type;
@@ -193,7 +195,7 @@ int DoMain() {
               {0, 1}, {Eigen::Matrix<double, 6, 1>::Zero(),
                        Eigen::Matrix<double, 6, 1>::Zero()}));
   builder.Connect(gripper_actuation_source->get_output_port(),
-                  planar_gripper->GetInputPort("actuation"));
+                  planar_gripper->GetInputPort("torque_control_u"));
 
   // Publish body frames.
   auto frame_viz = builder.AddSystem<FrameViz>(
@@ -240,6 +242,23 @@ int DoMain() {
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);
+
+  // TODO(rcory) Implement a proper unit test once all shared parameters are
+  //  moved to a YAML file.
+  if (FLAGS_test) {
+    VectorX<double> x_known(20);
+    x_known << 0, -1, -1, -1, 1.69e-05, -1, -1, -1, -3.19e-05,
+        78526.99e-5, 0, 0, 0, 0, -5.92e-05, 0, 0, 0, 10.23e-5,
+        41.43e-5;
+    const auto& post_sim_context = simulator.get_context();
+    const auto& post_plant_context = diagram->GetSubsystemContext(
+        planar_gripper->get_mutable_multibody_plant(), post_sim_context);
+    const auto post_plant_state =
+        planar_gripper->get_multibody_plant().GetPositionsAndVelocities(
+            post_plant_context);
+    // Check to within an arbitrary threshold.
+    DRAKE_DEMAND(x_known.isApprox(post_plant_state, 1e-6));
+  }
 
   return 0;
 }
