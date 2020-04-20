@@ -15,6 +15,15 @@ load(
 )
 
 drake_cc_library(
+    name = "planar_gripper_utils",
+    srcs = ["planar_gripper_utils.cc"],
+    hdrs = ["planar_gripper_utils.h"],
+    deps = [
+        ":planar_gripper_common",
+    ],
+)
+
+drake_cc_library(
     name = "planar_gripper",
     srcs = [
         "planar_gripper.cc",
@@ -31,6 +40,7 @@ drake_cc_library(
     deps = [
         ":planar_gripper_common",
         ":planar_gripper_lcm",
+        ":planar_gripper_utils",
         "//common:find_resource",
         "//multibody/parsing",
         "//multibody/plant",
@@ -189,6 +199,7 @@ drake_cc_library(
     hdrs = ["finger_brick.h"],
     deps = [
         ":planar_gripper_common",
+        ":planar_gripper_utils",
         "//multibody/plant",
     ],
 )
@@ -404,6 +415,7 @@ drake_cc_googletest(
     deps = [
         ":contact_force_qp",
         ":finger_brick",
+        ":planar_gripper_utils",
         "//common:find_resource",
         "//geometry:geometry_visualization",
         "//multibody/inverse_kinematics",
@@ -425,6 +437,14 @@ drake_cc_googletest(
     name = "planar_gripper_test",
     deps = [
         ":planar_gripper",
+    ],
+)
+
+drake_cc_googletest(
+    name = "planar_gripper_utils_test",
+    deps = [
+        ":planar_gripper",
+        ":planar_gripper_utils",
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/inverse_kinematics",
         "//solvers:solve",
