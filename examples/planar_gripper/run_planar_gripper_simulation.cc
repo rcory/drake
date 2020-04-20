@@ -84,6 +84,7 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
+// TODO(rcory) Move all common flags to a shared YAML file.
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
@@ -108,6 +109,7 @@ DEFINE_string(orientation, "vertical",
               "horizontal}.");
 DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
+DEFINE_string(brick_type, "planar", "The brick type {pinned, planar}");
 DEFINE_bool(
     use_position_control, true,
     "If true (default) we simulate position control via inverse dynamics "
@@ -115,11 +117,15 @@ DEFINE_bool(
 DEFINE_string(keyframes_filename, "postures.txt",
               "The name of the file containing the keyframes.");
 DEFINE_bool(zero_gravity, true, "Set MBP gravity vector to zero?");
+DEFINE_bool(add_floor, true, "Adds a floor to the simulation");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
   auto planar_gripper = builder.AddSystem<PlanarGripper>(
-      FLAGS_time_step, FLAGS_use_position_control);
+      FLAGS_time_step,
+      FLAGS_use_position_control ? ControlType::kPosition
+                                 : ControlType::kTorque,
+      FLAGS_add_floor);
 
   // Set some plant parameters.
   planar_gripper->set_floor_coef_static_friction(
@@ -128,8 +134,14 @@ int DoMain() {
       FLAGS_floor_coef_kinetic_friction);
   planar_gripper->set_brick_floor_penetration(FLAGS_brick_floor_penetration);
 
-  // Setup the planar brick version of the plant.
-  planar_gripper->SetupPlanarBrick(FLAGS_orientation);
+  // Setup the pinned or planar brick version of the plant.
+  if (FLAGS_brick_type == "pinned") {
+    planar_gripper->SetupPinBrick(FLAGS_orientation);
+  } else if (FLAGS_brick_type == "planar") {
+    planar_gripper->SetupPlanarBrick(FLAGS_orientation);
+  } else {
+    throw std::runtime_error("Unknown BrickType.");
+  }
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
   if (FLAGS_zero_gravity) {
     planar_gripper->zero_gravity();
@@ -219,15 +231,17 @@ int DoMain() {
                                      gripper_initial_positions);
 
   std::map<std::string, double> init_brick_pos_map;
-  const int y_index = brick_keyframe_info.second["brick_translate_y_joint"];
-  const int z_index = brick_keyframe_info.second["brick_translate_z_joint"];
-  const int x_index = brick_keyframe_info.second["brick_revolute_x_joint"];
-  init_brick_pos_map["brick_translate_y_joint"] =
-      brick_keyframe_info.first(y_index, 0);
-  init_brick_pos_map["brick_translate_z_joint"] =
-      brick_keyframe_info.first(z_index, 0);
+  const int rx_index = brick_keyframe_info.second["brick_revolute_x_joint"];
   init_brick_pos_map["brick_revolute_x_joint"] =
-      brick_keyframe_info.first(x_index, 0);
+      brick_keyframe_info.first(rx_index, 0);
+  if (FLAGS_brick_type == "planar") {
+    const int ty_index = brick_keyframe_info.second["brick_translate_y_joint"];
+    const int tz_index = brick_keyframe_info.second["brick_translate_z_joint"];
+    init_brick_pos_map["brick_translate_y_joint"] =
+        brick_keyframe_info.first(ty_index, 0);
+    init_brick_pos_map["brick_translate_z_joint"] =
+        brick_keyframe_info.first(tz_index, 0);
+  }
   if (FLAGS_orientation == "horizontal") {
     init_brick_pos_map["brick_translate_x_joint"] = 0;
   }

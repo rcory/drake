@@ -23,6 +23,7 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
+// TODO(rcory) Move all common flags to a shared YAML file.
 DEFINE_double(simulation_time, 3.0, "Amount of time to simulate.");
 DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
@@ -116,7 +117,7 @@ int DoMain() {
   systems::lcm::LcmInterfaceSystem* lcm =
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
 
-  PlanarGripper planar_gripper;
+  PlanarGripper planar_gripper(0.0 /* time step */, ControlType::kTorque);
   planar_gripper.SetupPinBrick("vertical");
   planar_gripper.zero_gravity();
   planar_gripper.Finalize();

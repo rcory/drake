@@ -20,12 +20,19 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
+// Enumerates the types of control for the PlanarGripper simulation.
+enum class ControlType {
+  kPosition,  // Position control via inverse dynamics control.
+  kTorque,  // Direct joint torque control.
+  kHybrid,  // Hybrid joint position and torque control, via control switching.
+};
+
 using multibody::ModelInstanceIndex;
 
 class PlanarGripper : public systems::Diagram<double> {
  public:
-  explicit PlanarGripper(double time_step = 1e-3,
-                         bool use_position_control = true);
+  PlanarGripper(double time_step, ControlType control_type,
+                bool add_floor = false);
 
   /// Sets up the diagram using the planar brick.
   // TODO(rcory) Rename this to something like
@@ -72,14 +79,15 @@ class PlanarGripper : public systems::Diagram<double> {
     return *owned_control_plant_;
   }
 
-  /// Get the number of joints in the gripper (only -- does not include the
-  /// brick).
-  int num_gripper_joints() const { return kNumGripperJoints; }
-
   /// Creates a position vector (in the simulation MBP joint position index
   /// ordering) from the named joints and values in `map_in`.
   VectorX<double> MakeGripperPositionVector(
-      const std::map<std::string, double>& map_in);
+      const std::map<std::string, double>& map_in) const;
+
+  /// Creates a velocity vector (in MBP joint velocity index ordering)
+  /// from the named joints and values in `map_in`.
+  VectorX<double> MakeGripperVelocityVector(
+      const std::map<std::string, double>& map_in) const;
 
   /// Convenience method for getting all of the joint angles of the gripper.
   /// This does not include the brick.
@@ -87,7 +95,7 @@ class PlanarGripper : public systems::Diagram<double> {
       const systems::Context<double>& diagram_context) const;
 
   /// Convenience method for setting all of the joint angles of the gripper.
-  /// @p q must have size num_gripper_joints().
+  /// @p q must have size get_num_gripper_positions().
   /// @pre `state` must be the systems::State<double> object contained in
   /// `diagram_context`.
   void SetGripperPosition(const systems::Context<double>& diagram_context,
@@ -95,7 +103,7 @@ class PlanarGripper : public systems::Diagram<double> {
                           const Eigen::Ref<const VectorX<double>>& q) const;
 
   /// Convenience method for setting all of the joint angles of gripper.
-  /// @p q must have size num_gripper_joints().
+  /// @p q must have size get_num_gripper_positions().
   void SetGripperPosition(systems::Context<double>* diagram_context,
                           const Eigen::Ref<const VectorX<double>>& q) const {
     SetGripperPosition(*diagram_context, &diagram_context->get_mutable_state(),
@@ -107,7 +115,7 @@ class PlanarGripper : public systems::Diagram<double> {
       const systems::Context<double>& diagram_context) const;
 
   /// Convenience method for setting all of the joint velocities of the Gripper.
-  /// @v must have size num_gripper_joints().
+  /// @v must have size get_num_gripper_velocities().
   /// @pre `state` must be the systems::State<double> object contained in
   /// `diagram_context`.
   void SetGripperVelocity(const systems::Context<double>& diagram_context,
@@ -115,12 +123,15 @@ class PlanarGripper : public systems::Diagram<double> {
                           const Eigen::Ref<const VectorX<double>>& v) const;
 
   /// Convenience method for setting all of the joint velocities of the gripper.
-  /// @v must have size num_gripper_joints().
+  /// @v must have size get_num_gripper_velocities().
   void SetGripperVelocity(systems::Context<double>* diagram_context,
                           const Eigen::Ref<const VectorX<double>>& v) const {
     SetGripperVelocity(*diagram_context, &diagram_context->get_mutable_state(),
                        v);
   }
+
+  // TODO(rcory) Move the Make*Vector() methods below to a common utilities
+  // file, so that they are accessible outside the PlanarGripper class.
 
   /// Creates a position vector (in MBP joint position index ordering)
   /// from the named joints and values in `map_in`.
@@ -173,6 +184,7 @@ class PlanarGripper : public systems::Diagram<double> {
                      v);
   }
 
+  /// Adds a floor to the MultibodyPlant.
   void AddFloor(MultibodyPlant<double>* plant,
                 const geometry::SceneGraph<double>& scene_graph);
 
@@ -285,15 +297,34 @@ class PlanarGripper : public systems::Diagram<double> {
    */
   geometry::GeometryId brick_geometry_id() const;
 
+  /**
+   * Sets the gains for the internal inverse dynamics controller.
+   */
+  void SetInverseDynamicsControlGains(const Eigen::Ref<VectorX<double>> Kp,
+                                      const Eigen::Ref<VectorX<double>> Ki,
+                                      const Eigen::Ref<VectorX<double>> Kd);
+
+  void GetInverseDynamicsControlGains(EigenPtr<VectorX<double>> Kp,
+                                      EigenPtr<VectorX<double>> Ki,
+                                      EigenPtr<VectorX<double>> Kd);
+
  private:
   void SetupPlant(std::string orientation, std::string brick_file_name);
 
+  /// Adds an inverse dynamics controller to the diagram.
+  /// @param u_input The input port which will accept the compute actuation
+  ///        vector u.
+  /// @param builder A pointer to the diagram builder for the PlanarGripper.
+  systems::controllers::InverseDynamicsController<double>*
+  AddInverseDynamicsController(const systems::InputPort<double>& u_input,
+                               systems::DiagramBuilder<double>* builder);
+
   // These are only valid until Finalize() is called.
+  std::unique_ptr<multibody::MultibodyPlant<double>> owned_control_plant_;
   std::unique_ptr<multibody::MultibodyPlant<double>> owned_plant_;
   std::unique_ptr<geometry::SceneGraph<double>> owned_scene_graph_;
 
   // These are valid for the lifetime of this system.
-  std::unique_ptr<multibody::MultibodyPlant<double>> owned_control_plant_;
   multibody::MultibodyPlant<double>* control_plant_;
   multibody::MultibodyPlant<double>* plant_;
   geometry::SceneGraph<double>* scene_graph_;
@@ -303,10 +334,16 @@ class PlanarGripper : public systems::Diagram<double> {
   ModelInstanceIndex gripper_index_;
   ModelInstanceIndex brick_index_;
 
-  bool use_position_control_{true};
+  ControlType control_type_;
+  bool add_floor_{false};
   double brick_floor_penetration_{0};  // For the vertical case.
   double floor_coef_static_friction_{0};
   double floor_coef_kinetic_friction_{0};
+
+  // Inverse Dynamics Controller gains.
+  Vector<double, kNumGripperJoints> Kp_;
+  Vector<double, kNumGripperJoints> Ki_;
+  Vector<double, kNumGripperJoints> Kd_;
 
   // The planar gripper frame G's transform w.r.t. the world frame W.
   math::RigidTransformd X_WG_;
