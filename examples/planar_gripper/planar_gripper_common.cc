@@ -39,6 +39,10 @@ std::string to_string(Finger finger) {
   }
 }
 
+std::string to_string_from_finger_num(int i) {
+  return to_string(to_Finger(i));
+}
+
 int to_num(Finger finger) {
   switch (finger) {
     case Finger::kFinger1: {
@@ -398,14 +402,23 @@ void PublishBodyFrames(const systems::Context<double>& plant_context,
   PublishFramesToLcm("SIM", poses, body_names, lcm);
 }
 
-std::vector<std::string> GetPreferredGripperStateOrdering() {
+std::vector<std::string> GetPreferredFingerJointOrdering() {
   std::vector<std::string> user_order_vec;
-  user_order_vec.push_back("finger1_BaseJoint");
-  user_order_vec.push_back("finger1_MidJoint");
-  user_order_vec.push_back("finger2_BaseJoint");
-  user_order_vec.push_back("finger2_MidJoint");
-  user_order_vec.push_back("finger3_BaseJoint");
-  user_order_vec.push_back("finger3_MidJoint");
+  user_order_vec.push_back("BaseJoint");
+  user_order_vec.push_back("MidJoint");
+  return user_order_vec;
+}
+
+std::vector<std::string> GetPreferredGripperJointOrdering() {
+  std::vector<std::string> user_order_vec;
+  auto finger_joint_ordering = GetPreferredFingerJointOrdering();
+  for (int finger_num = 1; finger_num <= kNumFingers; finger_num++) {
+    for (const auto& joint_name : finger_joint_ordering) {
+      const auto full_name =
+          to_string_from_finger_num(finger_num) + "_" + joint_name;
+      user_order_vec.push_back(full_name);
+    }
+  }
   return user_order_vec;
 }
 
