@@ -31,14 +31,6 @@ double GetFingerTipSphereRadius(const multibody::MultibodyPlant<double>& plant,
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph);
 
-geometry::GeometryId GetFingerTipGeometryId(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph, const Finger finger);
-
-geometry::GeometryId GetBrickGeometryId(
-    const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph);
-
 multibody::BodyIndex GetBrickBodyIndex(
     const multibody::MultibodyPlant<double>& plant);
 

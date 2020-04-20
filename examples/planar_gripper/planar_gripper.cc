@@ -8,6 +8,7 @@
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -286,17 +287,9 @@ void PlanarGripper::SetupPlant(std::string orientation,
   for (const auto& finger :
        {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
     fingertip_sphere_geometry_ids_.emplace(
-        finger,
-        inspector.GetGeometryIdByName(
-            plant_->GetBodyFrameIdOrThrow(
-                plant_->GetBodyByName(to_string(finger) + "_tip_link").index()),
-            geometry::Role::kProximity,
-            "planar_gripper::tip_sphere_collision"));
+        finger, GetFingertipSphereGeometryId(*plant_, inspector, finger));
   }
-  brick_geometry_id_ = inspector.GetGeometryIdByName(
-      plant_->GetBodyFrameIdOrThrow(
-          plant_->GetBodyByName("brick_link").index()),
-      geometry::Role::kProximity, "brick::box_collision");
+  brick_geometry_id_ = GetBrickGeometryId(*plant_, inspector);
 }
 
 void PlanarGripper::Finalize() {
@@ -529,40 +522,6 @@ double PlanarGripper::GetBrickMass() const {
   return dynamic_cast<const multibody::RigidBody<double>&>(
              plant_->GetFrameByName("brick_link").body())
       .default_mass();
-}
-
-std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
-PlanarGripper::GetClosestFacesToFinger(
-    const systems::Context<double>& plant_context, Finger finger) const {
-  const auto& inspector = scene_graph_->model_inspector();
-
-  const auto finger_sphere_geometry_id =
-      fingertip_sphere_geometry_ids_.at(finger);
-
-  const auto& query_port = plant_->get_geometry_query_input_port();
-  const auto& query_object =
-      query_port.template Eval<geometry::QueryObject<double>>(plant_context);
-  const geometry::SignedDistancePair<double> signed_distance_pair =
-      query_object.ComputeSignedDistancePairClosestPoints(
-          finger_sphere_geometry_id, brick_geometry_id_);
-  const geometry::Box& box_shape = dynamic_cast<const geometry::Box&>(
-      inspector.GetShape(brick_geometry_id_));
-  std::unordered_set<BrickFace> closest_faces;
-  const Eigen::Vector3d p_BCb =
-      inspector.GetPoseInFrame(brick_geometry_id_) * signed_distance_pair.p_BCb;
-  if (std::abs(signed_distance_pair.p_BCb(1) - box_shape.depth() / 2) < 1e-3) {
-    closest_faces.insert(BrickFace::kPosY);
-  } else if (std::abs(signed_distance_pair.p_BCb(1) + box_shape.depth() / 2) <
-             1e-3) {
-    closest_faces.insert(BrickFace::kNegY);
-  }
-  if (std::abs(signed_distance_pair.p_BCb(2) - box_shape.height() / 2) < 1e-3) {
-    closest_faces.insert(BrickFace::kPosZ);
-  } else if (std::abs(signed_distance_pair.p_BCb(2) + box_shape.height() / 2) <
-             1e-3) {
-    closest_faces.insert(BrickFace::kNegZ);
-  }
-  return std::make_pair(closest_faces, p_BCb);
 }
 
 }  // namespace planar_gripper
