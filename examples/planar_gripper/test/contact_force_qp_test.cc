@@ -7,6 +7,7 @@
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/finger_brick.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/multibody/parsing/parser.h"
@@ -53,8 +54,9 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   const Eigen::Vector3d brick_size = GetBrickSize(plant, scene_graph);
   const multibody::Frame<double>& brick_frame =
       plant.GetFrameByName("brick_link");
-  const geometry::GeometryId finger_tip_geometry_id = GetFingerTipGeometryId(
-      plant, scene_graph, Finger::kFinger1);  // fingertip sphere id
+  const geometry::GeometryId finger_tip_geometry_id =
+      GetFingertipSphereGeometryId(plant, scene_graph.model_inspector(),
+                                   Finger::kFinger1);  // fingertip sphere id
   // First solve an IK problem that the finger is making contact with the brick.
   multibody::InverseKinematics ik(plant);
   // Finger in contact with +z face.
