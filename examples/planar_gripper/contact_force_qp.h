@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/mathematical_program.h"
@@ -90,7 +91,7 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const VectorX<double>>& brick_accel_feedforward,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
-      const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
+      const std::unordered_map<Finger, BrickFaceInfo>&
           finger_face_assignments,
       double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
       double mu, double I_B, double mass_B, double rotational_damping,

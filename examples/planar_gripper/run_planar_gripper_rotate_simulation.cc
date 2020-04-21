@@ -157,33 +157,55 @@ DEFINE_bool(add_floor, true, "Adds a floor to the simulation.");
 DEFINE_bool(test, false,
             "If true, checks the simulation result against a known value.");
 
-/// Note: finger_face_assignments_ should only be used for brick only
-/// simulation. However, currently I (rcory) don't have a good way of computing
-/// the closest contact face for a given finger, so we instead use the
-/// hardcoded values here (used in DoConnectGripperQPController).
-/// Note: The 2d contact position vector below is strictly for brick-only sim.
-// TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
-//  finger/brick simulations.
-std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-GetFingerFaceAssignments() {
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments;
-  if (FLAGS_use_finger1 || FLAGS_brick_only) {
-    finger_face_assignments.emplace(
-        Finger::kFinger1,
-        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
+/// Utility function that returns the fingers that will be used for this
+/// simulation.
+//TODO(rcory) make this an unordered set.
+std::vector<Finger> FingersToControl() {
+  std::vector<Finger> fingers;
+  if (FLAGS_use_finger1) {
+    fingers.push_back(Finger::kFinger1);
   }
-  if (FLAGS_use_finger2 || FLAGS_brick_only) {
-    finger_face_assignments.emplace(
-        Finger::kFinger2,
-        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+  if (FLAGS_use_finger2) {
+    fingers.push_back(Finger::kFinger2);
   }
-  if (FLAGS_use_finger3 || FLAGS_brick_only) {
-    finger_face_assignments.emplace(
-        Finger::kFinger3,
-        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+  if (FLAGS_use_finger3) {
+    fingers.push_back(Finger::kFinger3);
   }
-  return finger_face_assignments;
+  return fingers;
+}
+
+/// Note: This method is strictly defined for brick only simulation, where
+/// spatial forces are applied to the brick directly. Although there are no
+/// physical fingers involved in brick only simulation, we enumerate spatial
+/// forces with Finger numbers (i.e., as keys in the unordered map) for
+/// convenience only.
+/// This method returns an unordered map. It maps a spatial force (i.e.
+/// a virtual Finger) to a BrickFaceInfo struct (see planar_gripper_utils.h).
+std::unordered_map<Finger, BrickFaceInfo> BrickSpatialForceAssignments() {
+  std::unordered_map<Finger, BrickFaceInfo> brick_spatial_force_assignments;
+  // Iterate over virtual fingers (i.e., spatial forces) for brick only sim.
+  constexpr double kBoxDimension = 0.1;
+  for (auto& finger : FingersToControl()) {
+    if (finger == Finger::kFinger1) {
+      brick_spatial_force_assignments.emplace(
+          finger,
+          BrickFaceInfo(BrickFace::kNegY,
+                        Eigen::Vector2d(-kBoxDimension / 2, FLAGS_zc), true));
+    }
+    if (finger == Finger::kFinger2) {
+      brick_spatial_force_assignments.emplace(
+          finger,
+          BrickFaceInfo(BrickFace::kPosY,
+                        Eigen::Vector2d(kBoxDimension / 2, FLAGS_zc), true));
+    }
+    if (finger == Finger::kFinger3) {
+      brick_spatial_force_assignments.emplace(
+          finger,
+          BrickFaceInfo(BrickFace::kNegZ,
+                        Eigen::Vector2d(FLAGS_yc, -kBoxDimension / 2), true));
+    }
+  }
+  return brick_spatial_force_assignments;
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
@@ -223,12 +245,12 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->brick_translational_damping_ = 0;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_mass_ = brick_mass;
-  qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+  qpoptions->brick_spatial_force_assignments_ = BrickSpatialForceAssignments();
   qpoptions->brick_type_ = brick_type;
 }
 
 void GetForceControllerOptions(const PlanarGripper& planar_gripper,
-                               const Finger finger, const BrickFace brick_face,
+                               const Finger finger,
                                ForceControlOptions* foptions) {
   foptions->kpf_t_ = FLAGS_kpf_t;
   foptions->kpf_n_ = FLAGS_kpf_n;
@@ -243,7 +265,6 @@ void GetForceControllerOptions(const PlanarGripper& planar_gripper,
   foptions->D_damping_ = FLAGS_D_damping;
   foptions->always_direct_force_control_ = FLAGS_always_direct_force_control;
   foptions->finger_to_control_ = finger;
-  foptions->brick_face_ = brick_face;
 }
 
 int DoMain() {
@@ -312,13 +333,10 @@ int DoMain() {
     }
   } else {
     std::unordered_map<Finger, ForceController&> finger_force_control_map;
-    for (auto& finger_face_assignment : qpoptions.finger_face_assignments_) {
+    for (auto& finger : FingersToControl()) {
       ForceControlOptions foptions;
-      Finger finger = finger_face_assignment.first;
-      BrickFace brick_face = finger_face_assignment.second.first;
-      GetForceControllerOptions(*planar_gripper, finger, brick_face, &foptions);
+      GetForceControllerOptions(*planar_gripper, finger, &foptions);
       DRAKE_DEMAND(finger == foptions.finger_to_control_);
-      DRAKE_DEMAND(brick_face == foptions.brick_face_);
       ForceController* force_controller =
           SetupForceController(*planar_gripper, &drake_lcm, foptions, &builder);
       finger_force_control_map.emplace(finger, *force_controller);

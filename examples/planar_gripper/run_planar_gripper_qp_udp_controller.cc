@@ -62,33 +62,53 @@ DEFINE_bool(use_finger3, true, "Use finger3?");
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
 
-/// Note: finger_face_assignments_ should only be used for brick only
-/// simulation. However, currently I (rcory) don't have a good way of computing
-/// the closest contact face for a given finger, so we instead use the
-/// hardcoded values here (used in DoConnectGripperQPController).
-/// Note: The 2d contact position vector below is strictly for brick-only sim.
-// TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
-//  finger/brick simulations.
-std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-GetFingerFaceAssignments() {
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments;
+/// Utility function that returns the fingers that will be used for this
+/// simulation.
+std::vector<Finger> FingersToControl() {
+  std::vector<Finger> fingers;
   if (FLAGS_use_finger1) {
-    finger_face_assignments.emplace(
-        Finger::kFinger1,
-        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
+    fingers.push_back(Finger::kFinger1);
   }
   if (FLAGS_use_finger2) {
-    finger_face_assignments.emplace(
-        Finger::kFinger2,
-        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+    fingers.push_back(Finger::kFinger2);
   }
-  if (FLAGS_use_finger3) {
-    finger_face_assignments.emplace(
-        Finger::kFinger3,
-        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+  if (FLAGS_use_finger2) {
+    fingers.push_back(Finger::kFinger3);
   }
-  return finger_face_assignments;
+  return fingers;
+}
+
+/// Note: This method is strictly defined for brick only simulation, where
+/// spatial forces are applied to the brick directly. Although there are no
+/// physical fingers involved in brick only simulation, we enumerate spatial
+/// forces with Finger numbers (i.e., as keys in the unordered map) for
+/// convenience only.
+/// This method returns an unordered map. It maps a spatial force (i.e.
+/// a virtual Finger) to a std::pair containing a BrickFace and contact point on
+/// that face where the spatial force is to be applied.
+std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+BrickSpatialForceAssignments() {
+  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
+      brick_spatial_force_assignments;
+  // Iterate over virtual fingers (i.e., spatial forces) for brick only sim.
+  for (auto& finger : FingersToControl()) {
+    if (finger == Finger::kFinger1) {
+      brick_spatial_force_assignments.emplace(
+          Finger::kFinger1,
+          std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
+    }
+    if (finger == Finger::kFinger2) {
+      brick_spatial_force_assignments.emplace(
+          Finger::kFinger2,
+          std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+    }
+    if (finger == Finger::kFinger3) {
+      brick_spatial_force_assignments.emplace(
+          Finger::kFinger3,
+          std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+    }
+  }
+  return brick_spatial_force_assignments;
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
@@ -114,7 +134,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->brick_rotational_damping_ = brick_damping;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_type_ = BrickType::PinBrick;
-  qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+  qpoptions->brick_spatial_force_assignments_ = BrickSpatialForceAssignments();
 }
 
 int DoMain() {

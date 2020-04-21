@@ -11,6 +11,18 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
+
+struct BrickFaceInfo {
+  BrickFaceInfo(const BrickFace brick_face_in, const Eigen::Vector2d point_in,
+           bool is_in_contact_in)
+      : brick_face(brick_face_in),
+        point(point_in),
+        is_in_contact(is_in_contact_in) {}
+  BrickFace brick_face;   //  the brick face this finger is assigned to.
+  Eigen::Vector2d point;  // holds the contact or witness point.
+  bool is_in_contact;     // true if this finger is in contact.
+};
+
 /**
  * Get the geometry ID of the sphere on the finger tip.
  */
@@ -24,6 +36,25 @@ geometry::GeometryId GetFingertipSphereGeometryId(
 geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraphInspector<double>& inspector);
+
+/**
+ * Get the MBP body index for the brick.
+ */
+multibody::BodyIndex GetBrickBodyIndex(
+    const multibody::MultibodyPlant<double>& plant);
+
+/**
+ * Get the MBP body index for the finger's tip link.
+ */
+multibody::BodyIndex GetTipLinkBodyIndex(
+    const multibody::MultibodyPlant<double>& plant, Finger finger);
+
+std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
+GetClosestFacesToFingerImpl(const geometry::SceneGraph<double>& scene_graph,
+                            geometry::GeometryId finger_sphere_geometry_id,
+                            geometry::GeometryId brick_geometry_id,
+                            const systems::InputPort<double>& query_port,
+                            const systems::Context<double>& system_context);
 
 /**
  * Compute the closest face(s) to a center finger given the posture.
@@ -79,10 +110,9 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
   }
 
  private:
-  void CalcOutput(
+  void CalcFingerFaceAssignments(
       const systems::Context<double>& context,
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-          finger_face_assignments) const;
+      std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const;
 
   const multibody::MultibodyPlant<double>& plant_;
   const geometry::SceneGraph<double>& scene_graph_;
@@ -116,6 +146,14 @@ class PrintKeyframes final : public systems::LeafSystem<double> {
   MatrixX<double> Sx_;  // The state selector matrix.
   bool do_print_time_;  // indicates whether to print context time.
 };
+
+/// Returns the index in `contact_results` where the fingertip/brick contact
+/// information is found. If it isn't found, then
+/// index = contact_results.num_point_pair_contacts()
+int GetContactPairIndex(
+    const multibody::MultibodyPlant<double>& plant,
+    const multibody::ContactResults<double>& contact_results,
+    const Finger finger);
 
 }  // namespace planar_gripper
 }  // namespace examples

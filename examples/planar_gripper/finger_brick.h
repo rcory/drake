@@ -31,11 +31,11 @@ double GetFingerTipSphereRadius(const multibody::MultibodyPlant<double>& plant,
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph);
 
-multibody::BodyIndex GetBrickBodyIndex(
-    const multibody::MultibodyPlant<double>& plant);
-
-multibody::BodyIndex GetTipLinkBodyIndex(
-    const multibody::MultibodyPlant<double>& plant, const Finger finger);
+//multibody::BodyIndex GetBrickBodyIndex(
+//    const multibody::MultibodyPlant<double>& plant);
+//
+//multibody::BodyIndex GetTipLinkBodyIndex(
+//    const multibody::MultibodyPlant<double>& plant, const Finger finger);
 
 /// A system that computes the fingertip-sphere contact location in brick frame.
 class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
@@ -45,6 +45,9 @@ class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
   ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
                            const geometry::SceneGraph<double>& scene_graph,
                            const Finger finger = Finger::kFinger1);
+
+  void ClosestFace(const drake::systems::Context<double>& context,
+                   BrickFace* closest_face) const;
 
   void in_contact(const drake::systems::Context<double>& context,
                   bool* is_in_contact) const;

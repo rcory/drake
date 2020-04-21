@@ -211,6 +211,7 @@ drake_cc_library(
     srcs = ["contact_force_qp.cc"],
     hdrs = ["contact_force_qp.h"],
     deps = [
+        ":planar_gripper_utils",
         "//examples/planar_gripper:planar_gripper_common",
         "//multibody/plant",
         "//solvers:mathematical_program",
@@ -342,6 +343,7 @@ drake_cc_library(
     srcs = ["finger_brick_control.cc"],
     hdrs = ["finger_brick_control.h"],
     deps = [
+        ":planar_gripper_utils",
         "//common/trajectories:piecewise_polynomial",
         "//examples/planar_gripper",
         "//examples/planar_gripper:contact_force_qp",
@@ -373,6 +375,7 @@ drake_cc_binary(
     deps = [
         ":contact_force_qp",
         ":planar_gripper",
+        ":planar_gripper_utils",
         "//geometry:geometry_visualization",
         "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",

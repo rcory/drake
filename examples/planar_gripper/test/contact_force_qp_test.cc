@@ -136,10 +136,9 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   Vector6<double> brick_state;
   brick_state << theta, thetadot;
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignment;
+  std::unordered_map<Finger, BrickFaceInfo> finger_face_assignment;
   finger_face_assignment.emplace(Finger::kFinger1,
-                                 std::make_pair(BrickFace::kPosZ, p_BCb));
+                                 BrickFaceInfo(BrickFace::kPosZ, p_BCb, true));
   Eigen::Vector2d zero2d = Eigen::Vector2d::Zero();
   InstantaneousContactForceQP qp2(
       BrickType::PinBrick, brick_state, brick_state_desired,

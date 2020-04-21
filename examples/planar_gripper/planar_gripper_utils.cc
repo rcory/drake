@@ -20,7 +20,18 @@ geometry::GeometryId GetBrickGeometryId(
       geometry::Role::kProximity, "brick::box_collision");
 }
 
-namespace {
+multibody::BodyIndex GetBrickBodyIndex(
+    const multibody::MultibodyPlant<double>& plant) {
+  return plant.GetBodyByName("brick_link").index();
+}
+
+multibody::BodyIndex GetTipLinkBodyIndex(
+    const multibody::MultibodyPlant<double>& plant, const Finger finger) {
+  std::string fnum = to_string(finger);
+  return plant.GetBodyByName(fnum + "_tip_link").index();
+}
+
+//  namespace {
 /**
  * @param query_port This port has to be connected to the scene graph geometry
  * query output port.
@@ -59,7 +70,7 @@ GetClosestFacesToFingerImpl(const geometry::SceneGraph<double>& scene_graph,
   }
   return std::make_pair(closest_faces, p_BCb);
 }
-}  // namespace
+//}  // namespace
 
 std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
 GetClosestFacesToFinger(const multibody::MultibodyPlant<double>& plant,
@@ -94,32 +105,71 @@ FingerFaceAssigner::FingerFaceAssigner(
       this->DeclareAbstractInputPort("geometry_query",
                                      Value<geometry::QueryObject<double>>{})
           .get_index();
+  this->DeclareAbstractInputPort("contact_results",
+                                 Value<multibody::ContactResults<double>>{});
   finger_face_assignments_output_port_ =
-      this->DeclareAbstractOutputPort("finger_face_assignments",
-                                      &FingerFaceAssigner::CalcOutput)
+      this->DeclareAbstractOutputPort(
+              "finger_face_assignments",
+              &FingerFaceAssigner::CalcFingerFaceAssignments)
           .get_index();
 }
 
-void FingerFaceAssigner::CalcOutput(
+void FingerFaceAssigner::CalcFingerFaceAssignments(
     const systems::Context<double>& context,
-    std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-        finger_face_assignments) const {
+    std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const {
   finger_face_assignments->clear();
   const auto& query_port = this->get_geometry_query_input_port();
   for (const auto& finger_id_pair : finger_sphere_geometry_ids_) {
     const std::pair<std::unordered_set<BrickFace>, Eigen::Vector3d>
-        finger_faces = GetClosestFacesToFingerImpl(
+        brick_faces = GetClosestFacesToFingerImpl(
             scene_graph_, finger_id_pair.second, brick_geometry_id_, query_port,
             context);
     // There must exist at least one closest face.
-    DRAKE_DEMAND(!finger_faces.first.empty());
+    DRAKE_DEMAND(!brick_faces.first.empty());
     // If there are multiple closest faces (when the witness point is a vertex
     // of the brick), we arbitrarily choose the first closest face.
-    finger_face_assignments->emplace(
-        finger_id_pair.first,
-        std::make_pair(*finger_faces.first.begin(),
-                       Eigen::Vector2d(finger_faces.second.tail<2>())));
+
+    // Determine whether this finger is in contact or not.
+    const auto& contact_results =
+        this->GetInputPort("contact_results")
+            .Eval<multibody::ContactResults<double>>(context);
+
+    // TODO(rcory) Determine contact using the fingertip force (as it would be
+    //  on the real hardware).
+    int pair_index =
+        GetContactPairIndex(plant_, contact_results, finger_id_pair.first);
+    bool is_in_contact = pair_index < contact_results.num_point_pair_contacts();
+
+    BrickFaceInfo face_info(*brick_faces.first.begin(),
+                        Eigen::Vector2d(brick_faces.second.tail<2>()),
+                        is_in_contact);
+    finger_face_assignments->emplace(finger_id_pair.first, face_info);
   }
+}
+
+/// Returns the index in `contact_results` where the fingertip/brick contact
+/// information is found. If it isn't found, then
+/// index = contact_results.num_point_pair_contacts()
+int GetContactPairIndex(
+    const multibody::MultibodyPlant<double>& plant,
+    const multibody::ContactResults<double>& contact_results,
+    const Finger finger) {
+  // Determine whether we have fingertip/brick contact.
+  int brick_index = GetBrickBodyIndex(plant);
+  int ftip_index = GetTipLinkBodyIndex(plant, finger);
+  // find the fingertip/brick contact pair
+  int pair_index;
+  for (pair_index = 0; pair_index < contact_results.num_point_pair_contacts();
+       pair_index++) {
+    auto info = contact_results.point_pair_contact_info(pair_index);
+    if (info.bodyA_index() == brick_index && info.bodyB_index() == ftip_index) {
+      break;
+    } else if (info.bodyA_index() == ftip_index &&
+        info.bodyB_index() == brick_index) {
+      break;
+    }
+  }
+  return pair_index;
 }
 
 PrintKeyframes::PrintKeyframes(const MultibodyPlant<double>& plant,
