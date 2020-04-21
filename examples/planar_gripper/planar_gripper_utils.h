@@ -1,8 +1,10 @@
 #pragma once
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 
@@ -88,6 +90,27 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
   geometry::GeometryId brick_geometry_id_;
   systems::InputPortIndex geometry_query_input_port_{};
   systems::OutputPortIndex finger_face_assignments_output_port_{};
+};
+
+/**
+ * A system that declares a periodic publish event where the instantaneous
+ * positions of the plant (keyframe) is written to standard out.
+ */
+class PrintKeyframes final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PrintKeyframes)
+
+  PrintKeyframes(const MultibodyPlant<double>& plant,
+                 std::vector<std::string> joint_names, double period,
+                 bool print_time);
+
+ private:
+  systems::EventStatus Print(
+      const systems::Context<double>& context) const;
+
+  // The state selector matrix.
+  MatrixX<double> Sx_;
+  bool print_time_;
 };
 
 }  // namespace planar_gripper

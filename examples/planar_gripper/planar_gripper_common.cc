@@ -422,6 +422,21 @@ std::vector<std::string> GetPreferredGripperJointOrdering() {
   return user_order_vec;
 }
 
+MatrixX<double> MakeStateSelectorMatrix(
+    const MultibodyPlant<double>& plant,
+    const std::vector<std::string>& joint_names) {
+  std::vector<multibody::JointIndex> joint_indices;
+  for (auto iter = joint_names.begin(); iter != joint_names.end(); ++iter) {
+    joint_indices.push_back(plant.GetJointByName(*iter).index());
+  }
+  auto Sx = plant.MakeStateSelectorMatrix(joint_indices);
+  DRAKE_DEMAND(
+      static_cast<size_t>(Sx.rows()) == (2 * joint_names.size()));
+  DRAKE_DEMAND(Sx.cols() == plant.num_multibody_states());
+
+  return Sx;
+}
+
 /// A system that publishes frames at a specified period.
 FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
                    lcm::DrakeLcm* lcm, double period, bool frames_input)

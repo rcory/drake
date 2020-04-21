@@ -1,5 +1,8 @@
 #include "drake/examples/planar_gripper/planar_gripper_utils.h"
 
+#include <string>
+#include <vector>
+
 namespace drake {
 namespace examples {
 namespace planar_gripper {
@@ -120,6 +123,35 @@ void FingerFaceAssigner::CalcOutput(
         std::make_pair(*finger_faces.first.begin(),
                        Eigen::Vector2d(finger_faces.second.tail<2>())));
   }
+}
+
+PrintKeyframes::PrintKeyframes(const MultibodyPlant<double>& plant,
+                              std::vector<std::string> joint_names,
+                              double period, bool print_time)
+    : print_time_(print_time) {
+  this->DeclareVectorInputPort(
+      "plant_state",
+      systems::BasicVector<double>(plant.num_multibody_states()));
+
+  this->DeclarePeriodicPublishEvent(period, 0., &PrintKeyframes::Print);
+
+  Sx_ = MakeStateSelectorMatrix(plant, joint_names);
+  std::cout << "keyframe_dt=" << period << std::endl;
+  for (auto iter : joint_names) {
+    std::cout<< iter << " ";
+  }
+  std::cout << std::endl;
+}
+
+systems::EventStatus PrintKeyframes::Print(
+    const drake::systems::Context<double>& context) const {
+  VectorX<double> state = Sx_ * this->EvalVectorInput(context, 0)->get_value();
+  if (print_time_) {
+    std::cout << context.get_time() << " ";
+  }
+  std::cout << state.head(state.size() / 2).transpose() << std::endl;
+
+  return systems::EventStatus::Succeeded();
 }
 
 }  // namespace planar_gripper
