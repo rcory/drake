@@ -146,6 +146,7 @@ drake_cc_binary(
         ":models",
         "//examples/planar_gripper:pinned_brick_postures_01.txt",
         "//examples/planar_gripper:pinned_brick_postures_02.txt",
+        "//examples/planar_gripper:pinned_brick_postures_03.txt",
         "//examples/planar_gripper:postures.txt",
     ],
     deps = [
@@ -293,6 +294,33 @@ drake_cc_binary(
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/lcm:connect_lcm_scope",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "hybrid_control_simulation",
+    srcs = ["test/hybrid_control_simulation.cc"],
+    add_test_rule = 1,
+    data = [
+        "//examples/planar_gripper:pinned_brick_postures_03.txt",
+    ],
+    test_rule_args = [
+        "--test",
+        "--simulation_time=3.5",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":finger_brick",
+        ":finger_brick_control",
+        ":planar_gripper",
+        ":planar_gripper_common",
+        ":planar_gripper_utils",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
         "@gflags",
     ],
 )

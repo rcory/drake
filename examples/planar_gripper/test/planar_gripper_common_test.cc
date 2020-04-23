@@ -37,6 +37,19 @@ class PlanarGripperCommonTest : public ::testing::Test {
   multibody::ModelInstanceIndex gripper_index_;
 };
 
+TEST_F(PlanarGripperCommonTest, MakeStateSelectorMatrix) {
+  std::vector<std::string> joint_names =
+      GetPreferredGripperJointOrdering();
+  auto Sx_out = MakeStateSelectorMatrix(plant_, joint_names);
+
+  std::vector<multibody::JointIndex> joint_indices(joint_names.size());
+  for (size_t i = 0; i < joint_names.size(); i++) {
+    joint_indices[i] =  plant_.GetJointByName(joint_names[i]).index();
+  }
+  auto Sx = plant_.MakeStateSelectorMatrix(joint_indices);
+  EXPECT_TRUE(CompareMatrices(Sx, Sx_out));
+}
+
 TEST_F(PlanarGripperCommonTest, PreferredJointOrdering) {
   std::vector<std::string> user_finger_joint_order =
       GetPreferredFingerJointOrdering();
