@@ -169,6 +169,12 @@ std::vector<std::string> GetPreferredFingerJointOrdering();
 /// finger is ordered according to GetPreferredFingerJointOrdering().
 std::vector<std::string> GetPreferredGripperJointOrdering();
 
+/// Returns the state plant's state selector matrix corresponding to the
+/// provided joint names in PlanarGripper.
+MatrixX<double> MakeStateSelectorMatrix(
+    const MultibodyPlant<double>& plant,
+    const std::vector<std::string>& joint_names);
+
 /// A system that publishes frames at a specified period.
 class FrameViz final : public systems::LeafSystem<double> {
  public:
