@@ -76,13 +76,6 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
                                    systems::BasicVector<double>(6))
           .get_index();
 
-  // Contact point reference acceleration (for ID control).
-  // TODO(rcory) likely don't need this, consider removing this input port.
-  contact_point_ref_accel_input_port_ =
-      this->DeclareVectorInputPort("contact_point_ref_accel",
-                                   systems::BasicVector<double>(2))
-          .get_index();
-
   contact_results_input_port_ =
       this->DeclareAbstractInputPort("contact_results",
                                      Value<ContactResults<double>>{})
@@ -92,13 +85,6 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
   force_sensor_input_port_ =
       this->DeclareVectorInputPort("force_sensor_wrench",
                                    systems::BasicVector<double>(3))
-          .get_index();
-
-  // TODO(rcory) likely don't need this, consider removing this input port.
-  accelerations_actual_input_port_ =  // actual accelerations of the MBP
-                                      // (num_vel x 1)
-      this->DeclareVectorInputPort("plant_vdot", systems::BasicVector<double>(
-                                                     plant_.num_velocities()))
           .get_index();
 
   torque_output_port_ =
@@ -160,27 +146,12 @@ void ForceController::CalcTauOutput(
       this->EvalVectorInput(context, contact_state_desired_input_port_)
           ->get_value();
 
-  // Get the contact point reference translational accelerations (yddot, zddot),
-  // for inverse dynamics control.
-  //  auto a_BrCr = /* 2-element vector of the accels of the contact point ref.
-  //  */
-  //      this->EvalVectorInput(context, contact_point_ref_accel_input_port_)
-  //          ->get_value();
-  //  unused(a_BrCr);
-
   // TODO(rcory) Remove this input port once contact point estimation exists.
   const auto& contact_results =
       get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
   Eigen::Vector3d force_sensor_vec_W =
       this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
-
-  // Get the plant vdot for dynamics inverse dynamics.
-  // TODO(rcory) I don't need this input anymore(?). Consider removing.
-  //  auto plant_vdot =
-  //      this->EvalVectorInput(context, accelerations_actual_input_port_)
-  //          ->get_value();
-  //  unused(plant_vdot);
 
   // Set the plant's position and velocity within the context.
   plant_.SetPositionsAndVelocities(plant_context_.get(), plant_state);
@@ -280,50 +251,7 @@ void ForceController::CalcTauOutput(
   Eigen::Vector3d v_BrC =
       Jv_V_BrickFtip * plant_.GetVelocities(*plant_context_);
 
-// #define ADD_ACCELS
-// #define SKIP_FORCE_CONT
-#ifdef SKIP_FORCE_CONT
-  unused(v_BrC);
-  unused(p_BrC);
-  unused(R_BaBr);
-  unused(contact_state_desired_Br);
-  unused(force_des_W);
 
-  // TODO(rcory) Remove when done.
-  // For testing, follow a sine wave traj on the y-axis;
-  /* Rotation of world (W) w.r.t. finger brick (Br) */
-  auto X_BaW = plant_.CalcRelativeTransform(*plant_context_, base_frame,
-                                            plant_.world_frame());
-  //  unused(R_BaW);
-  //  drake::log()->info("X_BaW: \n{}", X_BaW.matrix());
-
-  Eigen::Vector3d p_BaC = X_BaW * p_WC;
-
-  //  drake::log()->info("p_WC: \n{}", p_WC); // y=0.049145; z=0.0704776
-  //  drake::log()->info("p_BaC: \n{}", p_BaC); // y=0.049145; z=-0.119522
-  //  drake::log()->info("time: {}", context.get_time());
-
-  double a_Kp = 25;
-  double a_Kd = 5;
-  double yoff_Ba = 0.049145;
-  double zoff_Ba = -0.119522;
-
-  double A = 0.025;
-  double w = 3 * (2 * 3.14);
-  double t = context.get_time();
-  double yddot_Ba = (-A * w * w * sin(w * t)) +
-                    a_Kd * ((A * w * cos(w * t)) - v_Ftip_Ba(1)) +
-                    a_Kp * ((A * sin(w * t) + yoff_Ba) - p_BaC(1));
-  double zddot_Ba = a_Kd * (0 - v_Ftip_Ba(2)) + a_Kp * (zoff_Ba - p_BaC(2));
-
-  //  double yddot_Ba = a_Kp * (yoff_Ba - 0.03 - p_BaC(1)) + a_Kd * (0 -
-  //  v_Ftip_Ba(1)); double zddot_Ba = a_Kp * (zoff_Ba + 0.01 - p_BaC(2)) + a_Kd
-  //  * (0 - v_Ftip_Ba(2));
-
-  a_BrCr_Ba << 0, yddot_Ba, zddot_Ba;
-
-//  drake::log()->info("a_BrCr_Ba: \n{}", a_BrCr_Ba);
-#else
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
     //    drake::log()->info("In direct force control.");
@@ -362,37 +290,6 @@ void ForceController::CalcTauOutput(
     Eigen::Vector3d delta_vel_Br = contact_state_desired_Br.tail<3>() - v_BrC;
     Vector3d position_error_command_Br =
         Kp_position * delta_pos_Br + Kd_position * delta_vel_Br;
-
-// ============ Begin inverse dynamics calcs. ===============
-#ifdef ADD_ACCELS
-    // Use the planned externally applied spatial force to compute a_BrCr_Ba,
-    // i.e., the planned acceleration of point Bq (the contact point ref) in the
-    // planar gripper base frame (Ba). This calculation depends on the brick
-    // dynamics.
-    Eigen::Vector3d p_BrCb = external_spatial_forces_vec[0]
-                                 .p_BoBq_B; /* contact point in brick frame */
-
-    // Option 1: The angular accel. of the brick due to *planned* contact force.
-    double thetaddot =
-        (p_BrCb(1) * force_des_Br(2) - p_BrCb(2) * force_des_Br(1) -
-         options_.brick_damping_ * brick_state(1)) /
-        options_.brick_inertia_;
-
-    //    // Option 2: Instead use the actual accel of the brick;
-    //    int brick_joint_vel_index =
-    //        plant_.GetJointByName("brick_pin_joint",
-    //        brick_index_).velocity_start();
-    //    double thetaddot = plant_vdot[brick_joint_vel_index];
-
-    // Now calculate the desired reference accels (a_BrCr_Ba)
-    // ac==centrepital, at==tangential, normalized accel. vectors.
-    Eigen::Vector3d ac_unit_Ba = -(R_BaBr * p_BrCb.normalized());
-    Eigen::Vector3d at_unit_Ba =
-        Eigen::Vector3d(0, -p_BrCb(2), p_BrCb(1)).normalized();
-    a_BrCr_Ba = (ac_unit_Ba * brick_state(1) * brick_state(1)) +
-                (at_unit_Ba * p_BrCb.norm() * thetaddot);
-#endif
-    // ============ End of inverse dynamics calcs. ===============
 
     // Adds Joint damping.
     torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
@@ -489,28 +386,6 @@ void ForceController::CalcTauOutput(
     //    imp_force_desired_Br); drake::log()->info("imp_force_desired_Ba:
     //    \n{}", imp_force_desired_Ba);
   }
-#endif
-
-#ifdef ADD_ACCELS
-  // Compute the reference acceleration vector.
-  Eigen::Vector3d a_bias_WCr_Ba =
-      plant_
-          .CalcBiasForJacobianTranslationalVelocity(
-              *plant_context_, multibody::JacobianWrtVariable::kV,
-              tip_link_frame, p_LtFTip, plant_.world_frame(), base_frame)
-          .tail<3>();
-  Eigen::Vector2d qddot_finger =
-      J_planar_Ba.inverse() * (a_BrCr_Ba.tail<2>() - a_bias_WCr_Ba.tail<2>());
-  Eigen::Vector3d vdot_ref = Eigen::Vector3d::Zero();
-  vdot_ref.tail<2>() = qddot_finger;
-  multibody::MultibodyForces<double> external_forces(plant_);
-  //  plant_.CalcForceElementsContribution(*plant_context_, &external_forces);
-  // Eigen::Vector3d vdot_ref(0, 0, 0); /* accels for (brick, j1, j2) */
-  Eigen::Vector3d id_torques =
-      plant_.CalcInverseDynamics(*plant_context_, vdot_ref, external_forces);
-  torque_calc += id_torques.tail<2>();
-#endif
-
   // The output for calculated torques.
   output_calc = torque_calc;
   //  drake::log()->info("torque_calc: \n{}", torque_calc);
@@ -922,19 +797,6 @@ void DoConnectGripperQPController(
       // fingertip and the brick.
       builder->Connect(contact_point_calc_sys->GetOutputPort("b_in_contact"),
                        finger_force_control.second.get_is_contact_input_port());
-
-      // Provides contact point ref accelerations to the force controller (for
-      // inverse dynamics).
-      // TODO(rcory) likely don't need these accels anymore. Consider
-      // removing.
-      auto v_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
-      auto a_BrCr = builder->AddSystem<systems::DiscreteDerivative>(2, 1e-3);
-      builder->Connect(contact_point_calc_sys->GetOutputPort("p_BrCb"),
-                       v_BrCr->get_input_port());
-      builder->Connect(v_BrCr->get_output_port(), a_BrCr->get_input_port());
-      builder->Connect(
-          a_BrCr->get_output_port(),
-          finger_force_control.second.get_contact_point_ref_accel_input_port());
     }
   }
 }
@@ -1188,11 +1050,6 @@ ForceController* SetupForceController(
   auto zoh_reaction_forces = builder->AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 
-  // TODO(rcory) remove this?
-  //  auto zoh_joint_accels =
-  //  builder->AddSystem<systems::ZeroOrderHold<double>>(
-  //      1e-3, plant.num_velocities());
-
   Finger kFingerToControl = foptions.finger_to_control_;
 
   // Connect the force controller
@@ -1214,17 +1071,6 @@ ForceController* SetupForceController(
                    zoh_contact_results->get_input_port());
   builder->Connect(zoh_contact_results->get_output_port(),
                    force_controller->get_contact_results_input_port());
-  // TODO(rcory) Remove these joint accelerations once I confirm they are not
-  // needed.
-  //  builder->Connect(plant.get_joint_accelerations_output_port(),
-  //                  zoh_joint_accels->get_input_port());
-  //  builder->Connect(zoh_joint_accels->get_output_port(),
-  //                  force_controller->get_accelerations_actual_input_port());
-  auto zero_accels_src =
-      builder->AddSystem<systems::ConstantVectorSource<double>>(
-          VectorX<double>::Zero(plant.num_velocities()));
-  builder->Connect(zero_accels_src->get_output_port(),
-                   force_controller->get_accelerations_actual_input_port());
 
   builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
                    zoh_reaction_forces->get_input_port());
