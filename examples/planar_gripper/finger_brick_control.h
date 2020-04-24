@@ -65,10 +65,8 @@ struct ForceControlOptions {
 ///   @input_port{finger_state_actual}
 ///   @input_port{plant_state_actual}
 ///   @input_port{tip_state_desired}
-///   @input_port{contact_point_ref_accel} (unused)
 ///   @input_port{contact_results}
 ///   @input_port{force_sensor_wrench}
-///   @input_port{plant_vdot} (unused)
 ///   @input_port{p_BrFingerTip}
 ///   @input_port{is_in_contact}
 ///   @output_port{tau}
@@ -125,16 +123,8 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(force_sensor_input_port_);
   }
 
-  const InputPort<double>& get_accelerations_actual_input_port() const {
-    return this->get_input_port(accelerations_actual_input_port_);
-  }
-
   const InputPort<double>& get_geometry_query_input_port() const {
     return this->get_input_port(geometry_query_input_port_);
-  }
-
-  const InputPort<double>& get_contact_point_ref_accel_input_port() const {
-    return this->get_input_port(contact_point_ref_accel_input_port_);
   }
 
   const InputPort<double>& get_is_contact_input_port() const {
@@ -185,9 +175,7 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex contact_state_desired_input_port_{};
   InputPortIndex contact_results_input_port_{};
   InputPortIndex force_sensor_input_port_{};
-  InputPortIndex accelerations_actual_input_port_{};
   InputPortIndex geometry_query_input_port_{};
-  InputPortIndex contact_point_ref_accel_input_port_{};
   InputPortIndex p_BrCb_input_port_{};
   InputPortIndex is_contact_input_port_{};
   OutputPortIndex torque_output_port_{};
