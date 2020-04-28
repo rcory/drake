@@ -116,24 +116,26 @@ int DoMain() {
       &builder, planar_gripper->get_multibody_plant(),
       viz_converter->get_output_port(0), &drake_lcm);
 
-  // Specify the finger/contact face pairing.
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments;
-
+  std::unordered_map<Finger, BrickFaceInfo> finger_face_assignments;
+  constexpr double kBoxDimension = 0.1;
   finger_face_assignments.emplace(
       Finger::kFinger1,
-      std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, 0)));
+      BrickFaceInfo(BrickFace::kNegY, Eigen::Vector2d(-kBoxDimension / 2, 0),
+                    true));
   finger_face_assignments.emplace(
       Finger::kFinger2,
-      std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, 0)));
+      BrickFaceInfo(BrickFace::kPosY, Eigen::Vector2d(kBoxDimension / 2, 0),
+                    true));
   finger_face_assignments.emplace(
       Finger::kFinger3,
-      std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(0, -0.05)));
+      BrickFaceInfo(BrickFace::kNegZ, Eigen::Vector2d(0, -kBoxDimension / 2),
+                    true));
 
-  auto finger_face_assignments_source = builder.AddSystem<
-      systems::ConstantValueSource<double>>(
-      Value<std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
-          finger_face_assignments));
+  auto finger_face_assignments_source =
+      builder.AddSystem<systems::ConstantValueSource<double>>(
+          Value<std::unordered_map<Finger, BrickFaceInfo>>(
+              finger_face_assignments));
+
   builder.Connect(finger_face_assignments_source->get_output_port(0),
                   qp_controller->get_input_port_finger_face_assignments());
 

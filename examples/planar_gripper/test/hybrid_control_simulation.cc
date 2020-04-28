@@ -133,31 +133,20 @@ class OutputControlType final : public systems::LeafSystem<double> {
   }
 };
 
-/// Note: finger_face_assignments_ should only be used for brick only
-/// simulation. This method will be removed once FingerFaceAssigner is brought
-/// up to date (issue #44). For now we instead use the
-/// hardcoded values here (used in DoConnectGripperQPController).
-/// Note: The 2d contact position vector below is strictly for brick-only sim.
-std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-GetFingerFaceAssignments() {
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments;
+/// Utility function that returns the fingers that will be used for this
+/// simulation.
+std::unordered_set<Finger> FingersToControl() {
+  std::unordered_set<Finger> fingers;
   if (FLAGS_use_finger1) {
-    finger_face_assignments.emplace(
-        Finger::kFinger1,
-        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, 0)));
+    fingers.emplace(Finger::kFinger1);
   }
   if (FLAGS_use_finger2) {
-    finger_face_assignments.emplace(
-        Finger::kFinger2,
-        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, 0)));
+    fingers.emplace(Finger::kFinger2);
   }
   if (FLAGS_use_finger3) {
-    finger_face_assignments.emplace(
-        Finger::kFinger3,
-        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(0, -0.05)));
+    fingers.emplace(Finger::kFinger3);
   }
-  return finger_face_assignments;
+  return fingers;
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
@@ -195,19 +184,14 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->brick_translational_damping_ = 0;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_mass_ = brick_mass;
-  qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+  qpoptions->brick_spatial_force_assignments_ =
+      BrickSpatialForceAssignments(FingersToControl());
   qpoptions->brick_type_ = brick_type;
 }
 
 void GetForceControllerOptions(const PlanarGripper& planar_gripper,
-                               const Finger finger, const BrickFace brick_face,
+                               const Finger finger,
                                ForceControlOptions* foptions) {
-  double brick_damping = planar_gripper.GetBrickPinJointDamping();
-
-  // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
-  const int kIxx_index = 0;
-  double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
-
   foptions->kpf_t_ = FLAGS_kpf_t;
   foptions->kpf_n_ = FLAGS_kpf_n;
   foptions->kif_t_ = FLAGS_kif_t;
@@ -219,11 +203,8 @@ void GetForceControllerOptions(const PlanarGripper& planar_gripper,
   foptions->Kd_joint_ << FLAGS_kd_base_joint, 0, 0, FLAGS_kd_mid_joint;
   foptions->K_compliance_ = FLAGS_K_compliance;
   foptions->D_damping_ = FLAGS_D_damping;
-  foptions->brick_damping_ = brick_damping;
-  foptions->brick_inertia_ = brick_inertia;
   foptions->always_direct_force_control_ = false;
   foptions->finger_to_control_ = finger;
-  foptions->brick_face_ = brick_face;
 }
 
 int DoMain() {
@@ -259,13 +240,10 @@ int DoMain() {
   GetQPPlannerOptions(*planar_gripper, brick_type, &qpoptions);
 
   std::unordered_map<Finger, ForceController&> finger_force_control_map;
-  for (auto& finger_face_assignment : qpoptions.finger_face_assignments_) {
+  for (auto& finger : FingersToControl()) {
     ForceControlOptions foptions;
-    Finger finger = finger_face_assignment.first;
-    BrickFace brick_face = finger_face_assignment.second.first;
-    GetForceControllerOptions(*planar_gripper, finger, brick_face, &foptions);
+    GetForceControllerOptions(*planar_gripper, finger, &foptions);
     DRAKE_DEMAND(finger == foptions.finger_to_control_);
-    DRAKE_DEMAND(brick_face == foptions.brick_face_);
     ForceController* force_controller =
         SetupForceController(*planar_gripper, &drake_lcm, foptions, &builder);
     finger_force_control_map.emplace(finger, *force_controller);
