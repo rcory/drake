@@ -38,8 +38,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   // Adds the object to be manipulated.
   auto object_file_name =
       FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
-  auto brick_index =
-      multibody::Parser(&plant).AddModelFromFile(object_file_name, "brick");
+  auto brick_index = multibody::Parser(&plant, &scene_graph)
+                         .AddModelFromFile(object_file_name, "brick");
   const multibody::Frame<double>& brick_base_frame =
       plant.GetFrameByName("brick_base_link", brick_index);
   plant.WeldFrames(plant.world_frame(), brick_base_frame);

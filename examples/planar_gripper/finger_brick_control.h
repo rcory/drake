@@ -40,8 +40,6 @@ struct ForceControlOptions {
       Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
   double K_compliance_{0};       // impedance control stiffness
   double D_damping_{0};          // impedance control damping
-  double brick_damping_{0};      // brick pin joint damping
-  double brick_inertia_{0};      // brick's rotational inertia
   bool always_direct_force_control_{
       true};  // false for impedance control during non-contact
   Finger finger_to_control_{
@@ -67,7 +65,7 @@ struct ForceControlOptions {
 ///   @input_port{tip_state_desired}
 ///   @input_port{contact_results}
 ///   @input_port{force_sensor_wrench}
-///   @input_port{p_BrFingerTip}
+///   @input_port{p_BrCb}
 ///   @input_port{is_in_contact}
 ///   @output_port{tau}
 /// }
@@ -111,12 +109,12 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(finger_state_actual_input_port_);
   }
 
-  const InputPort<double>& get_contact_state_desired_input_port() const {
-    return this->get_input_port(contact_state_desired_input_port_);
+  const InputPort<double>& get_plant_state_actual_input_port() const {
+    return this->get_input_port(plant_state_actual_input_port_);
   }
 
-  const InputPort<double>& get_contact_results_input_port() const {
-    return this->get_input_port(contact_results_input_port_);
+  const InputPort<double>& get_contact_state_desired_input_port() const {
+    return this->get_input_port(contact_state_desired_input_port_);
   }
 
   const InputPort<double>& get_force_sensor_input_port() const {
@@ -160,10 +158,6 @@ class ForceController : public systems::LeafSystem<double> {
                 EigenPtr<Matrix3<double>> Kd_position) const;
 
  private:
-  Vector3d GetFingerContactPoint(
-      const multibody::ContactResults<double>& contact_results,
-      const Finger finger) const;
-
   const MultibodyPlant<double>& plant_;
   const SceneGraph<double>& scene_graph_;
   // This context is used solely for setting generalized positions and
@@ -173,7 +167,6 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex finger_state_actual_input_port_{};
   InputPortIndex plant_state_actual_input_port_{};
   InputPortIndex contact_state_desired_input_port_{};
-  InputPortIndex contact_results_input_port_{};
   InputPortIndex force_sensor_input_port_{};
   InputPortIndex geometry_query_input_port_{};
   InputPortIndex p_BrCb_input_port_{};

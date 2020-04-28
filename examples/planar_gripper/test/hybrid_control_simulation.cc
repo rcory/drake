@@ -202,12 +202,6 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 void GetForceControllerOptions(const PlanarGripper& planar_gripper,
                                const Finger finger, const BrickFace brick_face,
                                ForceControlOptions* foptions) {
-  double brick_damping = planar_gripper.GetBrickPinJointDamping();
-
-  // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
-  const int kIxx_index = 0;
-  double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
-
   foptions->kpf_t_ = FLAGS_kpf_t;
   foptions->kpf_n_ = FLAGS_kpf_n;
   foptions->kif_t_ = FLAGS_kif_t;
@@ -219,8 +213,6 @@ void GetForceControllerOptions(const PlanarGripper& planar_gripper,
   foptions->Kd_joint_ << FLAGS_kd_base_joint, 0, 0, FLAGS_kd_mid_joint;
   foptions->K_compliance_ = FLAGS_K_compliance;
   foptions->D_damping_ = FLAGS_D_damping;
-  foptions->brick_damping_ = brick_damping;
-  foptions->brick_inertia_ = brick_inertia;
   foptions->always_direct_force_control_ = false;
   foptions->finger_to_control_ = finger;
   foptions->brick_face_ = brick_face;

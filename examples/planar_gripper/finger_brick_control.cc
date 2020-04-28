@@ -76,11 +76,6 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
                                    systems::BasicVector<double>(6))
           .get_index();
 
-  contact_results_input_port_ =
-      this->DeclareAbstractInputPort("contact_results",
-                                     Value<ContactResults<double>>{})
-          .get_index();
-
   // This force sensor contains {x, y, z} forces in the world (W) frame.
   force_sensor_input_port_ =
       this->DeclareVectorInputPort("force_sensor_wrench",
@@ -126,6 +121,11 @@ void ForceController::CalcTauOutput(
   // The desired fingertip force expressed in the world (W) frame.
   /* Note: Even though we store a Vector3, we ignore the x component, since we
    * only care about forces in the y-z plane. */
+  // TODO(rcory) Resolve the fact that we do not currently use the body or
+  //  contact point information from the "desired" ExternallyAppliedSpatialForce
+  //  struct. This is because 1) We assume the object is always the brick and 2)
+  //  We define a separate input port for desired contact state
+  //  (which includes velocities).
   Eigen::Vector3d force_des_W =
       external_spatial_forces_vec[0].F_Bq_W.translational();
 
@@ -146,10 +146,6 @@ void ForceController::CalcTauOutput(
       this->EvalVectorInput(context, contact_state_desired_input_port_)
           ->get_value();
 
-  // TODO(rcory) Remove this input port once contact point estimation exists.
-  const auto& contact_results =
-      get_contact_results_input_port().Eval<ContactResults<double>>(context);
-
   Eigen::Vector3d force_sensor_vec_W =
       this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
 
@@ -169,6 +165,9 @@ void ForceController::CalcTauOutput(
   /* Rotation of world (W) w.r.t. brick (Br) */
   auto R_BrW = plant_.CalcRelativeRotationMatrix(*plant_context_, brick_frame,
                                                  plant_.world_frame());
+
+  auto R_WBr = plant_.CalcRelativeRotationMatrix(
+      *plant_context_, plant_.world_frame(), brick_frame);
 
   /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */
   auto R_BaBr = plant_.CalcRelativeRotationMatrix(*plant_context_, base_frame,
@@ -210,9 +209,11 @@ void ForceController::CalcTauOutput(
   // contact results object and it lies inside the intersection of the
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
-    p_WC = GetFingerContactPoint(contact_results, options_.finger_to_control_);
-    plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
-                               tip_link_frame, &p_LtC);
+    Eigen::Vector3d p_BrCb = Eigen::Vector3d::Zero();
+    p_BrCb.tail<2>() = get_p_BrCb_input_port().Eval(context);
+    p_WC = R_WBr * p_BrCb;
+    plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(),
+                               p_WC, tip_link_frame, &p_LtC);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
     p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
@@ -466,29 +467,6 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
         0,  // regulate normal velocity (brick frame)
         0, 0, options_.kd_t_;
   }
-}
-
-Vector3d ForceController::GetFingerContactPoint(
-    const ContactResults<double>& contact_results, const Finger finger) const {
-  std::string body_name = to_string(finger) + "_tip_link";
-  multibody::BodyIndex fingertip_link_index =
-      plant_.GetBodyByName(body_name).index();
-  Vector3d contact_point;
-  bool bfound = false;
-  for (int i = 0; i < contact_results.num_point_pair_contacts(); i++) {
-    auto& point_pair_info = contact_results.point_pair_contact_info(i);
-    if (point_pair_info.bodyA_index() == fingertip_link_index ||
-        point_pair_info.bodyB_index() == fingertip_link_index) {
-      contact_point = point_pair_info.contact_point();
-      bfound = true;
-      break;
-    }
-  }
-  if (!bfound) {
-    throw std::runtime_error("Could not find " + body_name +
-                             " in contact results.");
-  }
-  return contact_point;
 }
 
 /// This is a helper system to distribute the output of the multi-finger QP
@@ -1069,8 +1047,6 @@ ForceController* SetupForceController(
   //  joint).
   builder->Connect(planar_gripper.GetOutputPort("contact_results"),
                    zoh_contact_results->get_input_port());
-  builder->Connect(zoh_contact_results->get_output_port(),
-                   force_controller->get_contact_results_input_port());
 
   builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
                    zoh_reaction_forces->get_input_port());
