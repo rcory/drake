@@ -210,6 +210,7 @@ drake_cc_library(
     srcs = ["contact_force_qp.cc"],
     hdrs = ["contact_force_qp.h"],
     deps = [
+        ":planar_gripper_utils",
         "//examples/planar_gripper:planar_gripper_common",
         "//multibody/plant",
         "//solvers:mathematical_program",
@@ -341,6 +342,7 @@ drake_cc_library(
     srcs = ["finger_brick_control.cc"],
     hdrs = ["finger_brick_control.h"],
     deps = [
+        ":planar_gripper_utils",
         "//common/trajectories:piecewise_polynomial",
         "//examples/planar_gripper",
         "//examples/planar_gripper:contact_force_qp",
@@ -372,6 +374,7 @@ drake_cc_binary(
     deps = [
         ":contact_force_qp",
         ":planar_gripper",
+        ":planar_gripper_utils",
         "//geometry:geometry_visualization",
         "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
@@ -445,7 +448,6 @@ drake_cc_googletest(
     name = "contact_force_qp_test",
     data = [
         "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:fixed_surface.sdf",
         "//examples/planar_gripper:planar_finger.sdf",
     ],
     deps = [
@@ -485,6 +487,23 @@ drake_cc_googletest(
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/inverse_kinematics",
         "//solvers:solve",
+    ],
+)
+
+drake_cc_googletest(
+    name = "force_control_test",
+    data = [
+        ":models",
+    ],
+    deps = [
+        ":finger_brick",
+        ":finger_brick_control",
+        "//common:find_resource",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//geometry:geometry_visualization",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
     ],
 )
 
