@@ -78,7 +78,7 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl) {
   foptions.D_damping_ = 1e3;
   foptions.always_direct_force_control_ = false;
   foptions.finger_to_control_ = Finger::kFinger1;
-  foptions.brick_face_ = BrickFace::kPosZ;
+//  foptions.brick_face_ = BrickFace::kPosZ;
 
   // Connect finger/plant states to force controller.
   auto force_controller =
@@ -100,7 +100,7 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl) {
   builder.Connect(plant->get_reaction_forces_output_port(),
                   zoh_reaction_forces->get_input_port());
   auto force_demux_sys =
-      builder.AddSystem<ForceDemuxer>(*plant, Finger::kFinger1);
+      builder.AddSystem<ForceDemuxer>(*plant, foptions.finger_to_control_);
   builder.Connect(zoh_contact_results->get_output_port(),
                    force_demux_sys->get_contact_results_input_port());
   builder.Connect(zoh_reaction_forces->get_output_port(),
@@ -143,19 +143,17 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl) {
   builder.Connect(desired_force_src->get_output_port(0),
                   force_controller->get_force_desired_input_port());
 
-  // Add the system which calculates the contact point.
-  auto contact_point_calc_sys = builder.AddSystem<ContactPointInBrickFrame>(
-      *plant, *scene_graph, Finger::kFinger1);
+  // Add the system which calculates the contact face & point.
+  const std::vector<Finger> fingers = {foptions.finger_to_control_};
+  auto finger_face_assigner = builder.AddSystem<FingerFaceAssigner>(
+      *plant, *scene_graph, fingers);
   builder.Connect(zoh_contact_results->get_output_port(),
-                  contact_point_calc_sys->GetInputPort("contact_results"));
-  builder.Connect(plant->get_state_output_port(),
-                  contact_point_calc_sys->GetInputPort("x"));
-  builder.Connect(contact_point_calc_sys->GetOutputPort("p_BrCb"),
-                  force_controller->get_p_BrCb_input_port());
-  builder.Connect(contact_point_calc_sys->GetOutputPort("b_in_contact"),
-                  force_controller->get_is_contact_input_port());
+                   finger_face_assigner->GetInputPort("contact_results"));
   builder.Connect(scene_graph->get_query_output_port(),
-                  contact_point_calc_sys->get_geometry_query_input_port());
+                   finger_face_assigner->GetInputPort("geometry_query"));
+    builder.Connect(
+        finger_face_assigner->GetOutputPort("finger_face_assignments"),
+        force_controller->GetInputPort("finger_face_assignments"));
 
   auto diagram = builder.Build();
 

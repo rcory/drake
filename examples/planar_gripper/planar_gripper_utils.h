@@ -13,13 +13,13 @@ namespace examples {
 namespace planar_gripper {
 
 struct BrickFaceInfo {
-  BrickFaceInfo(const BrickFace brick_face_in, const Eigen::Vector2d point_in,
-           bool is_in_contact_in)
-      : brick_face(brick_face_in),
-        point(point_in),
-        is_in_contact(is_in_contact_in) {}
+  BrickFaceInfo(const BrickFace face, const Eigen::Vector2d point,
+           bool contact)
+      : brick_face(face),
+        p_BCb(point),
+        is_in_contact(contact) {}
   BrickFace brick_face;   //  the brick face this finger is assigned to.
-  Eigen::Vector2d point;  // holds the contact or witness point.
+  Eigen::Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
   bool is_in_contact;     // true if this finger is in contact.
 };
 
@@ -98,7 +98,9 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingerFaceAssigner)
 
   FingerFaceAssigner(const multibody::MultibodyPlant<double>& plant,
-                     const geometry::SceneGraph<double>& scene_graph);
+                     const geometry::SceneGraph<double>& scene_graph,
+                     const std::vector<Finger> fingers = {
+                         Finger::kFinger1, Finger::kFinger2, Finger::kFinger3});
 
   const systems::OutputPort<double>& get_finger_face_assignments_output_port()
       const {

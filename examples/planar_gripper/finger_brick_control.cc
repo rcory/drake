@@ -215,9 +215,10 @@ void ForceController::CalcTauOutput(
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
 //    p_WC = GetFingerContactPoint(contact_results, options_.finger_to_control_);
-    p_WC.tail<2>() = brick_face_info.point;
+    Eigen::Vector3d p_BrCb(0, brick_face_info.p_BCb(0), brick_face_info.p_BCb(1));
+    p_WC = R_WBr * p_BrCb;
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
-                               tip_link_frame, &p_LtC);
+                           tip_link_frame, &p_LtC);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
     p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
@@ -339,7 +340,7 @@ void ForceController::CalcTauOutput(
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
-    Eigen::Vector2d p_BrC_des = brick_face_info.point;
+    Eigen::Vector2d p_BrC_des = brick_face_info.p_BCb;
 
     //    Eigen::Vector3d p_BaC_des = Eigen::Vector3d::Zero();
     //    p_BaC_des.tail<2>() = R_BaBr * p_BrC_des;
@@ -681,12 +682,6 @@ void DoConnectGripperQPController(
 
     DRAKE_DEMAND(finger_force_control_map.has_value());
 
-    // Converts contact points (3 inputs) to an unordered_map of
-    // finger_face_assignments (1 output).
-    std::vector<Finger> fingers;
-    for (auto iter : *finger_force_control_map) {
-      fingers.push_back(iter.first);
-    }
     auto finger_face_assigner =
         builder->AddSystem<FingerFaceAssigner>(plant, scene_graph);
     builder->Connect(zoh_contact_results->get_output_port(),

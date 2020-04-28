@@ -90,16 +90,15 @@ GetClosestFacesToFinger(const multibody::MultibodyPlant<double>& plant,
 
 FingerFaceAssigner::FingerFaceAssigner(
     const multibody::MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph)
+    const geometry::SceneGraph<double>& scene_graph,
+    const std::vector<Finger> fingers)
     : plant_{plant}, scene_graph_{scene_graph} {
   const auto& inspector = scene_graph_.model_inspector();
-  for (const auto finger :
-       {Finger::kFinger1, Finger::kFinger2, Finger::kFinger3}) {
+  for (const auto finger : fingers) {
     finger_sphere_geometry_ids_.emplace(
         finger, GetFingertipSphereGeometryId(plant_, inspector, finger));
   }
-  DRAKE_DEMAND(static_cast<int>(finger_sphere_geometry_ids_.size()) ==
-               kNumFingers);
+  DRAKE_DEMAND(fingers.size() <= kNumFingers);
   brick_geometry_id_ = GetBrickGeometryId(plant, inspector);
   geometry_query_input_port_ =
       this->DeclareAbstractInputPort("geometry_query",

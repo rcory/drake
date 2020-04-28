@@ -96,7 +96,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const Eigen::Matrix2d friction_cone_edges_B =
         GetFrictionConeEdges(mu, finger_face_assignment.second.brick_face);
     // Compute the finger contact position Cbi
-    Vector2<double> p_BCbi = finger_face_assignment.second.point;
+    Vector2<double> p_BCbi = finger_face_assignment.second.p_BCb;
     Vector2<symbolic::Expression> f_Cbi_B =
         friction_cone_edges_B * f_Cbi_B_edges;
     f_Cb_B.emplace(finger_face_assignment.first, f_Cbi_B);
