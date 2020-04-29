@@ -104,7 +104,7 @@ void ForceController::CalcTauOutput(
   auto output_calc = output_vector->get_mutable_value();
   output_calc.setZero();
 
-  //  drake::log()->info("Finger: {}", to_string(options_.finger_to_control_));
+    drake::log()->info("========= Finger: {} ===============", to_string(options_.finger_to_control_));
 
   // The finger to control.
   std::string finger_num = to_string(options_.finger_to_control_);
@@ -219,6 +219,7 @@ void ForceController::CalcTauOutput(
     p_WC = R_WBr * p_BrCb;
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
                            tip_link_frame, &p_LtC);
+    drake::log()->info("p_BrCb: \n{}", p_BrCb);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
     // center as the contact point reference.
     p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
@@ -250,17 +251,21 @@ void ForceController::CalcTauOutput(
   J_planar_Ba.block<2, 1>(0, 1) = Jv_V_BaC.block<2, 1>(1, mid_joint_index);
 
   // Get the fingertip velocity in the brick frame.
-  MatrixX<double> Jv_V_BrickFtip(3, plant_.num_velocities());
+  MatrixX<double> Jv_V_BrickFtip(3, plant_.num_velocities()); // <------- THIS
   plant_.CalcJacobianTranslationalVelocity(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
       p_LtC, brick_frame, brick_frame, &Jv_V_BrickFtip);
+  drake::log()->info("p_WC: \n{}", p_WC);
+  drake::log()->info("p_LtC: \n{}", p_LtC);
   Eigen::Vector3d v_BrC =
       Jv_V_BrickFtip * plant_.GetVelocities(*plant_context_);
+  drake::log()->info("Jv_V_BrickFtip: \n{}", Jv_V_BrickFtip);
+//  drake::log()->info("plant_v: \n{}", plant_.GetVelocities(*plant_context_));
 
 
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-    //    drake::log()->info("In direct force control.");
+        drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world
     // frame. Express these in the brick frame instead (to compute the force
     // error terms), we then convert these commands to the finger base frame to
@@ -278,6 +283,7 @@ void ForceController::CalcTauOutput(
 
     // Rotate the force reported by simulation to brick frame.
     Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
+//    drake::log()->info("force_sensor_W: \n{}", force_sensor_vec_W);
 
     // Regulate force (in brick frame)
     Eigen::Vector3d delta_f_Br = force_des_Br - force_act_Br;
@@ -303,23 +309,21 @@ void ForceController::CalcTauOutput(
     torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
 
     //    drake::log()->info("delta_pos_Br: \n{}", delta_pos_Br);
-    //    drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
-    //    drake::log()->info("contact_state_des: \n{}",
-    //    contact_state_desired_Br); drake::log()->info("is_contact: \n{}",
-    //    is_contact); drake::log()->info("p_BrC: \n{}", p_BrC);
+//        drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
+//        drake::log()->info("contact_state_des: \n{}", contact_state_desired_Br);
+        drake::log()->info("is_contact: \n{}", is_contact);
+    //    drake::log()->info("p_BrC: \n{}", p_BrC);
     //    drake::log()->info("p_WC: \n{}", p_WC);
-    //    drake::log()->info("v_BrC: \n{}", v_BrC);
-
-    //    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-    //    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-    //    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-    //    drake::log()->info("force_error_command_Br: \n{}",
-    //    force_error_command_Br); drake::log()->info("force_error_integral_Br:
+//        drake::log()->info("v_BrC: \n{}", v_BrC);
+//
+//        drake::log()->info("force_des_Br: \n{}", force_des_Br);
+//        drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+//        drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+//        drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+    //    drake::log()->info("force_error_integral_Br:
     //    \n{}", force_error_integral_Br);
-    //    drake::log()->info("position_error_command_Br: \n{}",
-    //    position_error_command_Br);
-    //    drake::log()->info("force_integral_command_Br: \n{}",
-    //    force_integral_command_Br);
+//        drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
+//        drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -336,7 +340,7 @@ void ForceController::CalcTauOutput(
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere
     // center.
-    //    drake::log()->info("In impedance force control.");
+        drake::log()->info("In impedance force control.");
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
@@ -396,7 +400,8 @@ void ForceController::CalcTauOutput(
   }
   // The output for calculated torques.
   output_calc = torque_calc;
-  //  drake::log()->info("torque_calc: \n{}", torque_calc);
+//  drake::log()->info("torque_calc(0): \n{0:0.8f}", torque_calc(0));
+//  drake::log()->info("torque_calc(1): \n{0:0.8f}", torque_calc(1));
 }
 
 void ForceController::DoCalcTimeDerivatives(
@@ -688,6 +693,8 @@ void DoConnectGripperQPController(
                      finger_face_assigner->GetInputPort("contact_results"));
     builder->Connect(out_ports.at("scene_graph_query"),
                      finger_face_assigner->GetInputPort("geometry_query"));
+    builder->Connect(out_ports.at("plant_state"),
+                     finger_face_assigner->GetInputPort("plant_state"));
     builder->Connect(
         finger_face_assigner->GetOutputPort("finger_face_assignments"),
         in_ports.at("qp_finger_face_assignments"));
@@ -949,8 +956,8 @@ ForceController* SetupForceController(
   auto zoh_contact_results = builder->AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
-  std::vector<SpatialForce<double>> init_spatial_vec{
-      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
+  std::vector<SpatialForce<double>> init_spatial_vec(plant.num_joints(),
+      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero()));
   auto zoh_reaction_forces = builder->AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 

@@ -118,6 +118,7 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
 
   const multibody::MultibodyPlant<double>& plant_;
   const geometry::SceneGraph<double>& scene_graph_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
   std::unordered_map<Finger, geometry::GeometryId> finger_sphere_geometry_ids_;
   geometry::GeometryId brick_geometry_id_;
   systems::InputPortIndex geometry_query_input_port_{};

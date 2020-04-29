@@ -92,7 +92,9 @@ FingerFaceAssigner::FingerFaceAssigner(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraph<double>& scene_graph,
     const std::vector<Finger> fingers)
-    : plant_{plant}, scene_graph_{scene_graph} {
+    : plant_{plant},
+      scene_graph_{scene_graph},
+      plant_context_(plant.CreateDefaultContext()) {
   const auto& inspector = scene_graph_.model_inspector();
   for (const auto finger : fingers) {
     finger_sphere_geometry_ids_.emplace(
@@ -106,6 +108,11 @@ FingerFaceAssigner::FingerFaceAssigner(
           .get_index();
   this->DeclareAbstractInputPort("contact_results",
                                  Value<multibody::ContactResults<double>>{});
+
+  this->DeclareVectorInputPort(
+      "plant_state",
+      systems::BasicVector<double>(plant_.num_multibody_states()));
+
   finger_face_assignments_output_port_ =
       this->DeclareAbstractOutputPort(
               "finger_face_assignments",
@@ -139,10 +146,33 @@ void FingerFaceAssigner::CalcFingerFaceAssignments(
         GetContactPairIndex(plant_, contact_results, finger_id_pair.first);
     bool is_in_contact = pair_index < contact_results.num_point_pair_contacts();
 
-    BrickFaceInfo face_info(*brick_faces.first.begin(),
-                        Eigen::Vector2d(brick_faces.second.tail<2>()),
-                        is_in_contact);
-    finger_face_assignments->emplace(finger_id_pair.first, face_info);
+    // If the geometries are in contact, return the actual contact point.
+    // Otherwise, return the witness point. Both are expressed in brick frame.
+    if (is_in_contact) {
+      auto plant_state =
+          this->EvalVectorInput(context,
+                                GetInputPort("plant_state").get_index())
+              ->get_value();
+      plant_.SetPositions(plant_context_.get(),
+                          plant_state.head(plant_.num_positions()));
+      plant_.SetVelocities(plant_context_.get(),
+                           plant_state.tail(plant_.num_velocities()));
+      auto p_WCb =
+          contact_results.point_pair_contact_info(pair_index).contact_point();
+      Eigen::Vector3d result;
+      plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCb,
+                                 plant_.GetFrameByName("brick_link"),
+                                 &result);
+      BrickFaceInfo face_info(*brick_faces.first.begin(),
+                              Eigen::Vector2d(result.tail<2>()),
+                              true /* in contact */);
+      finger_face_assignments->emplace(finger_id_pair.first, face_info);
+    } else {
+      BrickFaceInfo face_info(*brick_faces.first.begin(),
+                              Eigen::Vector2d(brick_faces.second.tail<2>()),
+                              false /* no contact */);
+      finger_face_assignments->emplace(finger_id_pair.first, face_info);
+    }
   }
 }
 

@@ -391,6 +391,7 @@ void ForceDemuxer::SetReactionForcesOutput(
   const multibody::Body<double>& child = sensor_joint.child_body();
   const math::RigidTransform<double>& X_WC =
       plant_.EvalBodyPoseInWorld(*plant_context_, child);
+//  drake::log()->info("in SetReactionForcesOutput: Finger: {}, spatial_vec\n{}", fnum, spatial_vec[sensor_joint_index].translational());
 
   output_value =
       X_WC.rotation() * spatial_vec[sensor_joint_index].translational();
