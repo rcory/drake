@@ -96,6 +96,7 @@ DEFINE_double(time_step, 1e-3,
               "If 0, the plant is modeled as a continuous system.");
 DEFINE_double(penetration_allowance, 1e-3,
               "The contact penetration allowance.");
+DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
@@ -143,6 +144,7 @@ int DoMain() {
     throw std::runtime_error("Unknown BrickType.");
   }
   planar_gripper->set_penetration_allowance(FLAGS_penetration_allowance);
+  planar_gripper->set_stiction_tolerance(FLAGS_stiction_tolerance);
   if (FLAGS_zero_gravity) {
     planar_gripper->zero_gravity();
   }
@@ -185,6 +187,12 @@ int DoMain() {
         &builder, planar_gripper->get_mutable_multibody_plant(),
         planar_gripper->GetOutputPort("contact_results"));
   }
+
+  // publish body frames.
+  auto frame_viz = builder.AddSystem<FrameViz>(
+      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, false);
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  frame_viz->get_input_port(0));
 
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(

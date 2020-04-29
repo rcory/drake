@@ -227,6 +227,7 @@ drake_cc_binary(
     data = [
         "//examples/planar_gripper:pinned_brick_postures_01.txt",
         "//examples/planar_gripper:pinned_brick_postures_02.txt",
+        "//examples/planar_gripper:pinned_brick_postures_03.txt",
         "//examples/planar_gripper:postures.txt",
     ],
     test_rule_args = [

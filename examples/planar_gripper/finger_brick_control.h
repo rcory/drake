@@ -13,6 +13,7 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/common/trajectories/piecewise_polynomial.h"
 
 namespace drake {
 namespace examples {
@@ -162,6 +163,20 @@ class ForceController : public systems::LeafSystem<double> {
   ForceControlOptions options_;
 };
 
+/// Defines the type of control task. A "regulation" task controls the brick to
+/// a set-point goal. A "tracking" task controls the brick to follow a desired
+/// state trajectory.
+enum class ControlTask {
+  kRegulation,
+  kTracking,
+};
+
+struct BrickGoal {
+  double y_goal{0};  // goal y position (m).
+  double z_goal{0};  // goal z position (m).
+  double theta_goal{0};  // goal rotation angle (rad).
+};
+
 struct QPControlOptions {
   double T_{0};  // time horizon
 
@@ -171,10 +186,6 @@ struct QPControlOptions {
   // TODO(rcory) Replace the LCM updates/publishes to use this parameter instead
   //  of kGripperLcmPeriod.
   double plan_dt{0.01};
-
-  double yf_{0};  // final y position (m).
-  double zf_{0};  // final z position (m).
-  double thetaf_{0};  // final rotation angle (rad).
 
   double QP_Kp_r_{0};  // rotational Kp gain.
   double QP_Kd_r_{0};  // rotational Kd gain.
@@ -201,6 +212,10 @@ struct QPControlOptions {
   std::unordered_map<Finger, BrickFaceInfo> brick_spatial_force_assignments_;
 
   BrickType brick_type_{BrickType::PinBrick};
+  ControlTask control_task_{ControlTask::kRegulation};
+  BrickGoal brick_goal_;  // for regulation task.
+  trajectories::PiecewisePolynomial<double>
+      desired_brick_traj_;  // for tracking task.
 };
 
 /// Connects a QP controller to a planar_gripper/brick simulation.

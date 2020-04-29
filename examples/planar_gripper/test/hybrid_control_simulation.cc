@@ -77,11 +77,19 @@ DEFINE_bool(use_finger3, true, "Use finger3?");
 // Boundary conditions.
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
 DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
-DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
-DEFINE_double(y0, 0.01, "initial brick y position (m).");
+DEFINE_double(y0, 0, "initial brick y position (m).");
 DEFINE_double(z0, 0, "initial brick z position (m).");
-DEFINE_double(yf, 0, "final brick y position (m).");
-DEFINE_double(zf, 0, "final brick z position (m).");
+DEFINE_double(yf, 0, "goal brick y position (m), for regulation task.");
+DEFINE_double(zf, 0, "goal brick z position (m), for regulation task.");
+DEFINE_double(thetaf, M_PI_4,
+              "goal brick theta rotation (rad), for regulation task.");
+DEFINE_bool(
+    is_regulation_task, true,
+    "Defines the type of control task. If set to `true`, the QP planner "
+    "executes a regulation task. If set to false, the QP planner executes a "
+    "tracking task. A `regulation` task controls the brick to a set-point "
+    "goal. A `tracking` task controls the brick to follow a desired state "
+    "trajectory.");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
 // QP task parameters.
@@ -161,9 +169,12 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->yf_ = FLAGS_yf;
-  qpoptions->zf_ = FLAGS_zf;
-  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->brick_goal_.y_goal = FLAGS_yf;
+  qpoptions->brick_goal_.z_goal = FLAGS_zf;
+  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
+  qpoptions->control_task_ = (FLAGS_is_regulation_task)
+                                 ? ControlTask::kRegulation
+                                 : ControlTask::kTracking;
   qpoptions->QP_Kp_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_Kp_r_pinned
                                          : FLAGS_QP_Kp_r_planar);
@@ -254,8 +265,12 @@ int DoMain() {
       "drake/examples/planar_gripper/pinned_brick_postures_03.txt";
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
+  std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path);
+      ParseKeyframes(keyframe_path, &brick_keyframe_info);
+  MatrixX<double> brick_keyframes = brick_keyframe_info.first;
+  std::map<std::string, int> brick_joint_name_to_row_index_map =
+      brick_keyframe_info.second;
 
   // Create the individual finger matrices. For this demo, we assume we have
   // three fingers, two joints each.
@@ -267,6 +282,26 @@ int DoMain() {
   Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
   for (int i = 1; i < finger_keyframes.cols(); ++i) {
     times(i) = i * 0.1 /* plan dt */;
+  }
+
+  // Create the brick's desired state trajectory.
+  if (FLAGS_brick_type == "pinned") {
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
+            times,
+            brick_keyframes.row(
+                brick_joint_name_to_row_index_map["brick_revolute_x_joint"]));
+  } else {  // brick_type is planar
+    MatrixX<double> ordered_brick_keyframes = brick_keyframes;
+    ordered_brick_keyframes.row(0) = brick_keyframes.row(
+        brick_joint_name_to_row_index_map["brick_translate_y_joint"]);
+    ordered_brick_keyframes.row(1) = brick_keyframes.row(
+        brick_joint_name_to_row_index_map["brick_translate_z_joint"]);
+    ordered_brick_keyframes.row(2) = brick_keyframes.row(
+        brick_joint_name_to_row_index_map["brick_revolute_x_joint"]);
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
+            times, ordered_brick_keyframes);
   }
 
   // Create and connect the trajectory sources.

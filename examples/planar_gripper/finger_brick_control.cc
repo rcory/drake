@@ -592,47 +592,74 @@ void DoConnectGripperQPController(
     const std::map<std::string, const InputPort<double>&>& in_ports,
     const std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
-  systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
-  systems::ConstantVectorSource<double>* brick_planned_state_traj_source;
+  systems::ConstantVectorSource<double>* brick_goal_acceleration_source;
+  systems::ConstantVectorSource<double>* brick_goal_state_source{nullptr};
+  systems::TrajectorySource<double>* brick_desired_state_traj_source{nullptr};
 
   if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
     // brick accel planned is 0 {yddot, zddot, thetaddot}. Use a constant
     // source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Eigen::Vector3d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
-    Eigen::VectorXd des_state_vec(6);
-    des_state_vec << qpoptions.yf_, qpoptions.zf_, qpoptions.thetaf_, 0, 0, 0;
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
-  } else {
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
+      Eigen::VectorXd des_state_vec(6);
+      des_state_vec << qpoptions.brick_goal_.y_goal, qpoptions.brick_goal_.z_goal,
+          qpoptions.brick_goal_.theta_goal, 0, 0, 0;
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown planar-brick control task specified.");
+    }
+  } else {  // brick_type is PlanarBrick
     // brick accel planned is 0 {thetaddot}. Use a constant source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Vector1d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant state target...{theta, thetadot}
-    Eigen::Vector2d des_state_vec(qpoptions.thetaf_, 0);
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant state target: {theta, thetadot}
+      Eigen::Vector2d des_state_vec(qpoptions.brick_goal_.theta_goal, 0);
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown pinned-brick control task specified.");
+    }
   }
 
-  // Spit out to scope
-  systems::lcm::ConnectLcmScope(
-      brick_planned_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
-      builder, lcm);
+  // Spit out to scope.
+  if (brick_goal_state_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_goal_state_source->get_output_port(), "BRICK_GOAL_STATE",
+        builder, lcm);
+  }
+  if (brick_desired_state_traj_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_desired_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
+        builder, lcm);
+  }
 
   // Connect the plant state to the QP controller
   builder->Connect(out_ports.at("plant_state"),
