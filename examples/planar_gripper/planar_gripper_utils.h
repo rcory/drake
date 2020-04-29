@@ -22,6 +22,7 @@ struct BrickFaceInfo {
         is_in_contact(contact) {}
   BrickFace brick_face;   //  the brick face this finger is assigned to.
   Eigen::Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
+  Eigen::Vector2d p_WCb;  // holds the contact or witness point, in World frame.
   bool is_in_contact;     // true if this finger is in contact.
 };
 

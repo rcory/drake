@@ -59,7 +59,7 @@ void PlanarGripper::AddFloor(MultibodyPlant<double>* plant,
               plant->GetBodyByName("brick_link").index()),
           geometry::Role::kProximity, "brick::sphere1_collision"));
 
-  const double kFloorHeight = 0.001;
+  const double kFloorHeight = 0.05;
   const double kSphereTipXOffset = X_WS.translation()(0) - sphere_radius;
   const drake::multibody::CoulombFriction<double> coef_friction_floor(
       floor_coef_static_friction_, floor_coef_kinetic_friction_);
@@ -511,11 +511,13 @@ PlanarGripper::PlanarGripper(double time_step, ControlType control_type,
 }
 
 void PlanarGripper::SetupPlanarBrick(std::string orientation) {
-  SetupPlant(orientation, "drake/examples/planar_gripper/planar_brick.sdf");
+  SetupPlant(orientation,
+             "drake/examples/planar_gripper/models/planar_brick.sdf");
 }
 
 void PlanarGripper::SetupPinBrick(std::string orientation) {
-  SetupPlant(orientation, "drake/examples/planar_gripper/1dof_brick.sdf");
+  SetupPlant(orientation,
+             "drake/examples/planar_gripper/models/1dof_brick.sdf");
 }
 
 void PlanarGripper::SetupPlant(std::string orientation,
@@ -523,8 +525,8 @@ void PlanarGripper::SetupPlant(std::string orientation,
   Vector3d gravity = Vector3d::Zero();
 
   // Make and add the planar_gripper model.
-  const std::string gripper_full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
+  const std::string gripper_full_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_gripper.sdf");
 
   gripper_index_ = Parser(plant_, scene_graph_)
                        .AddModelFromFile(gripper_full_name, "planar_gripper");

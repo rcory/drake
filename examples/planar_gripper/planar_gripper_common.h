@@ -87,6 +87,12 @@ void WeldGripperFrames(MultibodyPlant<T>* plant,
  * Parses a text file containing keyframe joint positions for the planar gripper
  * and the planar brick (the object being manipulated).
  * @param[in] name The file name to parse.
+ * @param[out] times A vector that will contain the time stamps of the
+ * keyframes.
+ * @param[out] modes A matrix that will contain the contact modes for each
+ * finger. This matrix will be of size kNumFingers x n, where n is the number
+ * of keyframes. The first row of this matrix corresponds to finger1, the second
+ * row to finger 2, and so on.
  * @param[out] brick_keyframe_info A std::pair containing a matrix of brick
  * joint position keyframes (each matrix column represents a single keyframe
  * containing values for all joint positions) and a std::map containing the
@@ -105,13 +111,32 @@ void WeldGripperFrames(MultibodyPlant<T>* plant,
  * finger2_MidJoint, finger3_MindJoint, brick_translate_y_joint,
  * brick_translate_z_joint, brick_revolute_x_joint}. Note that brick
  * translations should be expressed in the planar-gripper frame G. Names may
- * appear in any order. Each row (keyframe) following the header should contain
- * the same number of values as indicated in the header. All entries should be
- * white space delimited and the file should end in a newline character. The
- * behavior of parsing is undefined if these conditions are not met.
+ * appear in any order.
+ * After the header row, a repeating sequence of rows should be found. The first
+ * row corresponds to a plant keyframe, the second row corresponds to the time
+ * stamp of that keyframe, and the third row corresponds to the finger contact
+ * modes, one value for each finger. The first value in this row is the contact
+ * mode for finger1, the second value is for finger 2, and so on. From the
+ * r3t_dexterity documentation:
+ * For each of the fingers, we record the index of the face in contact with that
+ * finger. The face is 0-indexed, with face i being the face connecting
+ * PlanarObject.vertices[i] and PlanarObject.vertices[i+1]. When the finger is
+ * not in contact with any face, we use -1 as the face index in the plan txt
+ * output file. So a list [0, 2, -1] means that finger 1 is in contact with
+ * face 0, finger 2 is in contact with face 2, and finger 3 is not in contact.
+ * The index of the vertices could be accessed through python in
+ * planar_gripper_system.manipuland.vertices. For the brick case, edge 0 is the
+ * left (-y) edge, edge 1 is the top (+z) edge, edge 2 is the right (+y) edge,
+ * and edge 3 is the bottom (-z) edge. Do you think it is better to print the
+ * vertices in the txt output file as well?
+ *
+ * Each keyframe row should contain the same number of values as indicated in
+ * the header. All entries should be white space delimited and the file should
+ * end in a newline character. The behavior of parsing is undefined if these
+ * conditions are not met.
  */
-std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
-    const std::string& name,
+std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframesAndModes(
+    const std::string& name, VectorX<double>* times, MatrixX<double>* modes,
     std::pair<MatrixX<double>, std::map<std::string, int>>*
         brick_keyframe_info = nullptr);
 

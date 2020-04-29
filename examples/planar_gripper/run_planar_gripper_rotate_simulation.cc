@@ -18,6 +18,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/systems/primitives/trajectory_source.h"
 
 namespace drake {
 namespace examples {
@@ -39,11 +40,11 @@ DEFINE_double(time_step, 1e-3,
               "If 0, the plant is modeled as a continuous system.");
 DEFINE_double(penetration_allowance, 0.2, "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(floor_coef_static_friction, 0 /*0.5*/,
+DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
-DEFINE_double(floor_coef_kinetic_friction, 0 /*0.5*/,
+DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 0 /* 1e-5 */,
+DEFINE_double(brick_floor_penetration, 1e-4,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -107,6 +108,13 @@ DEFINE_double(y0, 0.01, "initial brick y position (m).");
 DEFINE_double(z0, 0, "initial brick z position (m).");
 DEFINE_double(yf, 0, "final brick y position (m).");
 DEFINE_double(zf, 0, "final brick z position (m).");
+DEFINE_bool(
+    is_regulation_task, false,
+    "Defines the type of control task. If set to `true`, the QP planner "
+    "executes a regulation task. If set to false, the QP planner executes a "
+    "tracking task. A `regulation` task controls the brick to a set-point "
+    "goal. A `tracking` task controls the brick to follow a desired state "
+    "trajectory.");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
 // QP task parameters.
@@ -118,6 +126,10 @@ DEFINE_string(use_QP, "local",
               "We provide 3 types of QP controller, LCM, UDP or local.");
 DEFINE_double(QP_Kp_t, 350, "QP controller translational Kp gain.");
 DEFINE_double(QP_Kd_t, 100, "QP controller translational Kd gain.");
+DEFINE_double(QP_Ki_t, 0, "QP controller translational Ki gain.");
+DEFINE_double(QP_Ki_r, 0, "QP controller rotational Ki gain.");
+DEFINE_double(QP_Ki_r_sat, 0.0001, "QP integral saturation value.");
+DEFINE_double(QP_Ki_t_sat, 0.0001, "QP integral translational saturation value.");
 DEFINE_double(QP_Kp_r_pinned, 150,
               "QP controller rotational Kp gain for pinned brick.");
 DEFINE_double(QP_Kd_r_pinned, 50,
@@ -151,6 +163,36 @@ DEFINE_bool(add_floor, true, "Adds a floor to the simulation.");
 DEFINE_bool(test, false,
             "If true, checks the simulation result against a known value.");
 
+class BrickPlanFrameViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BrickPlanFrameViz);
+
+  BrickPlanFrameViz(int num_positions) {
+    this->DeclareVectorInputPort("brick_positions",
+                                 systems::BasicVector<double>(num_positions));
+    this->DeclareAbstractOutputPort("brick_xform",
+                                    &BrickPlanFrameViz::CalcXForm);
+  }
+
+  void CalcXForm(const systems::Context<double>& context,
+                 std::vector<math::RigidTransform<double>>* xform_vec) const {
+    VectorX<double> brick_q = this->EvalVectorInput(context, 0)->get_value();
+    double ypos = 0, zpos = 0, theta = 0;
+    if (brick_q.size() == 1) {
+      theta = brick_q(0);
+    } else {
+      ypos = brick_q(0);
+      zpos = brick_q(1);
+      theta = brick_q(2);
+    }
+    auto xform = math::RigidTransform<double>(
+        math::RollPitchYaw<double>(Vector3d(theta, 0, 0)),
+        Vector3d(0, ypos, zpos));
+    xform_vec->clear();
+    xform_vec->push_back(xform);
+  }
+};
+
 /// Utility function that returns the fingers that will be used for this
 /// simulation.
 std::unordered_set<Finger> FingersToControl() {
@@ -181,19 +223,27 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->yf_ = FLAGS_yf;
-  qpoptions->zf_ = FLAGS_zf;
-  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->brick_goal_.y_goal = FLAGS_yf;
+  qpoptions->brick_goal_.z_goal = FLAGS_zf;
+  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
+  qpoptions->control_task_ = (FLAGS_is_regulation_task)
+                             ? ControlTask::kRegulation
+                             : ControlTask::kTracking;
   qpoptions->QP_Kp_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_Kp_r_pinned
                                          : FLAGS_QP_Kp_r_planar);
   qpoptions->QP_Kd_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_Kd_r_pinned
                                          : FLAGS_QP_Kd_r_planar);
+  qpoptions->QP_Ki_r_ = FLAGS_QP_Ki_r;
   qpoptions->QP_Kp_t_ =
       Eigen::Vector2d(FLAGS_QP_Kp_t, FLAGS_QP_Kp_t).asDiagonal();
   qpoptions->QP_Kd_t_ =
       Eigen::Vector2d(FLAGS_QP_Kd_t, FLAGS_QP_Kd_t).asDiagonal();
+  qpoptions->QP_Ki_t_ =
+      Eigen::Vector2d(FLAGS_QP_Ki_t, FLAGS_QP_Ki_t).asDiagonal();
+  qpoptions->QP_Ki_r_sat_ = FLAGS_QP_Ki_r_sat;
+  qpoptions->QP_Ki_t_sat_ = FLAGS_QP_Ki_t_sat;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_acceleration_error_ = FLAGS_QP_weight_a_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
@@ -275,6 +325,39 @@ int DoMain() {
 
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, brick_type, &qpoptions);
+  if (FLAGS_brick_type == "pinned") {
+    // The planned theta trajectory is from 0 to theta_f degree in T seconds.
+    std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
+    std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(1, 1));
+    Y[0](0, 0) = FLAGS_theta0;
+    Y[1](0, 0) = FLAGS_theta0;
+    Y[2](0, 0) = FLAGS_thetaf;
+    Y[3](0, 0) = FLAGS_thetaf;
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(T, Y,
+                                                                        true);
+  } else {  // brick_type is planar
+    std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
+    std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(3, 1));
+    Y[0](0, 0) = FLAGS_y0;
+    Y[0](1, 0) = FLAGS_z0;
+    Y[0](2, 0) = FLAGS_theta0;
+
+    Y[1](0, 0) = FLAGS_y0;
+    Y[1](1, 0) = FLAGS_z0;
+    Y[1](2, 0) = FLAGS_theta0;
+
+    Y[2](0, 0) = FLAGS_yf;
+    Y[2](1, 0) = FLAGS_zf;
+    Y[2](2, 0) = FLAGS_thetaf;
+
+    Y[3](0, 0) = FLAGS_yf;
+    Y[3](1, 0) = FLAGS_zf;
+    Y[3](2, 0) = FLAGS_thetaf;
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(T, Y,
+                                                                        true);
+  }
   if (FLAGS_brick_only) {
     if (FLAGS_use_QP == "LCM") {
       ConnectLCMQPController(*planar_gripper, &drake_lcm, std::nullopt,
@@ -327,9 +410,26 @@ int DoMain() {
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   frame_viz->get_input_port(0));
 
-  math::RigidTransformd goal_frame;
-  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
-  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
+  if (FLAGS_is_regulation_task) {
+    math::RigidTransformd goal_frame;
+    goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+    goal_frame.set_translation(Eigen::Vector3d(0, FLAGS_yf, FLAGS_zf));
+    PublishFramesToLcm("SIM_FRAMES", {goal_frame}, {"goal"}, &drake_lcm);
+  } else {
+    auto frame_viz_path = builder.AddSystem<FrameViz>(
+        planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
+    auto brick_desired_pos_traj_source =
+        builder.AddSystem<systems::TrajectorySource<double>>(
+            qpoptions.desired_brick_traj_);
+    builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                    frame_viz_path->get_input_port(0));
+    auto brick_xform_src = builder.AddSystem<BrickPlanFrameViz>(
+        planar_gripper->get_num_brick_positions());
+    builder.Connect(brick_desired_pos_traj_source->get_output_port(),
+                    brick_xform_src->get_input_port(0));
+    builder.Connect(brick_xform_src->get_output_port(0),
+                    frame_viz_path->get_input_port(1));
+  }
 
   // Connect drake visualizer.
   geometry::ConnectDrakeVisualizer(

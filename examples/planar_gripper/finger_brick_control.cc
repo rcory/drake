@@ -148,6 +148,7 @@ void ForceController::CalcTauOutput(
 
   Eigen::Vector3d force_sensor_vec_W =
       this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
+//  drake::log()->info("Force_sensor_ved_W: \n{}", force_sensor_vec_W);
 
   // Set the plant's position and velocity within the context.
   plant_.SetPositionsAndVelocities(plant_context_.get(), plant_state);
@@ -165,6 +166,9 @@ void ForceController::CalcTauOutput(
   /* Rotation of world (W) w.r.t. brick (Br) */
   auto R_BrW = plant_.CalcRelativeRotationMatrix(*plant_context_, brick_frame,
                                                  plant_.world_frame());
+
+//  auto R_WBr = plant_.CalcRelativeRotationMatrix(
+//      *plant_context_, plant_.world_frame(), brick_frame);
 
   /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */
   auto R_BaBr = plant_.CalcRelativeRotationMatrix(*plant_context_, base_frame,
@@ -211,9 +215,11 @@ void ForceController::CalcTauOutput(
   // contact results object and it lies inside the intersection of the
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
-    Eigen::Vector3d p_BrCb(0, brick_face_info.p_BCb(0),
-                           brick_face_info.p_BCb(1));
-    p_WCr = R_BrW.inverse() * p_BrCb;
+//    Eigen::Vector3d p_BrCb(0, brick_face_info.p_BCb(0),
+//                           brick_face_info.p_BCb(1));
+//    drake::log()->info("p_BrCb: \n{}", p_BrCb);
+//    p_WCr = R_BrW.inverse() * p_BrCb;
+    p_WCr = Eigen::Vector3d(0, brick_face_info.p_WCb(0), brick_face_info.p_WCb(1));
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
                                tip_link_frame, &p_LtCr);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
@@ -226,7 +232,10 @@ void ForceController::CalcTauOutput(
 
   // Regulate position (in brick frame).
   // First, rotate the contact point reference into the brick frame.
-  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
+//  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
+  Eigen::Vector3d p_BrC;
+  plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
+                             brick_frame, &p_BrC);
 
   // Compute the translational velocity Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -257,12 +266,13 @@ void ForceController::CalcTauOutput(
 
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-    //    drake::log()->info("In direct force control.");
+//        drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world
     // frame. Express these in the brick frame instead (to compute the force
     // error terms), we then convert these commands to the finger base frame to
     // match the Jacobian.
     Eigen::Vector3d force_des_Br = R_BrW * force_des_W;
+//    force_des_Br(2) = 0;  // keep only force in y
 
     // Get the control gains.
     Eigen::Matrix<double, 3, 3> Kp_force(3, 3);
@@ -271,6 +281,7 @@ void ForceController::CalcTauOutput(
     Eigen::Matrix<double, 3, 3> Kd_position(3, 3);
     GetGains(&Kp_force, &Ki_force, &Kp_position, &Kd_position,
              brick_face_info.brick_face);
+//    drake::log()->info("BrickFace: {}", to_string(brick_face_info.brick_face));
 
     // Rotate the force reported by simulation to brick frame.
     Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
@@ -299,23 +310,21 @@ void ForceController::CalcTauOutput(
     torque_calc += -options_.Kd_joint_ * finger_state.segment<2>(2);
 
     //    drake::log()->info("delta_pos_Br: \n{}", delta_pos_Br);
-    //    drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
-    //    drake::log()->info("contact_state_des: \n{}",
-    //    contact_state_desired_Br); drake::log()->info("is_contact: \n{}",
-    //    is_contact); drake::log()->info("p_BrC: \n{}", p_BrC);
-    //    drake::log()->info("p_WC: \n{}", p_WC);
-    //    drake::log()->info("v_BrC: \n{}", v_BrC);
+//        drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
+    //    drake::log()->info("contact_state_des: \n{}", contact_state_desired_Br);
+      //drake::log()->info("is_contact: \n{}", is_contact); drake::log()->info("p_BrC: \n{}", p_BrC);
+//        drake::log()->info("p_WCr: \n{}", p_WCr);
+//        drake::log()->info("v_BrC: \n{}", v_BrC);
 
-    //    drake::log()->info("force_des_Br: \n{}", force_des_Br);
-    //    drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-    //    drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-    //    drake::log()->info("force_error_command_Br: \n{}",
-    //    force_error_command_Br); drake::log()->info("force_error_integral_Br:
+//        drake::log()->info("force_des_Br: \n{}", force_des_Br);
+//    drake::log()->info("force_des_W: \n{}", R_WBr * force_des_Br);
+//        drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+//        drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+//        drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+    //    drake::log()->info("force_error_integral_Br:
     //    \n{}", force_error_integral_Br);
-    //    drake::log()->info("position_error_command_Br: \n{}",
-    //    position_error_command_Br);
-    //    drake::log()->info("force_integral_command_Br: \n{}",
-    //    force_integral_command_Br);
+//        drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
+//        drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -332,7 +341,7 @@ void ForceController::CalcTauOutput(
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere
     // center.
-    //    drake::log()->info("In impedance force control.");
+//        drake::log()->info("In impedance force control.");
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
@@ -356,7 +365,7 @@ void ForceController::CalcTauOutput(
     //    Eigen::Vector3d v_BrC_des = r.cross(omega);
     //    drake::log()->info("v_BrC_des: \n{}", v_BrC_des);
 
-    //    drake::log()->info("finger_state: \n{}", finger_state);
+//        drake::log()->info("finger_state: \n{}", finger_state);
     //    drake::log()->info("brick_state: \n{}", brick_state);
     //    drake::log()->info("J_planar_Ba: \n{}", J_planar_Ba);
     //    drake::log()->info("p_BrFingerTip: \n{}", p_BrC_des);
@@ -390,6 +399,9 @@ void ForceController::CalcTauOutput(
     //    imp_force_desired_Br); drake::log()->info("imp_force_desired_Ba:
     //    \n{}", imp_force_desired_Ba);
   }
+
+//  drake::log()->info("finger_state: \n{}", finger_state);
+
   // The output for calculated torques.
   output_calc = torque_calc;
   //  drake::log()->info("torque_calc: \n{}", torque_calc);
@@ -592,47 +604,74 @@ void DoConnectGripperQPController(
     const std::map<std::string, const InputPort<double>&>& in_ports,
     const std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
-  systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
-  systems::ConstantVectorSource<double>* brick_planned_state_traj_source;
+  systems::ConstantVectorSource<double>* brick_goal_acceleration_source;
+  systems::ConstantVectorSource<double>* brick_goal_state_source{nullptr};
+  systems::TrajectorySource<double>* brick_desired_state_traj_source{nullptr};
 
   if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
     // brick accel planned is 0 {yddot, zddot, thetaddot}. Use a constant
     // source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Eigen::Vector3d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
-    Eigen::VectorXd des_state_vec(6);
-    des_state_vec << qpoptions.yf_, qpoptions.zf_, qpoptions.thetaf_, 0, 0, 0;
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
-  } else {
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
+      Eigen::VectorXd des_state_vec(6);
+      des_state_vec << qpoptions.brick_goal_.y_goal, qpoptions.brick_goal_.z_goal,
+          qpoptions.brick_goal_.theta_goal, 0, 0, 0;
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown planar-brick control task specified.");
+    }
+  } else {  // brick_type is PlanarBrick
     // brick accel planned is 0 {thetaddot}. Use a constant source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Vector1d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant state target...{theta, thetadot}
-    Eigen::Vector2d des_state_vec(qpoptions.thetaf_, 0);
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant state target: {theta, thetadot}
+      Eigen::Vector2d des_state_vec(qpoptions.brick_goal_.theta_goal, 0);
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown pinned-brick control task specified.");
+    }
   }
 
-  // Spit out to scope
-  systems::lcm::ConnectLcmScope(
-      brick_planned_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
-      builder, lcm);
+  // Spit out to scope.
+  if (brick_goal_state_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_goal_state_source->get_output_port(), "BRICK_GOAL_STATE",
+        builder, lcm);
+  }
+  if (brick_desired_state_traj_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_desired_state_traj_source->get_output_port(),
+        "BRICK_DES_STATE_TRAJ", builder, lcm);
+  }
 
   // Connect the plant state to the QP controller
   builder->Connect(out_ports.at("plant_state"),
@@ -712,8 +751,10 @@ void AddGripperQPControllerToDiagram(
   // QP controller
   Eigen::Matrix2d Kp_t = qpoptions.QP_Kp_t_;
   Eigen::Matrix2d Kd_t = qpoptions.QP_Kd_t_;
+  Eigen::Matrix2d Ki_t = qpoptions.QP_Ki_t_;
   double Kp_r = qpoptions.QP_Kp_r_;
   double Kd_r = qpoptions.QP_Kd_r_;
+  double Ki_r = qpoptions.QP_Ki_r_;
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
   double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
@@ -725,7 +766,8 @@ void AddGripperQPControllerToDiagram(
 
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
-          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Kp_r, Kd_r,
+          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Ki_t, Kp_r, Kd_r, Ki_r,
+          qpoptions.QP_Ki_r_sat_, qpoptions.QP_Ki_t_sat_,
           weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
           translational_damping, rotational_damping, I_B, mass_B);
 

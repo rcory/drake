@@ -14,6 +14,25 @@ load(
     "drake_cc_vector_gen_library",
 )
 
+#filegroup(
+#    name = "keyframe_files",
+#    srcs = [
+#        "keyframes/pinned_brick_postures_04.txt",
+#        "keyframes/planar_brick_postures_02.txt",
+#        "keyframes/planar_brick_test_01.txt",
+#    ],
+#)
+
+filegroup(
+    name = "keyframe_files",
+    srcs = glob([
+        "keyframes/*.txt",
+    ]),
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
 drake_cc_library(
     name = "planar_gripper_utils",
     srcs = ["planar_gripper_utils.cc"],
@@ -32,9 +51,7 @@ drake_cc_library(
         "planar_gripper.h",
     ],
     data = [
-        "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:planar_brick.sdf",
-        "//examples/planar_gripper:planar_gripper.sdf",
+        ":models",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -144,11 +161,8 @@ drake_cc_binary(
     name = "run_planar_gripper_trajectory_publisher",
     srcs = ["run_planar_gripper_trajectory_publisher.cc"],
     data = [
+        ":keyframe_files",
         ":models",
-        "//examples/planar_gripper:pinned_brick_postures_01.txt",
-        "//examples/planar_gripper:pinned_brick_postures_02.txt",
-        "//examples/planar_gripper:pinned_brick_postures_03.txt",
-        "//examples/planar_gripper:postures.txt",
     ],
     deps = [
         ":planar_gripper_common",
@@ -226,9 +240,7 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_simulation.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:pinned_brick_postures_01.txt",
-        "//examples/planar_gripper:pinned_brick_postures_02.txt",
-        "//examples/planar_gripper:postures.txt",
+        ":keyframe_files",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
@@ -306,7 +318,7 @@ drake_cc_binary(
     srcs = ["test/hybrid_control_simulation.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:pinned_brick_postures_03.txt",
+        ":keyframe_files",
     ],
     test_rule_args = [
         "--test",
@@ -449,8 +461,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "contact_force_qp_test",
     data = [
-        "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:planar_finger.sdf",
+        ":models",
     ],
     deps = [
         ":contact_force_qp",
@@ -504,6 +515,7 @@ drake_cc_googletest(
         "//common/test_utilities:eigen_matrix_compare",
         "//geometry:geometry_visualization",
         "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
     ],
