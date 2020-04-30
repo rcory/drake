@@ -28,12 +28,6 @@ DEFINE_double(simulation_time, 3.0, "Amount of time to simulate.");
 DEFINE_double(viz_force_scale, 1,
               "scale factor for visualizing spatial force arrow");
 DEFINE_bool(brick_only, false, "Only simulate brick (no finger).");
-DEFINE_double(
-    yc, 0,
-    "Value of y-coordinate offset for z-face contact (for brick-only sim).");
-DEFINE_double(
-    zc, 0,
-    "Value of z-coordinate offset for y-face contact (for brick-only sim.");
 
 // QP task parameters
 DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
@@ -56,33 +50,20 @@ DEFINE_bool(use_finger3, true, "Use finger3?");
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
 
-/// Note: finger_face_assignments_ should only be used for brick only
-/// simulation. However, currently I (rcory) don't have a good way of computing
-/// the closest contact face for a given finger, so we instead use the
-/// hardcoded values here (used in DoConnectGripperQPController).
-/// Note: The 2d contact position vector below is strictly for brick-only sim.
-// TODO(rcory) Implement a proper "ComputeClosestBrickFace" method for
-//  finger/brick simulations.
-std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-GetFingerFaceAssignments() {
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments;
+/// Utility function that returns the fingers that will be used for this
+/// simulation.
+std::unordered_set<Finger> FingersToControl() {
+  std::unordered_set<Finger> fingers;
   if (FLAGS_use_finger1) {
-    finger_face_assignments.emplace(
-        Finger::kFinger1,
-        std::make_pair(BrickFace::kNegY, Eigen::Vector2d(-0.05, FLAGS_zc)));
+    fingers.emplace(Finger::kFinger1);
   }
   if (FLAGS_use_finger2) {
-    finger_face_assignments.emplace(
-        Finger::kFinger2,
-        std::make_pair(BrickFace::kPosY, Eigen::Vector2d(0.05, FLAGS_zc)));
+    fingers.emplace(Finger::kFinger2);
   }
   if (FLAGS_use_finger3) {
-    finger_face_assignments.emplace(
-        Finger::kFinger3,
-        std::make_pair(BrickFace::kNegZ, Eigen::Vector2d(FLAGS_yc, -0.05)));
+    fingers.emplace(Finger::kFinger3);
   }
-  return finger_face_assignments;
+  return fingers;
 }
 
 void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
@@ -108,7 +89,8 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->brick_rotational_damping_ = brick_damping;
   qpoptions->brick_inertia_ = brick_inertia;
   qpoptions->brick_type_ = BrickType::PinBrick;
-  qpoptions->finger_face_assignments_ = GetFingerFaceAssignments();
+  qpoptions->brick_spatial_force_assignments_ =
+      BrickSpatialForceAssignments(FingersToControl());
 }
 
 int DoMain() {

@@ -11,6 +11,7 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 #include "drake/examples/planar_gripper/planar_gripper_udp.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
@@ -76,11 +77,6 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
                                    systems::BasicVector<double>(6))
           .get_index();
 
-  contact_results_input_port_ =
-      this->DeclareAbstractInputPort("contact_results",
-                                     Value<ContactResults<double>>{})
-          .get_index();
-
   // This force sensor contains {x, y, z} forces in the world (W) frame.
   force_sensor_input_port_ =
       this->DeclareVectorInputPort("force_sensor_wrench",
@@ -93,11 +89,10 @@ ForceController::ForceController(const MultibodyPlant<double>& plant,
               &ForceController::CalcTauOutput)
           .get_index();
 
-  p_BrCb_input_port_ =
-      this->DeclareInputPort("p_BrCb", systems::kVectorValued, 2).get_index();
-
-  is_contact_input_port_ =
-      this->DeclareAbstractInputPort("is_in_contact", Value<bool>{})
+  finger_face_assignments_input_port_ =
+      this->DeclareAbstractInputPort(
+              "finger_face_assignments",
+              Value<std::unordered_map<Finger, BrickFaceInfo>>{})
           .get_index();
 
   this->DeclareContinuousState(3);  // stores ∫ Δf dt
@@ -126,6 +121,11 @@ void ForceController::CalcTauOutput(
   // The desired fingertip force expressed in the world (W) frame.
   /* Note: Even though we store a Vector3, we ignore the x component, since we
    * only care about forces in the y-z plane. */
+  // TODO(rcory) Resolve the fact that we do not currently use the body or
+  //  contact point information from the "desired" ExternallyAppliedSpatialForce
+  //  struct. This is because 1) We assume the object is always the brick and 2)
+  //  We define a separate input port for desired contact state
+  //  (which includes velocities).
   Eigen::Vector3d force_des_W =
       external_spatial_forces_vec[0].F_Bq_W.translational();
 
@@ -145,10 +145,6 @@ void ForceController::CalcTauOutput(
   Vector6<double> contact_state_desired_Br =
       this->EvalVectorInput(context, contact_state_desired_input_port_)
           ->get_value();
-
-  // TODO(rcory) Remove this input port once contact point estimation exists.
-  const auto& contact_results =
-      get_contact_results_input_port().Eval<ContactResults<double>>(context);
 
   Eigen::Vector3d force_sensor_vec_W =
       this->EvalVectorInput(context, force_sensor_input_port_)->get_value();
@@ -194,36 +190,43 @@ void ForceController::CalcTauOutput(
   torque_calc(0) = gravity_vec(base_joint_index);
   torque_calc(1) = gravity_vec(mid_joint_index);
 
-  // p_WC is the contact point reference w.r.t. the World (W). When in contact
-  // this reference is the actual contact point (lying inside the contact
-  // intersection for the point contact model). When not in contact this
-  // reference is the fingertip sphere center.
-  Eigen::Vector3d p_LtC =
-      Eigen::Vector3d::Zero(); /* contact point ref. in tip link frame */
-  Eigen::Vector3d p_WC =
-      Eigen::Vector3d::Zero(); /* contact point ref. in world frame */
+  // p_WCr is the finger's contact reference w.r.t. the World (W). When in
+  // contact this reference is the actual contact point (lying inside the
+  // contact geometry intersection, for the point contact model). When not in
+  // contact this reference is the fingertip sphere center.
+  Eigen::Vector3d p_LtCr =
+      Eigen::Vector3d::Zero(); /* contact ref. in tip link (Lt) frame */
+  Eigen::Vector3d p_WCr =
+      Eigen::Vector3d::Zero(); /* contact ref. in world (W) frame */
 
   // Check whether there is contact between the fingertip and the brick.
-  const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
+  const std::unordered_map<Finger, BrickFaceInfo> finger_face_assignments =
+      get_finger_face_assignments_input_port()
+          .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
+  const BrickFaceInfo brick_face_info =
+      finger_face_assignments.at(options_.finger_to_control_);
+  const bool& is_contact = brick_face_info.is_in_contact;
 
-  // If we have contact, then the contact point reference is given by the
+  // If we have contact, then the contact reference is given by the
   // contact results object and it lies inside the intersection of the
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
-    p_WC = GetFingerContactPoint(contact_results, options_.finger_to_control_);
-    plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WC,
-                               tip_link_frame, &p_LtC);
+    Eigen::Vector3d p_BrCb(0, brick_face_info.p_BCb(0),
+                           brick_face_info.p_BCb(1));
+    p_WCr = R_BrW.inverse() * p_BrCb;
+    plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
+                               tip_link_frame, &p_LtCr);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
-    // center as the contact point reference.
-    p_LtC = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
+    // center as the finger's contact reference, for impedance control.
+    p_LtCr = GetFingerTipSpherePositionInLt(plant_, scene_graph_,
                                            options_.finger_to_control_);
-    plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtC,
-                               plant_.world_frame(), &p_WC);
+    plant_.CalcPointsPositions(*plant_context_, tip_link_frame, p_LtCr,
+                               plant_.world_frame(), &p_WCr);
   }
 
   // Regulate position (in brick frame).
   // First, rotate the contact point reference into the brick frame.
-  Eigen::Vector3d p_BrC = R_BrW * p_WC;
+  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
 
   // Compute the translational velocity Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -235,7 +238,7 @@ void ForceController::CalcTauOutput(
   MatrixX<double> Jv_V_BaC(3, plant_.num_velocities());
   plant_.CalcJacobianTranslationalVelocity(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
-      p_LtC, base_frame, base_frame, &Jv_V_BaC);
+      p_LtCr, base_frame, base_frame, &Jv_V_BaC);
 
   // Extract the 2 x 2 planar only (y-z) translational Jacobian that corresponds
   // to finger joints only (ignore the brick joint).
@@ -247,7 +250,7 @@ void ForceController::CalcTauOutput(
   MatrixX<double> Jv_V_BrickFtip(3, plant_.num_velocities());
   plant_.CalcJacobianTranslationalVelocity(
       *plant_context_, multibody::JacobianWrtVariable::kV, tip_link_frame,
-      p_LtC, brick_frame, brick_frame, &Jv_V_BrickFtip);
+      p_LtCr, brick_frame, brick_frame, &Jv_V_BrickFtip);
   Eigen::Vector3d v_BrC =
       Jv_V_BrickFtip * plant_.GetVelocities(*plant_context_);
 
@@ -266,7 +269,8 @@ void ForceController::CalcTauOutput(
     Eigen::Matrix<double, 3, 3> Ki_force(3, 3);
     Eigen::Matrix<double, 3, 3> Kp_position(3, 3);
     Eigen::Matrix<double, 3, 3> Kd_position(3, 3);
-    GetGains(&Kp_force, &Ki_force, &Kp_position, &Kd_position);
+    GetGains(&Kp_force, &Ki_force, &Kp_position, &Kd_position,
+             brick_face_info.brick_face);
 
     // Rotate the force reported by simulation to brick frame.
     Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
@@ -332,7 +336,7 @@ void ForceController::CalcTauOutput(
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
-    Eigen::Vector2d p_BrC_des = get_p_BrCb_input_port().Eval(context);
+    Eigen::Vector2d p_BrC_des = brick_face_info.p_BCb;
 
     //    Eigen::Vector3d p_BaC_des = Eigen::Vector3d::Zero();
     //    p_BaC_des.tail<2>() = R_BaBr * p_BrC_des;
@@ -411,7 +415,12 @@ void ForceController::DoCalcTimeDerivatives(
   systems::VectorBase<double>& derivatives_vector =
       derivatives->get_mutable_vector();
   // Check whether there is contact between the fingertip and the brick.
-  const bool& is_contact = get_is_contact_input_port().Eval<bool>(context);
+  const std::unordered_map<Finger, BrickFaceInfo> finger_face_assignments =
+      get_finger_face_assignments_input_port()
+          .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
+  const BrickFaceInfo brick_face_info =
+      finger_face_assignments.at(options_.finger_to_control_);
+  const bool& is_contact = brick_face_info.is_in_contact;
   Vector3d controlled_force_diff;
   if (is_contact) {
     controlled_force_diff = (force_des_W - force_sensor_vec_W);
@@ -436,7 +445,8 @@ void ForceController::DoCalcTimeDerivatives(
 void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
                                EigenPtr<Matrix3<double>> Ki_force,
                                EigenPtr<Matrix3<double>> Kp_position,
-                               EigenPtr<Matrix3<double>> Kd_position) const {
+                               EigenPtr<Matrix3<double>> Kd_position,
+                               const BrickFace& brick_face) const {
   DRAKE_DEMAND(Kp_force != EigenPtr<Vector3d>(nullptr));
   DRAKE_DEMAND(Ki_force != EigenPtr<Vector3d>(nullptr));
   DRAKE_DEMAND(Kp_position != EigenPtr<Vector3d>(nullptr));
@@ -445,8 +455,8 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
   // Don't regulate position.
   *Kp_position = MatrixX<double>::Zero(3, 3);
 
-  if (options_.brick_face_ == BrickFace::kPosZ ||
-      options_.brick_face_ == BrickFace::kNegZ) {
+  if (brick_face == BrickFace::kPosZ ||
+      brick_face == BrickFace::kNegZ) {
     *Kp_force << 0, 0, 0, /* don't care about x */
         0, options_.kpf_t_, 0, 0, 0, options_.kpf_n_;
 
@@ -468,29 +478,6 @@ void ForceController::GetGains(EigenPtr<Matrix3<double>> Kp_force,
   }
 }
 
-Vector3d ForceController::GetFingerContactPoint(
-    const ContactResults<double>& contact_results, const Finger finger) const {
-  std::string body_name = to_string(finger) + "_tip_link";
-  multibody::BodyIndex fingertip_link_index =
-      plant_.GetBodyByName(body_name).index();
-  Vector3d contact_point;
-  bool bfound = false;
-  for (int i = 0; i < contact_results.num_point_pair_contacts(); i++) {
-    auto& point_pair_info = contact_results.point_pair_contact_info(i);
-    if (point_pair_info.bodyA_index() == fingertip_link_index ||
-        point_pair_info.bodyB_index() == fingertip_link_index) {
-      contact_point = point_pair_info.contact_point();
-      bfound = true;
-      break;
-    }
-  }
-  if (!bfound) {
-    throw std::runtime_error("Could not find " + body_name +
-                             " in contact results.");
-  }
-  return contact_point;
-}
-
 /// This is a helper system to distribute the output of the multi-finger QP
 /// controller to the separate finger force controllers.
 class QPPlanToForceControllers : public systems::LeafSystem<double> {
@@ -505,11 +492,11 @@ class QPPlanToForceControllers : public systems::LeafSystem<double> {
                         double>>>{});  // std::map<Finger, ExtForces>
 
     // The output ports below are all of type std::vector<ExtForces>
-    this->DeclareAbstractOutputPort("f1_force",
+    this->DeclareAbstractOutputPort("finger1_force",
                                     &QPPlanToForceControllers::CalcF1Output);
-    this->DeclareAbstractOutputPort("f2_force",
+    this->DeclareAbstractOutputPort("finger2_force",
                                     &QPPlanToForceControllers::CalcF2Output);
-    this->DeclareAbstractOutputPort("f3_force",
+    this->DeclareAbstractOutputPort("finger3_force",
                                     &QPPlanToForceControllers::CalcF3Output);
   }
 
@@ -665,13 +652,12 @@ void DoConnectGripperQPController(
     builder->Connect(out_ports.at("qp_brick_control"),
                      in_ports.at("plant_spatial_force"));
 
-    auto finger_face_assigments_source =
+    auto brick_spatial_force_assignments_source =
         builder->AddSystem<systems::ConstantValueSource<double>>(
-            Value<std::unordered_map<Finger,
-                                     std::pair<BrickFace, Eigen::Vector2d>>>(
-                qpoptions.finger_face_assignments_));
+            Value<std::unordered_map<Finger, BrickFaceInfo>>(
+                qpoptions.brick_spatial_force_assignments_));
 
-    builder->Connect(finger_face_assigments_source->get_output_port(0),
+    builder->Connect(brick_spatial_force_assignments_source->get_output_port(0),
                      in_ports.at("qp_finger_face_assignments"));
 
   } else {
@@ -692,111 +678,26 @@ void DoConnectGripperQPController(
 
     DRAKE_DEMAND(finger_force_control_map.has_value());
 
-    // Converts contact points (3 inputs) to an unordered_map of
-    // finger_face_assignments (1 output).
-    std::vector<Finger> fingers;
-    for (auto iter : *finger_force_control_map) {
-      fingers.push_back(iter.first);
-    }
-    auto contact_points_to_finger_face_assignments =
-        builder->AddSystem<ContactPointsToFingerFaceAssignments>(fingers);
-    builder->Connect(contact_points_to_finger_face_assignments->GetOutputPort(
-                         "finger_face_assignments"),
-                     in_ports.at("qp_finger_face_assignments"));
+    auto finger_face_assigner =
+        builder->AddSystem<FingerFaceAssigner>(plant, scene_graph);
+    builder->Connect(zoh_contact_results->get_output_port(),
+                     finger_face_assigner->GetInputPort("contact_results"));
+    builder->Connect(out_ports.at("scene_graph_query"),
+                     finger_face_assigner->GetInputPort("geometry_query"));
+    builder->Connect(out_ports.at("plant_state"),
+                     finger_face_assigner->GetInputPort("plant_state"));
+    builder->Connect(
+        finger_face_assigner->GetOutputPort("finger_face_assignments"),
+        in_ports.at("qp_finger_face_assignments"));
 
-    // Adds system to calculate fingertip contact point.
     for (auto finger_force_control : *finger_force_control_map) {
-      auto contact_point_calc_sys =
-          builder->AddSystem<ContactPointInBrickFrame>(
-              plant, scene_graph, finger_force_control.first);
-      builder->Connect(zoh_contact_results->get_output_port(),
-                       contact_point_calc_sys->GetInputPort("contact_results"));
-      builder->Connect(out_ports.at("plant_state"),
-                       contact_point_calc_sys->GetInputPort("x"));
-
-      // Feed the contact point and contact face information to the
-      // ContactPointsToFingerFaceAssignments system.
-      if (finger_force_control.first == Finger::kFinger1) {
-        builder->Connect(
-            qp2force_sys->GetOutputPort("f1_force"),
-            finger_force_control.second.get_force_desired_input_port());
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("p_BrCb"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger1_contact_point"));
-        const BrickFace face_val =
-            qpoptions.finger_face_assignments_.at(finger_force_control.first)
-                .first;
-        auto face_src =
-            builder->AddSystem<systems::ConstantValueSource<double>>(
-                Value<BrickFace>(face_val));
-        builder->Connect(
-            face_src->get_output_port(0),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger1_contact_face"));
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("b_in_contact"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger1_b_in_contact"));
-      } else if (finger_force_control.first == Finger::kFinger2) {
-        builder->Connect(
-            qp2force_sys->GetOutputPort("f2_force"),
-            finger_force_control.second.get_force_desired_input_port());
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("p_BrCb"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger2_contact_point"));
-        const BrickFace face_val =
-            qpoptions.finger_face_assignments_.at(finger_force_control.first)
-                .first;
-        auto face_src =
-            builder->AddSystem<systems::ConstantValueSource<double>>(
-                Value<BrickFace>(face_val));
-        builder->Connect(
-            face_src->get_output_port(0),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger2_contact_face"));
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("b_in_contact"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger2_b_in_contact"));
-      } else if (finger_force_control.first == Finger::kFinger3) {
-        builder->Connect(
-            qp2force_sys->GetOutputPort("f3_force"),
-            finger_force_control.second.get_force_desired_input_port());
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("p_BrCb"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger3_contact_point"));
-        const BrickFace face_val =
-            qpoptions.finger_face_assignments_.at(finger_force_control.first)
-                .first;
-        auto face_src =
-            builder->AddSystem<systems::ConstantValueSource<double>>(
-                Value<BrickFace>(face_val));
-        builder->Connect(
-            face_src->get_output_port(0),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger3_contact_face"));
-        builder->Connect(
-            contact_point_calc_sys->GetOutputPort("b_in_contact"),
-            contact_points_to_finger_face_assignments->GetInputPort(
-                "finger3_b_in_contact"));
-      } else {
-        throw std::runtime_error("Unknown Finger");
-      }
-
-      builder->Connect(out_ports.at("scene_graph_query"),
-                       contact_point_calc_sys->get_geometry_query_input_port());
-
-      // Communicate the contact point to the force controller (if available).
-      builder->Connect(contact_point_calc_sys->GetOutputPort("p_BrCb"),
-                       finger_force_control.second.get_p_BrCb_input_port());
-
-      // Tells the force controller whether there is contact between the
-      // fingertip and the brick.
-      builder->Connect(contact_point_calc_sys->GetOutputPort("b_in_contact"),
-                       finger_force_control.second.get_is_contact_input_port());
+      builder->Connect(
+          finger_face_assigner->GetOutputPort("finger_face_assignments"),
+          finger_force_control.second.GetInputPort("finger_face_assignments"));
+      builder->Connect(
+          qp2force_sys->GetOutputPort(to_string(finger_force_control.first) +
+                                      "_force"),
+          finger_force_control.second.get_force_desired_input_port());
     }
   }
 }
@@ -1045,8 +946,8 @@ ForceController* SetupForceController(
   auto zoh_contact_results = builder->AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<ContactResults<double>>());
 
-  std::vector<SpatialForce<double>> init_spatial_vec{
-      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero())};
+  std::vector<SpatialForce<double>> init_spatial_vec(plant.num_joints(),
+      SpatialForce<double>(Vector3<double>::Zero(), Vector3<double>::Zero()));
   auto zoh_reaction_forces = builder->AddSystem<systems::ZeroOrderHold<double>>(
       1e-3, Value<std::vector<SpatialForce<double>>>(init_spatial_vec));
 
@@ -1069,8 +970,6 @@ ForceController* SetupForceController(
   //  joint).
   builder->Connect(planar_gripper.GetOutputPort("contact_results"),
                    zoh_contact_results->get_input_port());
-  builder->Connect(zoh_contact_results->get_output_port(),
-                   force_controller->get_contact_results_input_port());
 
   builder->Connect(planar_gripper.GetOutputPort("reaction_forces"),
                    zoh_reaction_forces->get_input_port());
