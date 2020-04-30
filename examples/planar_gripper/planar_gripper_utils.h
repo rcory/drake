@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -11,6 +13,18 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
+
+struct BrickFaceInfo {
+  BrickFaceInfo(const BrickFace face, const Eigen::Vector2d point,
+           bool contact)
+      : brick_face(face),
+        p_BCb(point),
+        is_in_contact(contact) {}
+  BrickFace brick_face;   //  the brick face this finger is assigned to.
+  Eigen::Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
+  bool is_in_contact;     // true if this finger is in contact.
+};
+
 /**
  * Get the geometry ID of the sphere on the finger tip.
  */
@@ -24,6 +38,18 @@ geometry::GeometryId GetFingertipSphereGeometryId(
 geometry::GeometryId GetBrickGeometryId(
     const multibody::MultibodyPlant<double>& plant,
     const geometry::SceneGraphInspector<double>& inspector);
+
+/**
+ * Get the MBP body index for the brick.
+ */
+multibody::BodyIndex GetBrickBodyIndex(
+    const multibody::MultibodyPlant<double>& plant);
+
+/**
+ * Get the MBP body index for the finger's tip link.
+ */
+multibody::BodyIndex GetTipLinkBodyIndex(
+    const multibody::MultibodyPlant<double>& plant, Finger finger);
 
 /**
  * Compute the closest face(s) to a center finger given the posture.
@@ -66,8 +92,16 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FingerFaceAssigner)
 
+  /**
+   * FingerFaceAssigner constructor.
+   * @param plant The MultiBodyPlant
+   * @param scene_graph The SceneGraph
+   * @param fingers The Fingers contained in the plant (three by default).
+   */
   FingerFaceAssigner(const multibody::MultibodyPlant<double>& plant,
-                     const geometry::SceneGraph<double>& scene_graph);
+                     const geometry::SceneGraph<double>& scene_graph,
+                     const std::vector<Finger>& fingers = {
+                         Finger::kFinger1, Finger::kFinger2, Finger::kFinger3});
 
   const systems::OutputPort<double>& get_finger_face_assignments_output_port()
       const {
@@ -79,13 +113,13 @@ class FingerFaceAssigner final : public systems::LeafSystem<double> {
   }
 
  private:
-  void CalcOutput(
+  void CalcFingerFaceAssignments(
       const systems::Context<double>& context,
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-          finger_face_assignments) const;
+      std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const;
 
   const multibody::MultibodyPlant<double>& plant_;
   const geometry::SceneGraph<double>& scene_graph_;
+  std::unique_ptr<systems::Context<double>> plant_context_;
   std::unordered_map<Finger, geometry::GeometryId> finger_sphere_geometry_ids_;
   geometry::GeometryId brick_geometry_id_;
   systems::InputPortIndex geometry_query_input_port_{};
@@ -116,6 +150,23 @@ class PrintKeyframes final : public systems::LeafSystem<double> {
   MatrixX<double> Sx_;  // The state selector matrix.
   bool do_print_time_;  // indicates whether to print context time.
 };
+
+/// Returns the index in `contact_results` where the fingertip/brick contact
+/// information is found. If it isn't found, then
+/// index = contact_results.num_point_pair_contacts()
+std::optional<int> GetContactPairIndex(
+    const multibody::MultibodyPlant<double>& plant,
+    const multibody::ContactResults<double>& contact_results,
+    const Finger finger);
+
+/// Note: This method is strictly defined for brick only simulation, where
+/// spatial forces are applied to the brick directly. Although there are no
+/// physical fingers involved in brick only simulation, we enumerate spatial
+/// forces with Finger numbers (i.e., as keys in the unordered map) for
+/// convenience only.  This method returns an unordered map. It maps a spatial
+/// force (i.e. a virtual Finger) to a BrickFaceInfo struct.
+std::unordered_map<Finger, BrickFaceInfo> BrickSpatialForceAssignments(
+    const std::unordered_set<Finger>& fingers_to_control);
 
 }  // namespace planar_gripper
 }  // namespace examples
