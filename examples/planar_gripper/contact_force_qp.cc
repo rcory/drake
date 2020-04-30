@@ -40,8 +40,7 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const Eigen::Ref<const VectorX<double>>& brick_accel_feedforward,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
-    const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>&
-        finger_face_assignments,
+    const std::unordered_map<Finger, BrickFaceInfo>& finger_face_assignments,
     double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
     double mu, double I_B, double brick_mass, double rotational_damping,
     double translational_damping)
@@ -95,15 +94,15 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     // Now compute the edges of the friction cone in the brick frame. The edges
     // only depends on the brick face.
     const Eigen::Matrix2d friction_cone_edges_B =
-        GetFrictionConeEdges(mu, finger_face_assignment.second.first);
+        GetFrictionConeEdges(mu, finger_face_assignment.second.brick_face);
     // Compute the finger contact position Cbi
-    Vector2<double> p_BCbi = finger_face_assignment.second.second;
+    Vector2<double> p_BCbi = finger_face_assignment.second.p_BCb;
     Vector2<symbolic::Expression> f_Cbi_B =
         friction_cone_edges_B * f_Cbi_B_edges;
     f_Cb_B.emplace(finger_face_assignment.first, f_Cbi_B);
     total_torque += p_BCbi(0) * f_Cbi_B(1) - p_BCbi(1) * f_Cbi_B(0);
     finger_face_contacts_.emplace_back(finger_face_assignment.first,
-                                       finger_face_assignment.second.first,
+                                       finger_face_assignment.second.brick_face,
                                        f_Cbi_B_edges, mu, p_BCbi);
   }
 
@@ -216,18 +215,15 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
                              plant->num_positions() + plant->num_velocities())
           .get_index();
 
-  // This input port contains an unordered map of Finger to a pair of BrickFace
-  // and contact point location. Typically if the finger is not in contact it
-  // shouldn't be included in this input map. However, the QP planner will
-  // happily compute forces/moments for any finger provided in this input (even
-  // if in reality it is not in contact), by assuming the fingertip position is
-  // a valid contact point on the brick (because this QP planner knows nothing
-  // about geometry).
+  // This input port contains an unordered map of Finger to BrickFaceInfo. The
+  // QP controller will determine which fingers to include in the contact
+  // force/moment calculations by examining the `is_in_contact` boolean flag of
+  // the BrickFaceInfo struct. If this flag is set to false, the corresponding
+  // finger will *not* be included in any of the force/moment calculations.
   input_index_finger_face_assignments_ =
       this->DeclareAbstractInputPort(
               "finger_face_assignments",
-              Value<std::unordered_map<
-                  Finger, std::pair<BrickFace, Eigen::Vector2d>>>{})
+              Value<std::unordered_map<Finger, BrickFaceInfo>>{})
           .get_index();
 
   if (brick_type == BrickType::PlanarBrick) {
@@ -270,12 +266,19 @@ void InstantaneousContactForceQPController::CalcFingersControl(
       get_input_port_desired_brick_state().Eval(context);
   const Eigen::VectorBlock<const VectorX<double>> desired_brick_acceleration =
       get_input_port_desired_brick_acceleration().Eval(context);
-  const std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments =
-          get_input_port_finger_face_assignments()
-              .Eval<std::unordered_map<Finger,
-                                       std::pair<BrickFace, Eigen::Vector2d>>>(
-                  context);
+  const std::unordered_map<Finger, BrickFaceInfo> finger_face_assignments_in =
+      get_input_port_finger_face_assignments()
+          .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
+
+  // Determine which fingers to actually include in the QP optimization. If the
+  // finger is in contact, then it is included in the calculations. If it is not
+  // in contact, it is ignored.
+  std::unordered_map<Finger, BrickFaceInfo> finger_face_assignments;
+  for (auto iter : finger_face_assignments_in) {
+    if (iter.second.is_in_contact) {
+      finger_face_assignments.emplace(iter.first, iter.second);
+    }
+  }
 
   // If the map `finger_face_assignments` is empty, then there is nothing to
   // compute. Just return empty in this case.
