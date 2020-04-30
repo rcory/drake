@@ -40,15 +40,10 @@ struct ForceControlOptions {
       Eigen::Matrix2d::Zero()};  // joint damping (j1 & j2)
   double K_compliance_{0};       // impedance control stiffness
   double D_damping_{0};          // impedance control damping
-  double brick_damping_{0};      // brick pin joint damping
-  double brick_inertia_{0};      // brick's rotational inertia
   bool always_direct_force_control_{
-      true};  // false for impedance control during non-contact
+      false};  // if false, do impedance control during non-contact
   Finger finger_to_control_{
       Finger::kFinger1};  // specifies which finger to control.
-
-  // TODO(rcory) Compute this on the fly instead.
-  BrickFace brick_face_;
 };
 
 // Force controller with pure gravity compensation (no dynamics compensation
@@ -67,7 +62,7 @@ struct ForceControlOptions {
 ///   @input_port{tip_state_desired}
 ///   @input_port{contact_results}
 ///   @input_port{force_sensor_wrench}
-///   @input_port{p_BrFingerTip}
+///   @input_port{p_BrCb}
 ///   @input_port{is_in_contact}
 ///   @output_port{tau}
 /// }
@@ -111,12 +106,12 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(finger_state_actual_input_port_);
   }
 
-  const InputPort<double>& get_contact_state_desired_input_port() const {
-    return this->get_input_port(contact_state_desired_input_port_);
+  const InputPort<double>& get_plant_state_actual_input_port() const {
+    return this->get_input_port(plant_state_actual_input_port_);
   }
 
-  const InputPort<double>& get_contact_results_input_port() const {
-    return this->get_input_port(contact_results_input_port_);
+  const InputPort<double>& get_contact_state_desired_input_port() const {
+    return this->get_input_port(contact_state_desired_input_port_);
   }
 
   const InputPort<double>& get_force_sensor_input_port() const {
@@ -127,19 +122,9 @@ class ForceController : public systems::LeafSystem<double> {
     return this->get_input_port(geometry_query_input_port_);
   }
 
-  const InputPort<double>& get_is_contact_input_port() const {
-    return this->get_input_port(is_contact_input_port_);
-  }
-
-  /**
-   * This port takes in the current finger tip sphere / brick contact point.
-   * This may be an actual contact point (if there is contact) or the closest
-   * point on the brick to the fingertip sphere center, which serves as a
-   * desired contact point. Notice that we ignore the x position since it is a
-   * planar system.
-   */
-  const systems::InputPort<double>& get_p_BrCb_input_port() const {
-    return this->get_input_port(p_BrCb_input_port_);
+  const systems::InputPort<double>& get_finger_face_assignments_input_port()
+      const {
+    return this->get_input_port(finger_face_assignments_input_port_);
   }
 
   const OutputPort<double>& get_torque_output_port() const {
@@ -157,13 +142,10 @@ class ForceController : public systems::LeafSystem<double> {
   void GetGains(EigenPtr<Matrix3<double>> Kp_force,
                 EigenPtr<Matrix3<double>> Ki_force,
                 EigenPtr<Matrix3<double>> Kp_position,
-                EigenPtr<Matrix3<double>> Kd_position) const;
+                EigenPtr<Matrix3<double>> Kd_position,
+                const BrickFace& brick_face) const;
 
  private:
-  Vector3d GetFingerContactPoint(
-      const multibody::ContactResults<double>& contact_results,
-      const Finger finger) const;
-
   const MultibodyPlant<double>& plant_;
   const SceneGraph<double>& scene_graph_;
   // This context is used solely for setting generalized positions and
@@ -173,11 +155,9 @@ class ForceController : public systems::LeafSystem<double> {
   InputPortIndex finger_state_actual_input_port_{};
   InputPortIndex plant_state_actual_input_port_{};
   InputPortIndex contact_state_desired_input_port_{};
-  InputPortIndex contact_results_input_port_{};
   InputPortIndex force_sensor_input_port_{};
   InputPortIndex geometry_query_input_port_{};
-  InputPortIndex p_BrCb_input_port_{};
-  InputPortIndex is_contact_input_port_{};
+  InputPortIndex finger_face_assignments_input_port_{};
   OutputPortIndex torque_output_port_{};
   ForceControlOptions options_;
 };
@@ -205,7 +185,7 @@ struct QPControlOptions {
   double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight.
   double QP_mu_{0};  // coefficient of static friction between brick/fingertip.
 
-  bool brick_only_{false};  // only control brick (no finger).
+  bool brick_only_{false};  // only control brick (no fingers).
   double viz_force_scale_{
       0};  // scale factor for visualizing spatial force arrow.
 
@@ -215,9 +195,10 @@ struct QPControlOptions {
   double brick_inertia_{0};                // brick's rotational inertia.
   double brick_mass_{0};                   // brick's mass.
 
-  // The brick's finger/contact-face assignments.
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignments_;
+  // Finger/face assignment map for *brick only* simulation.
+  // Note: This map will *not* be used by the QP controller if `brick_only` is
+  // false.
+  std::unordered_map<Finger, BrickFaceInfo> brick_spatial_force_assignments_;
 
   BrickType brick_type_{BrickType::PinBrick};
 };
