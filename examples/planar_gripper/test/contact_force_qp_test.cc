@@ -38,8 +38,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   // Adds the object to be manipulated.
   auto object_file_name =
       FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
-  auto brick_index =
-      multibody::Parser(&plant).AddModelFromFile(object_file_name, "brick");
+  auto brick_index = multibody::Parser(&plant, &scene_graph)
+                         .AddModelFromFile(object_file_name, "brick");
   const multibody::Frame<double>& brick_base_frame =
       plant.GetFrameByName("brick_base_link", brick_index);
   plant.WeldFrames(plant.world_frame(), brick_base_frame);
@@ -136,10 +136,9 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
 
   Vector6<double> brick_state;
   brick_state << theta, thetadot;
-  std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>
-      finger_face_assignment;
+  std::unordered_map<Finger, BrickFaceInfo> finger_face_assignment;
   finger_face_assignment.emplace(Finger::kFinger1,
-                                 std::make_pair(BrickFace::kPosZ, p_BCb));
+                                 BrickFaceInfo(BrickFace::kPosZ, p_BCb, true));
   Eigen::Vector2d zero2d = Eigen::Vector2d::Zero();
   InstantaneousContactForceQP qp2(
       BrickType::PinBrick, brick_state, brick_state_desired,

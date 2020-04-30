@@ -31,68 +31,6 @@ double GetFingerTipSphereRadius(const multibody::MultibodyPlant<double>& plant,
 Eigen::Vector3d GetBrickSize(const multibody::MultibodyPlant<double>& plant,
                              const geometry::SceneGraph<double>& scene_graph);
 
-multibody::BodyIndex GetBrickBodyIndex(
-    const multibody::MultibodyPlant<double>& plant);
-
-multibody::BodyIndex GetTipLinkBodyIndex(
-    const multibody::MultibodyPlant<double>& plant, const Finger finger);
-
-/// A system that computes the fingertip-sphere contact location in brick frame.
-class ContactPointInBrickFrame final : public systems::LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointInBrickFrame)
-
-  ContactPointInBrickFrame(const multibody::MultibodyPlant<double>& plant,
-                           const geometry::SceneGraph<double>& scene_graph,
-                           const Finger finger = Finger::kFinger1);
-
-  void in_contact(const drake::systems::Context<double>& context,
-                  bool* is_in_contact) const;
-
-  void CalcOutput(const systems::Context<double>& context,
-                  systems::BasicVector<double>* output) const;
-
-  const systems::InputPort<double>& get_geometry_query_input_port() const {
-    return this->get_input_port(geometry_query_input_port_);
-  }
-
- private:
-  const multibody::MultibodyPlant<double>& plant_;
-  const geometry::SceneGraph<double>& scene_graph_;
-  std::unique_ptr<systems::Context<double>> plant_context_;
-  systems::InputPortIndex geometry_query_input_port_{};
-  const Finger finger_{Finger::kFinger1}; /* the finger to control */
-};
-
-/// A system to convert the individual contact points coming out of
-/// ContactPointInBrickFrame into a
-/// std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>{}, where
-/// BrickFace would be kClosest (meaning it isn't used) and the Vector2d is the
-/// contact point. This is really only needed because the QP controller takes
-/// in the unordered_map format.
-/// This system declares 3*n input ports, where n is the number of fingers that
-/// are under force control.
-/// This system declares one output port, that contains the unordered_map
-/// (defined above) whose values describe *only fingers that are in contact*.
-/// Information for fingers not in contact is not included in the output.
-/// Note: If no fingers are in contact the output map will be empty.
-// TODO(rcory) Figure out a way to get rid of this translation.
-class ContactPointsToFingerFaceAssignments final
-    : public systems::LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ContactPointsToFingerFaceAssignments);
-
-  explicit ContactPointsToFingerFaceAssignments(std::vector<Finger> fingers);
-
-  void CalcOutput(
-      const systems::Context<double>& context,
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-          finger_face_assignments) const;
-
- private:
-  std::vector<Finger> fingers_;
-};
-
 /// A system that outputs the force vector portion of ContactResults as
 /// well as the vector of plant reaction forces felt at the force sensor weld,
 /// both expressed in the world (W) frame.
