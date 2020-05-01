@@ -114,6 +114,11 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
     std::pair<MatrixX<double>, std::map<std::string, int>>*
         brick_keyframe_info = nullptr);
 
+std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframesAndModes(
+    const std::string& name, VectorX<double>* times, MatrixX<double>* modes,
+    std::pair<MatrixX<double>, std::map<std::string, int>>*
+        brick_keyframe_info = nullptr);
+
 /**
  * Reorders the joint keyframe matrix data contained in `keyframes` such that
  * joint keyframes (rows) are ordered according to the `plant`'s joint velocity

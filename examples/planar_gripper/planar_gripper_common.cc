@@ -214,9 +214,10 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
   std::string line;
   int line_count = 0;
   while (!std::getline(file, line).eof()) {
+//    drake::log()->info("{}\n", line);
     line_count++;
   }
-  const int keyframe_count = line_count - 1;
+  const int keyframe_count = line_count;
   drake::log()->info("Found {} keyframes", keyframe_count);
 
   // Get the file headers.
@@ -251,6 +252,117 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
   std::vector<std::string> brick_joint_ordering = {"brick_translate_y_joint",
                                                    "brick_translate_z_joint",
                                                    "brick_revolute_x_joint"};
+  MatrixX<double> brick_joint_keyframes =
+      MakeKeyframes(all_keyframes, brick_joint_ordering, headers);
+  if (brick_keyframe_info != nullptr) {
+    brick_joint_keyframes.transposeInPlace();
+    // Create the brick joint name to row index map.
+    std::map<std::string, int> brick_joint_name_to_row_index_map;
+    for (size_t i = 0; i < brick_joint_ordering.size(); i++) {
+      brick_joint_name_to_row_index_map[brick_joint_ordering[i]] = i;
+    }
+    brick_keyframe_info->first = brick_joint_keyframes;
+    brick_keyframe_info->second = brick_joint_name_to_row_index_map;
+  }
+
+  // Find the columns in the keyframe data for just the finger joints and
+  // create the corresponding keyframe matrix.
+  std::vector<std::string> finger_joint_ordering = {
+      "finger1_BaseJoint", "finger2_BaseJoint", "finger3_BaseJoint",
+      "finger1_MidJoint",  "finger2_MidJoint",  "finger3_MidJoint"};
+  MatrixX<double> finger_joint_keyframes =
+      MakeKeyframes(all_keyframes, finger_joint_ordering, headers);
+  finger_joint_keyframes.transposeInPlace();
+
+  // Create the finger joint name to row index map.
+  std::map<std::string, int> finger_joint_name_to_row_index_map;
+  for (size_t i = 0; i < finger_joint_ordering.size(); i++) {
+    finger_joint_name_to_row_index_map[finger_joint_ordering[i]] = i;
+  }
+
+  return std::make_pair(finger_joint_keyframes,
+                        finger_joint_name_to_row_index_map);
+}
+
+std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframesAndModes(
+    const std::string& name, VectorX<double>* times, MatrixX<double>* modes,
+    std::pair<MatrixX<double>, std::map<std::string, int>>*
+        brick_keyframe_info) {
+  const std::string keyframe_path = FindResourceOrThrow(name);
+  std::fstream file;
+  file.open(keyframe_path, std::fstream::in);
+  DRAKE_DEMAND(file.is_open());
+
+  // Count the number of lines in the file.
+  std::string line;
+  int line_count = 0;
+  while (!std::getline(file, line).eof()) {
+    line_count++;
+  }
+
+  // There is one line for the header and three lines per keyframe (q, t, mode)
+  // (and a newline/EOF at the end, which isn't counted in line_count).
+  const int keyframe_count = (line_count - 1) / 3;
+  drake::log()->info("Found {} lines", line_count);
+  drake::log()->info("Found {} keyframes", keyframe_count);
+
+  // Get the file headers.
+  file.clear();
+  file.seekg(0);
+  std::getline(file, line);
+  std::stringstream sstream(line);
+  std::vector<std::string> headers;
+  std::string token;
+  while (sstream >> token) {
+    headers.push_back(token);
+  }
+
+  // Make sure we read the correct number of headers.
+  const int kNumHeadersPinBrick = 7;
+  const int kNumHeadersPlanarBrick = kNumHeadersPinBrick + 2;
+  if ((headers.size() != kNumHeadersPinBrick) &&
+      (headers.size() != kNumHeadersPlanarBrick)) {
+    throw std::runtime_error(
+        "Unexpected number of headers found in keyframe input file.");
+  }
+  bool is_planar_brick = headers.size() == kNumHeadersPlanarBrick;
+
+  // Extract all keyframes (finger and brick)
+  MatrixX<double> all_keyframes(keyframe_count, headers.size());
+  VectorX<double> all_times(keyframe_count);
+  MatrixX<double> all_modes(keyframe_count, 3);
+  for (int i = 0; i < all_keyframes.rows(); ++i) {
+    // First read the keyframes.
+    for (int j = 0; j < all_keyframes.cols(); ++j) {
+      file >> all_keyframes(i, j);
+    }
+    // Next read the time.
+    file >> all_times(i);
+
+    // Finally, read the contact modes.
+    for (int j = 0; j < 3 /* num modes */; ++j) {
+      file >> all_modes(i, j);
+    }
+  }
+  all_modes.transposeInPlace();
+
+  // Assign the times and modes outputs.
+  times->resize(all_times.size());
+  modes->resize(all_modes.rows(), all_modes.cols());
+  *times = all_times;
+  *modes = all_modes;
+
+  // Find the columns in the keyframe data for just the brick joints and create
+  // the corresponding keyframe matrix. Note: Only the first keyframe is used to
+  // set the brick's initial position. All other brick keyframe data is unused.
+  std::vector<std::string> brick_joint_ordering;
+  if (is_planar_brick) {
+    brick_joint_ordering = {"brick_translate_y_joint",
+                            "brick_translate_z_joint",
+                            "brick_revolute_x_joint"};
+  } else {
+    brick_joint_ordering = {"brick_revolute_x_joint"};
+  }
   MatrixX<double> brick_joint_keyframes =
       MakeKeyframes(all_keyframes, brick_joint_ordering, headers);
   if (brick_keyframe_info != nullptr) {

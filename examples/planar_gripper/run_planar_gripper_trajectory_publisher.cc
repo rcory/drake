@@ -44,7 +44,7 @@ DEFINE_double(keyframe_dt, 0.02,
               "corresponds to a `knot` point. Note that keyframe data in "
               "postures.txt contains static equilibrium poses and we play "
               "these back at an arbitrary speed for this simulation.");
-DEFINE_string(keyframes_filename, "postures.txt",
+DEFINE_string(keyframes_filename, "planar_brick_postures_01.txt",
               "The name of the file containing the keyframes.");
 
 const char* const kLcmGripperStatusChannel = "PLANAR_GRIPPER_STATUS";
@@ -119,8 +119,18 @@ int DoMain() {
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
+
+//  std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
+//      ParseKeyframes(keyframe_path, &brick_keyframe_info);
+
+  VectorX<double> times;
+  MatrixX<double> modes;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path, &brick_keyframe_info);
+      ParseKeyframesAndModes(keyframe_path, &times, &modes,
+                             &brick_keyframe_info);
+  DRAKE_DEMAND(times.size() == finger_keyframes.cols());
+  DRAKE_DEMAND(modes.rows() == 3 && modes.cols() == finger_keyframes.cols());
+
   finger_keyframes = ReorderKeyframesForPlant(control_plant, finger_keyframes,
                                        &finger_joint_name_to_row_index_map);
   // Here we assume the gripper frame G is aligned with the world frame W, e.g.,
@@ -128,10 +138,10 @@ int DoMain() {
   // TODO(rcory) Figure out a way to enforce this.
 
   // Creates the time vector for the plan interpolator.
-  Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
-  for (int i = 1; i < finger_keyframes.cols(); ++i) {
-    times(i) = i * FLAGS_keyframe_dt;
-  }
+//  Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
+//  for (int i = 1; i < finger_keyframes.cols(); ++i) {
+//    times(i) = i * FLAGS_keyframe_dt;
+//  }
   const auto finger_pp =
       trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
           times, finger_keyframes);
@@ -141,6 +151,14 @@ int DoMain() {
   MatrixX<double> brick_keyframes = brick_keyframe_info.first;
   std::map<std::string, int> brick_joint_name_to_row_index_map =
       brick_keyframe_info.second;
+  // This is a hack.
+  if (brick_keyframes.rows() == 1) {
+    int nkeys = brick_keyframes.cols();
+    brick_keyframes.conservativeResize(3, nkeys);
+    brick_keyframes.block(1, 0, 2, nkeys) = MatrixX<double>::Zero(2, nkeys);
+    brick_joint_name_to_row_index_map["brick_translate_y_joint"] = 1;
+    brick_joint_name_to_row_index_map["brick_translate_z_joint"] = 2;
+  }
   const auto brick_pp =
       trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
           times, brick_keyframes);
