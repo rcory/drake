@@ -229,7 +229,7 @@ drake_cc_binary(
         "//examples/planar_gripper:pinned_brick_postures_01.txt",
         "//examples/planar_gripper:pinned_brick_postures_02.txt",
         "//examples/planar_gripper:pinned_brick_postures_03.txt",
-        "//examples/planar_gripper:postures.txt",
+        "//examples/planar_gripper:pinned_brick_postures_04.txt",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
@@ -307,6 +307,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         "//examples/planar_gripper:pinned_brick_postures_03.txt",
+        "//examples/planar_gripper:pinned_brick_postures_04.txt",
     ],
     test_rule_args = [
         "--test",

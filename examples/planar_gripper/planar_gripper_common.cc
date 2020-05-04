@@ -511,7 +511,7 @@ void PublishBodyFrames(const systems::Context<double>& plant_context,
     poses.push_back(X_WB);
   }
 
-  PublishFramesToLcm("SIM", poses, body_names, lcm);
+  PublishFramesToLcm("SIM_BODIES", poses, body_names, lcm);
 }
 
 std::vector<std::string> GetPreferredFingerJointOrdering() {
@@ -554,8 +554,7 @@ FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
                    lcm::DrakeLcm* lcm, double period, bool frames_input)
     : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
   this->DeclareVectorInputPort(
-      "x", systems::BasicVector<double>(plant.num_positions() +
-                                        plant.num_velocities() /* mbp state*/));
+      "x", systems::BasicVector<double>(plant.num_multibody_states()));
   // if true, then we create an additional input port which takes arbitrary
   // frames to visualize (a vector of type RigidTransform).
   if (frames_input_) {
@@ -578,7 +577,7 @@ systems::EventStatus FrameViz::PublishFramePose(
           "sim_frame_" + std::to_string(iter - frames_vec.begin());
       frames_names.push_back(name);
     }
-    PublishFramesToLcm("SIM", frames_vec, frames_names, lcm_);
+    PublishFramesToLcm("SIM_FRAMES", frames_vec, frames_names, lcm_);
   } else {
     auto state = this->EvalVectorInput(context, 0)->get_value();
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);

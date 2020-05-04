@@ -30,8 +30,8 @@ using multibody::RevoluteJoint;
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(simulation_time, 4.0,
-              "Desired duration of the simulation in seconds.");
+//DEFINE_double(simulation_time, 4.0,
+//              "Desired duration of the simulation in seconds.");
 DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
@@ -40,12 +40,12 @@ DEFINE_double(penetration_allowance, 0.2, "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 
 // Initial finger angles.
-DEFINE_double(f1_base, -0.55, "f1_base");  // shoulder joint
-DEFINE_double(f1_mid, 1.5, "f1_mid");      // elbow joint
-DEFINE_double(f2_base, 0.75, "f2_base");
-DEFINE_double(f2_mid, -0.7, "f2_mid");
-DEFINE_double(f3_base, -0.15, "f3_base");
-DEFINE_double(f3_mid, 1.2, "f3_mid");
+DEFINE_double(f1_base, 0.7650069447129985, "f1_base");  // shoulder joint
+DEFINE_double(f1_mid, -1.0815832660629097, "f1_mid");      // elbow joint
+DEFINE_double(f2_base, 0.6765564344613065, "f2_base");
+DEFINE_double(f2_mid, -0.7448111322823014, "f2_mid");
+DEFINE_double(f3_base, 0.24937653592778639, "f3_base");
+DEFINE_double(f3_mid, 0.18475473971669903, "f3_mid");
 
 DEFINE_double(G_ROT, 0,
               "Rotation of gripper frame (G) w.r.t. the world frame W around "
@@ -75,7 +75,7 @@ DEFINE_bool(use_finger2, true, "Use finger2?");
 DEFINE_bool(use_finger3, true, "Use finger3?");
 
 // Boundary conditions.
-DEFINE_double(theta0, -M_PI_4 + 0.2, "initial theta (rad)");
+DEFINE_double(theta0, -0.6478211916450246, "initial theta (rad)");
 DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
 DEFINE_double(y0, 0, "initial brick y position (m).");
 DEFINE_double(z0, 0, "initial brick z position (m).");
@@ -84,7 +84,7 @@ DEFINE_double(zf, 0, "goal brick z position (m), for regulation task.");
 DEFINE_double(thetaf, M_PI_4,
               "goal brick theta rotation (rad), for regulation task.");
 DEFINE_bool(
-    is_regulation_task, true,
+    is_regulation_task, false,
     "Defines the type of control task. If set to `true`, the QP planner "
     "executes a regulation task. If set to false, the QP planner executes a "
     "tracking task. A `regulation` task controls the brick to a set-point "
@@ -98,9 +98,9 @@ DEFINE_string(brick_type, "pinned",
 DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 DEFINE_double(QP_Kp_t, 350, "QP controller translational Kp gain.");
 DEFINE_double(QP_Kd_t, 100, "QP controller translational Kd gain.");
-DEFINE_double(QP_Kp_r_pinned, 150,
+DEFINE_double(QP_Kp_r_pinned, 2e3,
               "QP controller rotational Kp gain for pinned brick.");
-DEFINE_double(QP_Kd_r_pinned, 50,
+DEFINE_double(QP_Kd_r_pinned, 10,
               "QP controller rotational Kd gain for pinned brick.");
 DEFINE_double(QP_Kp_r_planar, 195,
               "QP controller rotational Kp gain for planar brick.");
@@ -118,18 +118,20 @@ DEFINE_double(switch_time, 0.7, "Hybrid control switch time");
 DEFINE_bool(print_keyframes, false,
             "Print joint positions (keyframes) to standard out?");
 
+DEFINE_double(time_scale_factor, 1, "time scale factor.");
+
 // For this demo, we switch from position control to torque control after a
 // certain time has elapsed (given by the flag switch_time). This should occur
 // right after contact is initiated with all three fingers.
 // This system has a single output port that contains the control type to use
 // based on the current context time.
-class OutputControlType final : public systems::LeafSystem<double> {
+class TimedControlType final : public systems::LeafSystem<double> {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(OutputControlType);
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(TimedControlType);
 
-  OutputControlType() {
+  TimedControlType() {
     this->DeclareAbstractOutputPort("control_type",
-                                    &OutputControlType::SetOutput);
+                                    &TimedControlType::SetOutput);
   }
   void SetOutput(const systems::Context<double>& context,
                  ControlType* control_type) const {
@@ -140,6 +142,120 @@ class OutputControlType final : public systems::LeafSystem<double> {
     }
   }
 };
+
+// This system generates three outputs (one for each finger) indicating whether
+// it is in position or force control mode. The system is constructed using
+// a matrix of mode keyframes, which indicate which BrickFace each of the
+// fingers should be in contact with (or if it should not be in contact at all).
+// In this system, we ignore the desired contact BrickFace. If the finger's
+// contact BrickFace is greater than -1, then we transition to force control
+// mode, if the BrickFace is -1, then we transition to position control.
+
+// TODO(rcory) Later implementations should at least monitor the "desired"
+//  contact BrickFace given by the contact mode keyframes, and throw if we don't
+//  match.
+class KeyframeControlType final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(KeyframeControlType);
+
+  KeyframeControlType(Eigen::VectorXd times, MatrixX<double> modes)
+      : times_(times), modes_(modes) {
+    this->DeclareAbstractOutputPort("finger1_control_type",
+                                    &KeyframeControlType::Setf1ControlType);
+    this->DeclareAbstractOutputPort("finger2_control_type",
+                                    &KeyframeControlType::Setf2ControlType);
+    this->DeclareAbstractOutputPort("finger3_control_type",
+                                    &KeyframeControlType::Setf3ControlType);
+
+    // Holds the current time index, initialized to zero.
+    this->DeclareDiscreteState(1);
+  }
+
+  void DoCalcNextUpdateTime(
+      const systems::Context<double>& context,
+      systems::CompositeEventCollection<double>* events,
+      double* time) const override {
+    LeafSystem<double>::DoCalcNextUpdateTime(context, events, time);
+    *time = times_(context.get_discrete_state(0).get_value()(0));
+
+    // Create a discrete update event and tie the handler to the corresponding
+    // function.
+    systems::DiscreteUpdateEvent<double>::DiscreteUpdateCallback callback =
+        [this](const systems::Context<double>& c,
+               const systems::DiscreteUpdateEvent<double>& du_event,
+               systems::DiscreteValues<double>* dvals) {
+          this->DiscreteCallbackTest(c, du_event, dvals);
+        };
+
+    systems::EventCollection<systems::DiscreteUpdateEvent<double>>& pub_events =
+        events->get_mutable_discrete_update_events();
+    pub_events.add_event(std::make_unique<systems::DiscreteUpdateEvent<double>>(
+        systems::TriggerType::kTimed, callback));
+  }
+
+  void Setf1ControlType(
+      const systems::Context<double>& context,
+      ControlType* control_type) const {
+    double index = context.get_discrete_state().get_vector().get_value()(0);
+    *control_type = //ControlType::kPosition;
+        (modes_(0, index) > -1) ? ControlType::kTorque : ControlType::kPosition;
+    //    drake::log()->info("mode_f1: {}", modes_(0, index));
+  }
+
+  void Setf2ControlType(
+      const systems::Context<double>& context,
+      ControlType* control_type) const {
+    double index = context.get_discrete_state().get_vector().get_value()(0);
+    *control_type = //ControlType::kPosition;
+        (modes_(1, index) > -1) ? ControlType::kTorque : ControlType::kPosition;
+//    drake::log()->info("mode_f1: {}", modes_(0, index));
+  }
+
+  void Setf3ControlType(
+      const systems::Context<double>& context,
+      ControlType* control_type) const {
+    double index = context.get_discrete_state().get_vector().get_value()(0);
+    *control_type = //ControlType::kPosition;
+        (modes_(2, index) > -1) ? ControlType::kTorque : ControlType::kPosition;
+//    drake::log()->info("mode_f1: {}", modes_(0, index));
+  }
+
+  systems::EventStatus DiscreteCallbackTest(
+      const systems::Context<double>& context,
+      const systems::DiscreteUpdateEvent<double>& event,
+      systems::DiscreteValues<double>* values) const {
+//    drake::log()->info("Current time: {}", context.get_time());
+    double current_index = values->get_vector().get_value()(0);
+    values->get_mutable_vector().get_mutable_value()(0) =
+        std::min<double>(times_.size() - 1, current_index + 1);
+    return systems::EventStatus::Succeeded();
+  }
+
+ private:
+  Eigen::VectorXd times_;
+  MatrixX<double> modes_;
+};
+
+ class BrickPlanFrameViz final : public systems::LeafSystem<double> {
+  public:
+   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BrickPlanFrameViz);
+
+   BrickPlanFrameViz() {
+     this->DeclareVectorInputPort("brick_angle",
+                                  systems::BasicVector<double>(1));
+     this->DeclareAbstractOutputPort("brick_xform",
+                                     &BrickPlanFrameViz::CalcXForm);
+   }
+
+   void CalcXForm(const systems::Context<double>& context,
+                  std::vector<math::RigidTransform<double>>* xform_vec) const {
+     double angle = this->EvalVectorInput(context, 0)->get_value()(0);
+     auto xform = math::RigidTransform<double>(
+         math::RollPitchYaw<double>(Vector3d(angle, 0, 0)), Vector3d::Zero());
+     xform_vec->clear();
+     xform_vec->push_back(xform);
+   }
+ };
 
 /// Utility function that returns the fingers that will be used for this
 /// simulation.
@@ -262,29 +378,46 @@ int DoMain() {
 
   // Parse the keyframes
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/pinned_brick_postures_03.txt";
+      "drake/examples/planar_gripper/pinned_brick_postures_04.txt";
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
+
+//  std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
+//      ParseKeyframes(keyframe_path, &brick_keyframe_info);
+
+  VectorX<double> times;
+  MatrixX<double> modes;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path, &brick_keyframe_info);
+      ParseKeyframesAndModes(keyframe_path, &times, &modes,
+                             &brick_keyframe_info);
+  DRAKE_DEMAND(times.size() == finger_keyframes.cols());
+  DRAKE_DEMAND(modes.rows() == 3 && modes.cols() == finger_keyframes.cols());
+  finger_keyframes = ReorderKeyframesForPlant(
+      planar_gripper->get_control_plant(), finger_keyframes,
+      &finger_joint_name_to_row_index_map);
+
+  // time rescaling hack.
+  times = times * FLAGS_time_scale_factor;
+
   MatrixX<double> brick_keyframes = brick_keyframe_info.first;
   std::map<std::string, int> brick_joint_name_to_row_index_map =
       brick_keyframe_info.second;
 
   // Create the individual finger matrices. For this demo, we assume we have
   // three fingers, two joints each.
-  DRAKE_DEMAND(kNumFingers == 3);
-  DRAKE_DEMAND(kNumJointsPerFinger == 2);
+  DRAKE_DEMAND(kNumFingers == 3 && kNumJointsPerFinger == 2);
   int num_keys = finger_keyframes.cols();
 
-  // Creates the time vector for the plan interpolator.
-  Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
-  for (int i = 1; i < finger_keyframes.cols(); ++i) {
-    times(i) = i * 0.1 /* plan dt */;
-  }
+//  // Creates the time vector for the plan interpolator.
+//  Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
+//  for (int i = 1; i < finger_keyframes.cols(); ++i) {
+//    times(i) = i * 0.1 /* plan dt */;
+//  }
 
-  // Create the brick's desired state trajectory.
+  // Create the brick's desired state trajectory, created from a
+  // piece-wise polynomial of the brick position keyframes. The brick's
+  // trajectory source is created/connected in ConnectQPController().
   if (FLAGS_brick_type == "pinned") {
     qpoptions.desired_brick_traj_ =
         trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
@@ -304,7 +437,8 @@ int DoMain() {
             times, ordered_brick_keyframes);
   }
 
-  // Create and connect the trajectory sources.
+  // Create and connect the finger trajectory sources, created from a piece-wise
+  // polynomial of the finger position keyframes.
   for (int i = 0; i < kNumFingers; i++) {
     MatrixX<double> fn_keyframes(2, num_keys);
     fn_keyframes.row(0) = finger_keyframes.row(
@@ -324,8 +458,10 @@ int DoMain() {
                         "finger" + std::to_string(i + 1) + "_desired_state"));
   }
 
+  auto control_type_src = builder.AddSystem<KeyframeControlType>(times, modes);
+
   // Add and connect the control_type source system.
-  auto control_type_src = builder.AddSystem<OutputControlType>();
+//  auto control_type_src = builder.AddSystem<TimedControlType>();
   DRAKE_DEMAND(finger_force_control_map.size() == kNumFingers);
   for (auto iter = finger_force_control_map.begin();
        iter != finger_force_control_map.end(); ++iter) {
@@ -335,7 +471,7 @@ int DoMain() {
         force_controller.get_torque_output_port(),
         planar_gripper->GetInputPort(to_string(finger) + "_torque_control_u"));
     builder.Connect(
-        control_type_src->GetOutputPort("control_type"),
+        control_type_src->GetOutputPort(to_string(finger) + "_control_type"),
         planar_gripper->GetInputPort(to_string(finger) + "_control_type"));
     }
 
@@ -348,29 +484,42 @@ int DoMain() {
     builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                     frame_viz->get_input_port(0));
 
-    math::RigidTransformd goal_frame;
-    goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
-    PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
+    auto frame_viz_path = builder.AddSystem<FrameViz>(
+        planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
+  auto brick_desired_state_traj_source =
+      builder.AddSystem<systems::TrajectorySource<double>>(
+          qpoptions.desired_brick_traj_);
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  frame_viz_path->get_input_port(0));
+  auto brick_xform_src = builder.AddSystem<BrickPlanFrameViz>();
+  builder.Connect(brick_desired_state_traj_source->get_output_port(),
+                  brick_xform_src->get_input_port(0));
+  builder.Connect(brick_xform_src->get_output_port(0),
+                  frame_viz_path->get_input_port(1));
 
-    // Connect drake visualizer.
-    geometry::ConnectDrakeVisualizer(
-        &builder, planar_gripper->get_mutable_scene_graph(),
-        planar_gripper->GetOutputPort("pose_bundle"), &drake_lcm);
+//  math::RigidTransformd goal_frame;
+//  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+//  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
 
-    // Publish contact results for visualization.
-    ConnectContactResultsToDrakeVisualizer(
-        &builder, planar_gripper->get_mutable_multibody_plant(),
-        planar_gripper->GetOutputPort("contact_results"));
+  // Connect drake visualizer.
+  geometry::ConnectDrakeVisualizer(
+      &builder, planar_gripper->get_mutable_scene_graph(),
+      planar_gripper->GetOutputPort("pose_bundle"), &drake_lcm);
 
-    if (FLAGS_print_keyframes) {
-      // Prints the state to standard output.
-      auto joint_ordering = GetPreferredGripperJointOrdering();
-      joint_ordering.emplace_back("brick_revolute_x_joint");
-      auto state_pub = builder.AddSystem<PrintKeyframes>(
-          planar_gripper->get_multibody_plant(), joint_ordering, 0.1,
-          false /* don't print time */);
-      builder.Connect(planar_gripper->GetOutputPort("plant_state"),
-                      state_pub->GetInputPort("plant_state"));
+  // Publish contact results for visualization.
+  ConnectContactResultsToDrakeVisualizer(
+      &builder, planar_gripper->get_mutable_multibody_plant(),
+      planar_gripper->GetOutputPort("contact_results"));
+
+  if (FLAGS_print_keyframes) {
+    // Prints the state to standard output.
+    auto joint_ordering = GetPreferredGripperJointOrdering();
+    joint_ordering.emplace_back("brick_revolute_x_joint");
+    auto state_pub = builder.AddSystem<PrintKeyframes>(
+        planar_gripper->get_multibody_plant(), joint_ordering, 0.1,
+        false /* don't print time */);
+    builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                    state_pub->GetInputPort("plant_state"));
     }
 
     auto diagram = builder.Build();
@@ -421,7 +570,7 @@ int DoMain() {
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
-  simulator.AdvanceTo(FLAGS_simulation_time);
+  simulator.AdvanceTo(times.tail(1)(0));
 
   // TODO(rcory) Implement a proper unit test once all shared parameters are
   //  moved to a YAML file.
