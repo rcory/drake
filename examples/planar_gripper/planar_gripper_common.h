@@ -123,6 +123,11 @@ void WeldGripperFrames(MultibodyPlant<T>* plant,
  * not in contact with any face, we use -1 as the face index in the plan txt
  * output file. So a list [0, 2, -1] means that finger 1 is in contact with
  * face 0, finger 2 is in contact with face 2, and finger 3 is not in contact.
+ * The index of the vertices could be accessed through python in
+ * planar_gripper_system.manipuland.vertices. For the brick case, edge 0 is the
+ * left (-y) edge, edge 1 is the top (+z) edge, edge 2 is the right (+y) edge,
+ * and edge 3 is the bottom (-z) edge. Do you think it is better to print the
+ * vertices in the txt output file as well?
  *
  * Each keyframe row should contain the same number of values as indicated in
  * the header. All entries should be white space delimited and the file should

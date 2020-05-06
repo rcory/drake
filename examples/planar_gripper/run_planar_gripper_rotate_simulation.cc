@@ -39,11 +39,11 @@ DEFINE_double(time_step, 1e-3,
               "If 0, the plant is modeled as a continuous system.");
 DEFINE_double(penetration_allowance, 0.2, "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(floor_coef_static_friction, 0 /*0.5*/,
+DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
-DEFINE_double(floor_coef_kinetic_friction, 0 /*0.5*/,
+DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 0 /* 1e-5 */,
+DEFINE_double(brick_floor_penetration, 1e-4,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -107,6 +107,13 @@ DEFINE_double(y0, 0.01, "initial brick y position (m).");
 DEFINE_double(z0, 0, "initial brick z position (m).");
 DEFINE_double(yf, 0, "final brick y position (m).");
 DEFINE_double(zf, 0, "final brick z position (m).");
+DEFINE_bool(
+    is_regulation_task, false,
+    "Defines the type of control task. If set to `true`, the QP planner "
+    "executes a regulation task. If set to false, the QP planner executes a "
+    "tracking task. A `regulation` task controls the brick to a set-point "
+    "goal. A `tracking` task controls the brick to follow a desired state "
+    "trajectory.");
 DEFINE_double(T, 1.5, "time horizon (s)");
 
 // QP task parameters.
@@ -181,9 +188,12 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->yf_ = FLAGS_yf;
-  qpoptions->zf_ = FLAGS_zf;
-  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->brick_goal_.y_goal = FLAGS_yf;
+  qpoptions->brick_goal_.z_goal = FLAGS_zf;
+  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
+  qpoptions->control_task_ = (FLAGS_is_regulation_task)
+                             ? ControlTask::kRegulation
+                             : ControlTask::kTracking;
   qpoptions->QP_Kp_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_Kp_r_pinned
                                          : FLAGS_QP_Kp_r_planar);
@@ -276,6 +286,39 @@ int DoMain() {
 
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, brick_type, &qpoptions);
+  if (FLAGS_brick_type == "pinned") {
+    // The planned theta trajectory is from 0 to theta_f degree in T seconds.
+    std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
+    std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(1, 1));
+    Y[0](0, 0) = FLAGS_theta0;
+    Y[1](0, 0) = FLAGS_theta0;
+    Y[2](0, 0) = FLAGS_thetaf;
+    Y[3](0, 0) = FLAGS_thetaf;
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(T, Y,
+                                                                        true);
+  } else {  // brick_type is planar
+    std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
+    std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(3, 1));
+    Y[0](0, 0) = FLAGS_y0;
+    Y[0](1, 0) = FLAGS_z0;
+    Y[0](2, 0) = FLAGS_theta0;
+
+    Y[1](0, 0) = FLAGS_y0;
+    Y[1](1, 0) = FLAGS_z0;
+    Y[1](2, 0) = FLAGS_theta0;
+
+    Y[2](0, 0) = FLAGS_yf;
+    Y[2](1, 0) = FLAGS_zf;
+    Y[2](2, 0) = FLAGS_thetaf;
+
+    Y[3](0, 0) = FLAGS_yf;
+    Y[3](1, 0) = FLAGS_zf;
+    Y[3](2, 0) = FLAGS_thetaf;
+    qpoptions.desired_brick_traj_ =
+        trajectories::PiecewisePolynomial<double>::CubicShapePreserving(T, Y,
+                                                                        true);
+  }
   if (FLAGS_brick_only) {
     if (FLAGS_use_QP == "LCM") {
       ConnectLCMQPController(*planar_gripper, &drake_lcm, std::nullopt,
@@ -330,6 +373,7 @@ int DoMain() {
 
   math::RigidTransformd goal_frame;
   goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+  goal_frame.set_translation(Eigen::Vector3d(0, FLAGS_yf, FLAGS_zf));
   PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
 
   // Connect drake visualizer.

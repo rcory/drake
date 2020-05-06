@@ -52,15 +52,15 @@ int DoMain() {
 
   // Create the full plant. Contains the fingers and brick. Used
   // (only) to extract joint velocity ordering.
-  const std::string full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
+  const std::string full_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_gripper.sdf");
   MultibodyPlant<double> plant(1e-3 /* to suppress continuous time warnings */);
   multibody::Parser(&plant).AddModelFromFile(full_name);
   WeldGripperFrames<double>(&plant);
 
   // Adds the brick to be manipulated.
-  const std::string brick_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  const std::string brick_file_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_brick.sdf");
   auto brick_index =
       multibody::Parser(&plant).AddModelFromFile(brick_file_name, "brick");
 
@@ -110,7 +110,7 @@ int DoMain() {
 
   // Parse the keyframes from a file.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
+      "drake/examples/planar_gripper/keyframes/" + FLAGS_keyframes_filename;
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;

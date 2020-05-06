@@ -90,8 +90,8 @@ int DoMain() {
   scene_graph.set_name("scene_graph");
 
   // Make and add the planar_gripper model.
-  const std::string full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
+  const std::string full_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_gripper.sdf");
   // Setup the MBP with an arbitrary time step to suppress joint limit warnings.
   MultibodyPlant<double> plant(1.0);
   plant.RegisterAsSourceForSceneGraph(&scene_graph);
@@ -100,8 +100,8 @@ int DoMain() {
   WeldGripperFrames<double>(&plant);
 
   // Adds the brick to be manipulated.
-  const std::string brick_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  const std::string brick_file_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_brick.sdf");
   const ModelInstanceIndex brick_index =
       Parser(&plant).AddModelFromFile(brick_file_name, "brick");
 

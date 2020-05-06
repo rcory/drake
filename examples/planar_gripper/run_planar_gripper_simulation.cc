@@ -212,7 +212,7 @@ int DoMain() {
   // Extract the initial gripper and brick poses by parsing the keyframe file.
   // The brick's pose consists of {y_position, z_position, x_rotation_angle}.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
+      "drake/examples/planar_gripper/keyframes/" + FLAGS_keyframes_filename;
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
