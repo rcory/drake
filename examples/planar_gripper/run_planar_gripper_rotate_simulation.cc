@@ -133,6 +133,8 @@ DEFINE_double(QP_weight_f_delta, 1, "Contact force delta penalty weight.");
 DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
 
+DEFINE_double(QP_tau, 0.05, "Low pass filter tau.");
+
 DEFINE_bool(assume_zero_brick_damping, false,
             "Override brick joint damping with zero.");
 
@@ -200,6 +202,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
   qpoptions->QP_weight_f_delta_ = FLAGS_QP_weight_f_delta;
   qpoptions->QP_mu_ = FLAGS_QP_mu;
+  qpoptions->filt_tau_ = FLAGS_QP_tau;
   qpoptions->brick_only_ = FLAGS_brick_only;
   qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;
   qpoptions->brick_rotational_damping_ = brick_rotational_damping;

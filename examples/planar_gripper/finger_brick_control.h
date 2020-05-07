@@ -196,6 +196,8 @@ struct QPControlOptions {
   double brick_inertia_{0};                // brick's rotational inertia.
   double brick_mass_{0};                   // brick's mass.
 
+  double filt_tau_{0};  // output forces low pass filter tau.
+
   // Finger/face assignment map for *brick only* simulation.
   // Note: This map will *not* be used by the QP controller if `brick_only` is
   // false.

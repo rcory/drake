@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/systems/primitives/first_order_low_pass_filter.h"
 
 namespace drake {
 namespace examples {
@@ -167,6 +169,200 @@ std::optional<int> GetContactPairIndex(
 /// force (i.e. a virtual Finger) to a BrickFaceInfo struct.
 std::unordered_map<Finger, BrickFaceInfo> BrickSpatialForceAssignments(
     const std::unordered_set<Finger>& fingers_to_control);
+
+class ExtractFingerControl : public systems::LeafSystem<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExtractFingerControl);
+ public:
+  ExtractFingerControl() {
+    this->DeclareAbstractInputPort(
+            "fingers_control",
+            Value<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>());
+    this->DeclareVectorOutputPort("fingers_control_vec",
+                                  systems::BasicVector<double>(6),
+                                  &ExtractFingerControl::SetOutput);
+  }
+
+  void SetOutput(const systems::Context<double>& context,
+                 systems::BasicVector<double>* forces) const {
+    auto finger_forces =
+        this->GetInputPort("fingers_control")
+            .Eval<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    VectorX<double> forces_vec = VectorX<double>::Zero(6);
+    for (const auto& finger_force : finger_forces) {
+      Finger finger = finger_force.first;
+      if (finger == Finger::kFinger1) {
+        forces_vec.head<2>() =
+            finger_force.second.F_Bq_W.translational().tail<2>();
+      } else if (finger == Finger::kFinger2) {
+        forces_vec.segment<2>(2) =
+            finger_force.second.F_Bq_W.translational().tail<2>();
+      } else if (finger == Finger::kFinger3) {
+        forces_vec.tail<2>() =
+            finger_force.second.F_Bq_W.translational().tail<2>();
+      }
+    }
+    forces->get_mutable_value() = forces_vec;
+  }
+};
+
+class PackFingerControl : public systems::LeafSystem<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PackFingerControl);
+ public:
+  PackFingerControl() {
+    this->DeclareAbstractInputPort(
+        "fingers_control_in",
+        Value<std::unordered_map<
+            Finger, multibody::ExternallyAppliedSpatialForce<double>>>());
+    this->DeclareAbstractOutputPort(
+        "fingers_control_out",
+        std::unordered_map<Finger,
+                           multibody::ExternallyAppliedSpatialForce<double>>(),
+        &PackFingerControl::SetOutput);
+    this->DeclareVectorInputPort("fingers_control_vec",
+                                  systems::BasicVector<double>(6));
+  }
+
+  void SetOutput(const systems::Context<double>& context,
+                 std::unordered_map<
+                     Finger, multibody::ExternallyAppliedSpatialForce<double>>*
+                     fingers_control) const {
+    auto finger_control_vec = this->GetInputPort("fingers_control_vec")
+                                  .Eval<systems::BasicVector<double>>(context)
+                                  .get_value();
+    auto fingers_control_in =
+        this->GetInputPort("fingers_control_in")
+            .Eval<std::unordered_map<
+                Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+
+    *fingers_control = fingers_control_in;
+    for (auto& iter : *fingers_control) {
+      int index = (to_num(iter.first) - 1) * 2;
+      Vector3d force = Vector3d::Zero();
+      force.tail<2>() = finger_control_vec.segment(index, 2);
+      iter.second.F_Bq_W.translational() = force;
+    }
+  }
+};
+
+class FilterFingerForces : public systems::Diagram<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FilterFingerForces);
+
+ public:
+  FilterFingerForces(const double tau) {
+    systems::DiagramBuilder<double> builder;
+    auto extract_sys = builder.AddSystem<ExtractFingerControl>();
+    auto pack_sys = builder.AddSystem<PackFingerControl>();
+    auto lpf =
+        builder.AddSystem<systems::FirstOrderLowPassFilter<double>>(tau, 6);
+    builder.ExportInput(extract_sys->GetInputPort("fingers_control"),
+                        "fingers_control");
+    builder.ExportOutput(pack_sys->GetOutputPort("fingers_control_out"),
+                         "fingers_control_filt");
+    builder.Connect(extract_sys->GetOutputPort("fingers_control_vec"),
+                    lpf->get_input_port());
+    builder.Connect(lpf->get_output_port(),
+                    pack_sys->GetInputPort("fingers_control_vec"));
+    builder.ExportInput(pack_sys->GetInputPort("fingers_control_in"),
+                        "pack_fingers_control");
+    builder.BuildInto(this);
+  }
+};
+
+
+class ExtractBrickControl : public systems::LeafSystem<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExtractBrickControl);
+ public:
+  ExtractBrickControl() {
+    this->DeclareAbstractInputPort(
+        "brick_control",
+        Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
+    this->DeclareVectorOutputPort("brick_control_vec",
+                                  systems::BasicVector<double>(6),
+                                  &ExtractBrickControl::SetOutput);
+  }
+
+  void SetOutput(const systems::Context<double>& context,
+                 systems::BasicVector<double>* forces) const {
+    auto brick_forces =
+        this->GetInputPort("brick_control")
+            .Eval<
+                std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    VectorX<double> forces_vec = VectorX<double>::Zero(6);
+//    DRAKE_DEMAND(brick_forces.size() == 3);
+    int index = 0;
+    for (const auto& brick_force : brick_forces) {
+      forces_vec.segment(index * 2, 2) =
+          brick_force.F_Bq_W.translational().tail<2>();
+      index++;
+    }
+    forces->get_mutable_value() = forces_vec;
+  }
+};
+
+class PackBrickControl : public systems::LeafSystem<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PackBrickControl);
+ public:
+  PackBrickControl() {
+    this->DeclareAbstractInputPort(
+        "brick_control_in",
+        Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
+    this->DeclareAbstractOutputPort(
+        "brick_control_out",
+        std::vector<multibody::ExternallyAppliedSpatialForce<double>>(),
+        &PackBrickControl::SetOutput);
+    this->DeclareVectorInputPort("brick_control_vec",
+                                 systems::BasicVector<double>(6));
+  }
+
+  void SetOutput(const systems::Context<double>& context,
+                 std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
+                 brick_control) const {
+    auto brick_control_vec = this->GetInputPort("brick_control_vec")
+        .Eval<systems::BasicVector<double>>(context)
+        .get_value();
+    auto brick_control_in =
+        this->GetInputPort("brick_control_in")
+            .Eval<
+                std::vector<multibody::ExternallyAppliedSpatialForce<double>>>(
+                context);
+    *brick_control = brick_control_in;
+//    DRAKE_DEMAND(brick_control_in.size() == 3);
+    int index = 0;
+    for (auto& iter : *brick_control) {
+      iter.F_Bq_W.translational().tail<2>() =
+          brick_control_vec.segment(index * 2, 2);
+      index++;
+    }
+  }
+};
+
+class FilterBrickForces : public systems::Diagram<double> {
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FilterBrickForces);
+ public:
+  FilterBrickForces(const double tau) {
+    systems::DiagramBuilder<double> builder;
+    auto extract_sys = builder.AddSystem<ExtractBrickControl>();
+    auto pack_sys = builder.AddSystem<PackBrickControl>();
+    auto lpf =
+        builder.AddSystem<systems::FirstOrderLowPassFilter<double>>(tau, 6);
+    builder.ExportInput(extract_sys->GetInputPort("brick_control"),
+                        "brick_control");
+    builder.ExportOutput(pack_sys->GetOutputPort("brick_control_out"),
+                         "brick_control_filt");
+    builder.Connect(extract_sys->GetOutputPort("brick_control_vec"),
+                    lpf->get_input_port());
+    builder.Connect(lpf->get_output_port(),
+                    pack_sys->GetInputPort("brick_control_vec"));
+    builder.ExportInput(pack_sys->GetInputPort("brick_control_in"),
+                        "pack_brick_control");
+    builder.BuildInto(this);
+  }
+};
 
 }  // namespace planar_gripper
 }  // namespace examples

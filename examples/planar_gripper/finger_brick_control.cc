@@ -738,25 +738,43 @@ void AddGripperQPControllerToDiagram(
       qpoptions.plan_dt,
       Value<std::unordered_map<
           Finger, multibody::ExternallyAppliedSpatialForce<double>>>());
+
   builder->Connect(qp_controller->get_output_port_fingers_control(),
                    fingers_control_zoh->get_input_port());
+  auto fingers_filt_sys =
+      builder->AddSystem<FilterFingerForces>(qpoptions.filt_tau_);
+  builder->Connect(fingers_control_zoh->get_output_port(),
+                   fingers_filt_sys->GetInputPort("fingers_control"));
+  builder->Connect(fingers_control_zoh->get_output_port(),
+                   fingers_filt_sys->GetInputPort("pack_fingers_control"));
+//  builder->Connect(fingers_filt_sys->GetOutputPort("fingers_control_filt"),
+//                   fingers_control_zoh->get_input_port());
 
   auto brick_control_zoh = builder->AddSystem<systems::ZeroOrderHold<double>>(
       qpoptions.plan_dt,
       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
   builder->Connect(qp_controller->get_output_port_brick_control(),
                    brick_control_zoh->get_input_port());
+  auto brick_filt_sys =
+      builder->AddSystem<FilterBrickForces>(qpoptions.filt_tau_);
+  builder->Connect(brick_control_zoh->get_output_port(),
+                   brick_filt_sys->GetInputPort("brick_control"));
+  builder->Connect(brick_control_zoh->get_output_port(),
+                   brick_filt_sys->GetInputPort("pack_brick_control"));
+//  builder->Connect(brick_filt_sys->GetOutputPort("brick_control_filt"),
+//                   brick_control_zoh->get_input_port());
 
   // Connect the qp controller to itself in terms of output forces.
-  builder->Connect(fingers_control_zoh->get_output_port(),
+  builder->Connect(fingers_filt_sys->GetOutputPort("fingers_control_filt"),
                    qp_controller->GetInputPort("fingers_control"));
 
   // Get the QP controller ports.
   // Output ports.
   out_ports->insert(std::pair<std::string, const OutputPort<double>&>(
-      "qp_fingers_control", fingers_control_zoh->get_output_port()));
+      "qp_fingers_control",
+      fingers_filt_sys->GetOutputPort("fingers_control_filt")));
   out_ports->insert(std::pair<std::string, const OutputPort<double>&>(
-      "qp_brick_control", brick_control_zoh->get_output_port()));
+      "qp_brick_control", brick_filt_sys->GetOutputPort("brick_control_filt")));
 
   // Input ports.
   in_ports->insert(std::pair<std::string, const InputPort<double>&>(

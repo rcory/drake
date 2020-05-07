@@ -148,18 +148,19 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
                             weight_f_Cb);
 
     // Add a quadratic cost on the squared norm of the force difference.
-    Finger finger = finger_contact_force.first;
-    Eigen::Vector2d last_force = Eigen::Vector2d::Zero();
-    if (finger == Finger::kFinger1) {
-      last_force = last_forces.head<2>();
-    } else if (finger == Finger::kFinger2) {
-      last_force = last_forces.segment<2>(2);
-    } else if (finger == Finger::kFinger3) {
-      last_force = last_forces.tail<2>();
-    }
-    Vector2<symbolic::Expression> error =
-        (finger_contact_force.second - last_force);
-    prog_->AddQuadraticCost(error.squaredNorm() * weight_f_delta);
+//    Finger finger = finger_contact_force.first;
+//    Eigen::Vector2d last_force = Eigen::Vector2d::Zero();
+//    if (finger == Finger::kFinger1) {
+//      last_force = last_forces.head<2>();
+//    } else if (finger == Finger::kFinger2) {
+//      last_force = last_forces.segment<2>(2);
+//    } else if (finger == Finger::kFinger3) {
+//      last_force = last_forces.tail<2>();
+//    }
+//    Vector2<symbolic::Expression> error =
+//        (finger_contact_force.second - last_force);
+//    prog_->AddQuadraticCost(error.squaredNorm() * weight_f_delta);
+    unused(last_forces);
   }
 }
 

@@ -20,6 +20,7 @@ drake_cc_library(
     hdrs = ["planar_gripper_utils.h"],
     deps = [
         ":planar_gripper_common",
+        "//systems/primitives:first_order_low_pass_filter",
     ],
 )
 
