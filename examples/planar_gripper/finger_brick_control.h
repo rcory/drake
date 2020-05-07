@@ -183,6 +183,7 @@ struct QPControlOptions {
   double QP_weight_thetaddot_error_{0};  // thetaddot error weight.
   double QP_weight_acceleration_error_{0};  // tran. acceleration error weight.
   double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight.
+  double QP_weight_f_delta_{0};  // contact force delta penalty weight.
   double QP_mu_{0};  // coefficient of static friction between brick/fingertip.
 
   bool brick_only_{false};  // only control brick (no fingers).

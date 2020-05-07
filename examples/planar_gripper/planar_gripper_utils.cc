@@ -240,13 +240,13 @@ std::unordered_map<Finger, BrickFaceInfo> BrickSpatialForceAssignments(
     if (finger == Finger::kFinger1) {
       brick_spatial_force_assignments.emplace(
           finger, BrickFaceInfo(BrickFace::kNegY,
-                                Eigen::Vector2d(-kBoxDimension / 2, 0),
+                                Eigen::Vector2d(-kBoxDimension / 2, -0.00837845),
                                 true /* is in contact */));
     }
     if (finger == Finger::kFinger2) {
       brick_spatial_force_assignments.emplace(
           finger, BrickFaceInfo(BrickFace::kPosY,
-                                Eigen::Vector2d(kBoxDimension / 2, 0),
+                                Eigen::Vector2d(kBoxDimension / 2, -0.0395916),
                                 true /* is in contact */));
     }
     if (finger == Finger::kFinger3) {

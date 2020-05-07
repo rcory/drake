@@ -42,8 +42,9 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
     const std::unordered_map<Finger, BrickFaceInfo>& finger_face_assignments,
     double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
-    double mu, double I_B, double brick_mass, double rotational_damping,
-    double translational_damping)
+    double weight_f_delta, double mu, double I_B, double brick_mass,
+    double rotational_damping, double translational_damping,
+    const VectorX<double>& last_forces)
     : prog_{new solvers::MathematicalProgram()} {
   Eigen::Vector2d p_WB = Eigen::Vector2d::Zero();
   Eigen::Vector2d p_WB_desired = Eigen::Vector2d::Zero();
@@ -52,6 +53,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   Eigen::Vector2d a_WB_feedforward = Eigen::Vector2d::Zero();
   double theta, thetadot;
   double theta_desired, thetadot_desired, thetaddot_feedforward;
+
+//  drake::log()->info("last_force: \n{}", last_forces);
 
   if (brick_type == BrickType::PinBrick) {
     // Extract the pined brick state: given as [θ, θ̇̇ ].
@@ -143,6 +146,20 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   for (const auto& finger_contact_force : f_Cb_B) {
     prog_->AddQuadraticCost(finger_contact_force.second.squaredNorm() *
                             weight_f_Cb);
+
+    // Add a quadratic cost on the squared norm of the force difference.
+    Finger finger = finger_contact_force.first;
+    Eigen::Vector2d last_force = Eigen::Vector2d::Zero();
+    if (finger == Finger::kFinger1) {
+      last_force = last_forces.head<2>();
+    } else if (finger == Finger::kFinger2) {
+      last_force = last_forces.segment<2>(2);
+    } else if (finger == Finger::kFinger3) {
+      last_force = last_forces.tail<2>();
+    }
+    Vector2<symbolic::Expression> error =
+        (finger_contact_force.second - last_force);
+    prog_->AddQuadraticCost(error.squaredNorm() * weight_f_delta);
   }
 }
 
@@ -171,7 +188,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
     double weight_a_error, double weight_thetaddot_error, double weight_f_Cb_B,
-    double mu, double translational_damping, double rotational_damping,
+    double weight_f_delta, double mu, double translational_damping, double rotational_damping,
     double I_B, double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
@@ -183,6 +200,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       weight_a_error_{weight_a_error},
       weight_thetaddot_error_{weight_thetaddot_error},
       weight_f_Cb_B_{weight_f_Cb_B},
+      weight_f_delta_{weight_f_delta},
       translational_damping_(translational_damping),
       rotational_damping_(rotational_damping),
       mass_B_(mass_B),
@@ -248,6 +266,37 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
   brick_revolute_x_position_index_ =
       plant_->GetJointByName("brick_revolute_x_joint").position_start();
   brick_body_index_ = plant_->GetBodyByName("brick_link").index();
+
+  this->DeclareAbstractInputPort(
+          "fingers_control",
+          Value<std::unordered_map<Finger,
+              multibody::ExternallyAppliedSpatialForce<double>>>())
+      .get_index();
+
+  this->DeclareDiscreteState(kNumFingers * 2);  // {fy, fz} per finger.
+
+  this->DeclarePeriodicDiscreteUpdateEvent(
+      .002, 0.002, &InstantaneousContactForceQPController::UpdateLastForce);
+}
+
+systems::EventStatus InstantaneousContactForceQPController::UpdateLastForce(
+    const systems::Context<double>& context,
+    systems::DiscreteValues<double>* values) const {
+  const std::unordered_map<Finger,
+                           multibody::ExternallyAppliedSpatialForce<double>>
+      applied_forces =
+          this->get_output_port_fingers_control()
+              .Eval<std::unordered_map<
+                  Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+                  context);
+  VectorX<double> last_forces = VectorX<double>::Zero(kNumFingers * 2);
+  for (const auto& iter : applied_forces) {
+    Eigen::Vector2d F_Bq_W = iter.second.F_Bq_W.translational().tail<2>();
+    last_forces.segment((to_num(iter.first) - 1) * 2, 2) = F_Bq_W;
+  }
+  values->get_mutable_vector().get_mutable_value() = last_forces;
+
+  return systems::EventStatus::Succeeded();
 }
 
 // The output of this method will be an unordered map of size equal to the
@@ -303,11 +352,34 @@ void InstantaneousContactForceQPController::CalcFingersControl(
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
+//  VectorX<double> last_forces =
+//      context.get_discrete_state().get_vector().get_value();
+  auto finger_forces =
+      this->GetInputPort("fingers_control")
+          .Eval<std::unordered_map<
+              Finger, multibody::ExternallyAppliedSpatialForce<double>>>(
+              context);
+  VectorX<double> last_forces = VectorX<double>::Zero(6);
+  for (const auto& finger_force : finger_forces) {
+    // Add a quadratic cost on the force difference.
+    Finger finger = finger_force.first;
+    if (finger == Finger::kFinger1) {
+      last_forces.head<2>() =
+          finger_force.second.F_Bq_W.translational().tail<2>();
+    } else if (finger == Finger::kFinger2) {
+      last_forces.segment<2>(2) =
+          finger_force.second.F_Bq_W.translational().tail<2>();
+    } else if (finger == Finger::kFinger3) {
+      last_forces.tail<2>() =
+          finger_force.second.F_Bq_W.translational().tail<2>();
+    }
+  }
+
   InstantaneousContactForceQP qp(
       brick_type_, brick_state, desired_brick_state, desired_brick_acceleration,
       Kp_t_, Kd_t_, Kp_r_, Kd_r_, finger_face_assignments, weight_a_error_,
-      weight_thetaddot_error_, weight_f_Cb_B_, mu_, I_B_, mass_B_,
-      rotational_damping_, translational_damping_);
+      weight_thetaddot_error_, weight_f_Cb_B_, weight_f_delta_, mu_, I_B_,
+      mass_B_, rotational_damping_, translational_damping_, last_forces);
 
   const auto qp_result = solvers::Solve(qp.prog());
   const std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>

@@ -91,11 +91,11 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const VectorX<double>>& brick_accel_feedforward,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
-      const std::unordered_map<Finger, BrickFaceInfo>&
-          finger_face_assignments,
+      const std::unordered_map<Finger, BrickFaceInfo>& finger_face_assignments,
       double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
-      double mu, double I_B, double mass_B, double rotational_damping,
-      double translational_damping);
+      double weight_f_delta, double mu, double I_B, double mass_B,
+      double rotational_damping, double translational_damping,
+      const VectorX<double>& last_forces);
 
   const solvers::MathematicalProgram& prog() const { return *prog_; }
 
@@ -159,15 +159,20 @@ class InstantaneousContactForceQPController
   InstantaneousContactForceQPController(
       BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r,
-      double Kd_r, double weight_a_error, double weight_thetaddot_error,
-      double weight_f_Cb_B, double mu, double translational_damping,
-      double rotational_damping, double I_B, double mass_B);
+      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
+      double weight_a_error, double weight_thetaddot_error,
+      double weight_f_Cb_B, double weight_f_delta, double mu,
+      double translational_damping, double rotational_damping, double I_B,
+      double mass_B);
 
   const systems::InputPort<double>& get_input_port_estimated_plant_state()
       const {
     return this->get_input_port(input_index_estimated_plant_state_);
   }
+
+  systems::EventStatus UpdateLastForce(
+      const systems::Context<double>& context,
+      systems::DiscreteValues<double>* values) const;
 
   // TODO(rcory) The FeedbackController inheritance declares these virtual
   //  functions, but the naming here is too generic, so dispatch to a more
@@ -255,6 +260,7 @@ class InstantaneousContactForceQPController
   double weight_a_error_;
   double weight_thetaddot_error_;
   double weight_f_Cb_B_;
+  double weight_f_delta_;
   double translational_damping_;
   double rotational_damping_;
   double mass_B_;

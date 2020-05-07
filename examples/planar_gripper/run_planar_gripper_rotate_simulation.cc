@@ -129,6 +129,7 @@ DEFINE_double(QP_Kd_r_planar, 120,
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_a_error, 1, "translational acceleration error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
+DEFINE_double(QP_weight_f_delta, 1, "Contact force delta penalty weight.");
 DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
 // TODO(rcory) Pass in QP_mu to brick and fingertip-sphere collision geoms.
 
@@ -197,6 +198,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_acceleration_error_ = FLAGS_QP_weight_a_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
+  qpoptions->QP_weight_f_delta_ = FLAGS_QP_weight_f_delta;
   qpoptions->QP_mu_ = FLAGS_QP_mu;
   qpoptions->brick_only_ = FLAGS_brick_only;
   qpoptions->viz_force_scale_ = FLAGS_viz_force_scale;

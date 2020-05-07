@@ -717,6 +717,7 @@ void AddGripperQPControllerToDiagram(
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
   double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
+  double weight_f_delta = qpoptions.QP_weight_f_delta_;
   double mu = qpoptions.QP_mu_;
   double rotational_damping = qpoptions.brick_rotational_damping_;
   double translational_damping = qpoptions.brick_translational_damping_;
@@ -726,8 +727,9 @@ void AddGripperQPControllerToDiagram(
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
           qpoptions.brick_type_, &plant, Kp_t, Kd_t, Kp_r, Kd_r,
-          weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
-          translational_damping, rotational_damping, I_B, mass_B);
+          weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B,
+          weight_f_delta, mu, translational_damping, rotational_damping, I_B,
+          mass_B);
 
   // Insert a zero order hold on the output of the controller, so that its
   // output (and hence it's computation of the QP) is only pulled at the
@@ -744,6 +746,10 @@ void AddGripperQPControllerToDiagram(
       Value<std::vector<multibody::ExternallyAppliedSpatialForce<double>>>());
   builder->Connect(qp_controller->get_output_port_brick_control(),
                    brick_control_zoh->get_input_port());
+
+  // Connect the qp controller to itself in terms of output forces.
+  builder->Connect(fingers_control_zoh->get_output_port(),
+                   qp_controller->GetInputPort("fingers_control"));
 
   // Get the QP controller ports.
   // Output ports.
