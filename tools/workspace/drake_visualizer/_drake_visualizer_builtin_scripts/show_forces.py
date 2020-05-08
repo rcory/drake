@@ -10,7 +10,7 @@ from six import iteritems
 
 import drake as lcmdrakemsg
 
-from drake.tools.workspace.drake_visualizer.plugin import scoped_singleton_func
+from _drake_visualizer_builtin_scripts import scoped_singleton_func
 
 
 class SpatialForceVisualizer(object):
@@ -94,7 +94,7 @@ class SpatialForceVisualizer(object):
 
             # Create an arrow starting from p_W and pointing to p_W + torque_W.
             d.addArrow(start=p_W, end=p_W + torque_W,
-                       tubeRadius=0.005, headRadius=0.01)
+                       tubeRadius=0.0001, headRadius=0.0)
             d.addSphere(center=p_W, radius=.001)
 
         # Draw the data.
