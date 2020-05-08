@@ -17,6 +17,7 @@ import weakref
 
 # N.B. Keep this in sync with `use_builtin_scripts.py`.
 AVAILABLE_SCRIPTS = [
+    "forces",
     "frame",
     "hydroelastic_contact",
     "image",
