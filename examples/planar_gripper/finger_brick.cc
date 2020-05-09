@@ -13,11 +13,11 @@ namespace planar_gripper {
 using drake::multibody::ContactResults;
 
 template <typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, T finger_angle) {
   // The finger base link is welded a fixed distance from the world
   // origin, on the Y-Z plane.
   const double kGripperOriginToBaseDistance = 0.19;
-  const double kFinger1Angle = 0;
+  const double kFinger1Angle = finger_angle;
 
   // Note: Before welding and with the finger joint angles being zero, the
   // finger base link sits at the world origin with the finger pointing along
@@ -42,8 +42,8 @@ void WeldFingerFrame(multibody::MultibodyPlant<T>* plant) {
   plant->WeldFrames(plant->world_frame(), finger1_base_frame, X_WG * X_GF1);
 }
 
-template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant);
-
+template void WeldFingerFrame(multibody::MultibodyPlant<double>* plant,
+                              double finger_angle);
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,

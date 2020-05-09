@@ -159,6 +159,7 @@ void FingerFaceAssigner::CalcFingerFaceAssignments(
                            plant_state.tail(plant_.num_velocities()));
       auto p_WCb = contact_results.point_pair_contact_info(pair_index.value())
                        .contact_point();
+//      drake::log()->info("In FFA, p_WCb: \n{}", p_WCb);
       Eigen::Vector3d result;
       plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCb,
                                  plant_.GetFrameByName("brick_link"),
@@ -166,6 +167,8 @@ void FingerFaceAssigner::CalcFingerFaceAssignments(
       BrickFaceInfo face_info(*brick_faces.first.begin(),
                               Eigen::Vector2d(result.tail<2>()),
                               true /* in contact */);
+      face_info.p_WCb = p_WCb.tail<2>();
+//      drake::log()->info("In FFA, p_BrCb: \n{}", face_info.p_BCb);
       finger_face_assignments->emplace(finger_id_pair.first, face_info);
     } else {
       BrickFaceInfo face_info(*brick_faces.first.begin(),

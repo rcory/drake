@@ -513,6 +513,7 @@ drake_cc_googletest(
         "//common/test_utilities:eigen_matrix_compare",
         "//geometry:geometry_visualization",
         "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
     ],
