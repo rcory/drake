@@ -452,7 +452,7 @@ int DoMain() {
         brick_joint_name_to_row_index_map["brick_revolute_x_joint"]);
     qpoptions.desired_brick_traj_ =
         trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
-            times, ordered_brick_keyframes);
+            times, ordered_brick_keyframes, true);
   }
 
   // Create and connect the finger trajectory sources, created from a piece-wise

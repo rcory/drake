@@ -167,8 +167,8 @@ void ForceController::CalcTauOutput(
   auto R_BrW = plant_.CalcRelativeRotationMatrix(*plant_context_, brick_frame,
                                                  plant_.world_frame());
 
-  auto R_WBr = plant_.CalcRelativeRotationMatrix(
-      *plant_context_, plant_.world_frame(), brick_frame);
+//  auto R_WBr = plant_.CalcRelativeRotationMatrix(
+//      *plant_context_, plant_.world_frame(), brick_frame);
 
   /* Rotation of brick frame (Br) w.r.t. finger base frame (Ba) */
   auto R_BaBr = plant_.CalcRelativeRotationMatrix(*plant_context_, base_frame,
@@ -232,7 +232,10 @@ void ForceController::CalcTauOutput(
 
   // Regulate position (in brick frame).
   // First, rotate the contact point reference into the brick frame.
-  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
+//  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
+  Eigen::Vector3d p_BrC;
+  plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
+                             brick_frame, &p_BrC);
 
   // Compute the translational velocity Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -263,7 +266,7 @@ void ForceController::CalcTauOutput(
 
   // First case: direct force control.
   if (options_.always_direct_force_control_ || is_contact) {
-        drake::log()->info("In direct force control.");
+//        drake::log()->info("In direct force control.");
     // Desired forces (external spatial forces) are expressed in the world
     // frame. Express these in the brick frame instead (to compute the force
     // error terms), we then convert these commands to the finger base frame to
@@ -278,7 +281,7 @@ void ForceController::CalcTauOutput(
     Eigen::Matrix<double, 3, 3> Kd_position(3, 3);
     GetGains(&Kp_force, &Ki_force, &Kp_position, &Kd_position,
              brick_face_info.brick_face);
-    drake::log()->info("BrickFace: {}", to_string(brick_face_info.brick_face));
+//    drake::log()->info("BrickFace: {}", to_string(brick_face_info.brick_face));
 
     // Rotate the force reported by simulation to brick frame.
     Eigen::Vector3d force_act_Br = R_BrW * force_sensor_vec_W;
@@ -310,18 +313,18 @@ void ForceController::CalcTauOutput(
 //        drake::log()->info("delta_vel_Br: \n{}", delta_vel_Br);
     //    drake::log()->info("contact_state_des: \n{}", contact_state_desired_Br);
       //drake::log()->info("is_contact: \n{}", is_contact); drake::log()->info("p_BrC: \n{}", p_BrC);
-        drake::log()->info("p_WCr: \n{}", p_WCr);
+//        drake::log()->info("p_WCr: \n{}", p_WCr);
 //        drake::log()->info("v_BrC: \n{}", v_BrC);
 
-        drake::log()->info("force_des_Br: \n{}", force_des_Br);
-    drake::log()->info("force_des_W: \n{}", R_WBr * force_des_Br);
-        drake::log()->info("force_actual_Br: \n{}", force_act_Br);
-        drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
-        drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
+//        drake::log()->info("force_des_Br: \n{}", force_des_Br);
+//    drake::log()->info("force_des_W: \n{}", R_WBr * force_des_Br);
+//        drake::log()->info("force_actual_Br: \n{}", force_act_Br);
+//        drake::log()->info("force_delta_Br: \n{}", delta_f_Br);
+//        drake::log()->info("force_error_command_Br: \n{}", force_error_command_Br);
     //    drake::log()->info("force_error_integral_Br:
     //    \n{}", force_error_integral_Br);
-        drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
-        drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
+//        drake::log()->info("position_error_command_Br: \n{}", position_error_command_Br);
+//        drake::log()->info("force_integral_command_Br: \n{}", force_integral_command_Br);
 
     // Torque due to hybrid position/force control
     Eigen::Vector3d force_command_Ba = (R_BaBr * force_des_Br) +
@@ -338,7 +341,7 @@ void ForceController::CalcTauOutput(
   } else {  // Second Case: impedance control back to the brick's surface.
     // First, obtain the closest point on the brick from the fingertip sphere
     // center.
-        drake::log()->info("In impedance force control.");
+//        drake::log()->info("In impedance force control.");
 
     // Since we're not in contact, the p_BrCb input port holds the point on the
     // brick that is closest to the fingertip sphere center.
@@ -666,8 +669,8 @@ void DoConnectGripperQPController(
   }
   if (brick_desired_state_traj_source) {
     systems::lcm::ConnectLcmScope(
-        brick_desired_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
-        builder, lcm);
+        brick_desired_state_traj_source->get_output_port(),
+        "BRICK_DES_STATE_TRAJ", builder, lcm);
   }
 
   // Connect the plant state to the QP controller
