@@ -159,10 +159,12 @@ class InstantaneousContactForceQPController
   InstantaneousContactForceQPController(
       BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r,
-      double Kd_r, double weight_a_error, double weight_thetaddot_error,
-      double weight_f_Cb_B, double mu, double translational_damping,
-      double rotational_damping, double I_B, double mass_B);
+      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t,
+      const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, double Kp_r, double Kd_r,
+      double Ki_r, double Ki_r_sat, double weight_a_error,
+      double weight_thetaddot_error, double weight_f_Cb_B, double mu,
+      double translational_damping, double rotational_damping, double I_B,
+      double mass_B);
 
   const systems::InputPort<double>& get_input_port_estimated_plant_state()
       const {
@@ -233,6 +235,11 @@ class InstantaneousContactForceQPController
     return this->get_output_port(output_index_brick_control_);
   }
 
+ protected:
+  void DoCalcTimeDerivatives(
+      const systems::Context<double>& context,
+      systems::ContinuousState<double>* derivatives) const override;
+
  private:
   void CalcFingersControl(
       const systems::Context<double>& context,
@@ -250,8 +257,11 @@ class InstantaneousContactForceQPController
   double mu_;
   Eigen::Matrix2d Kp_t_;  // Translational proportional QP gain.
   Eigen::Matrix2d Kd_t_;  // Translational derivative QP gain.
+  Eigen::Matrix2d Ki_t_;  // Translational integral QP gain.
   double Kp_r_;  // Rotational proportional QP gain.
   double Kd_r_;  // Rotational derivative QP gain.
+  double Ki_r_;  // Rotational integral QP gain.
+  double Ki_r_sat; // saturation
   double weight_a_error_;
   double weight_thetaddot_error_;
   double weight_f_Cb_B_;

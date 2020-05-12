@@ -751,8 +751,10 @@ void AddGripperQPControllerToDiagram(
   // QP controller
   Eigen::Matrix2d Kp_t = qpoptions.QP_Kp_t_;
   Eigen::Matrix2d Kd_t = qpoptions.QP_Kd_t_;
+  Eigen::Matrix2d Ki_t = qpoptions.QP_Ki_t_;
   double Kp_r = qpoptions.QP_Kp_r_;
   double Kd_r = qpoptions.QP_Kd_r_;
+  double Ki_r = qpoptions.QP_Ki_r_;
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
   double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
@@ -764,7 +766,7 @@ void AddGripperQPControllerToDiagram(
 
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
-          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Kp_r, Kd_r,
+          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Ki_t, Kp_r, Kd_r, Ki_r, qpoptions.QP_Ki_r_sat_,
           weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
           translational_damping, rotational_damping, I_B, mass_B);
 

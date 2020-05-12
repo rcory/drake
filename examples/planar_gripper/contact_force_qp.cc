@@ -169,17 +169,21 @@ InstantaneousContactForceQP::GetContactForceResult(
 InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
-    double weight_a_error, double weight_thetaddot_error, double weight_f_Cb_B,
-    double mu, double translational_damping, double rotational_damping,
-    double I_B, double mass_B)
+    const Eigen::Ref<const Eigen::Matrix2d>& Kd_t,
+    const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, double Kp_r, double Kd_r,
+    double Ki_r, double Ki_r_sat, double weight_a_error, double weight_thetaddot_error,
+    double weight_f_Cb_B, double mu, double translational_damping,
+    double rotational_damping, double I_B, double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
       Kp_t_{Kp_t},
       Kd_t_{Kd_t},
+      Ki_t_{Ki_t},
       Kp_r_{Kp_r},
       Kd_r_{Kd_r},
+      Ki_r_{Ki_r},
+      Ki_r_sat{Ki_r_sat},
       weight_a_error_{weight_a_error},
       weight_thetaddot_error_{weight_thetaddot_error},
       weight_f_Cb_B_{weight_f_Cb_B},
@@ -237,6 +241,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
         plant_->GetJointByName("brick_translate_y_joint").position_start();
     brick_translate_z_position_index_ =
         plant_->GetJointByName("brick_translate_z_joint").position_start();
+    this->DeclareContinuousState(3);
   } else {  // Pin Brick
     input_index_desired_brick_state_ =
         this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 2)
@@ -244,6 +249,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     input_index_desired_brick_acceleration_ =
         this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 1)
             .get_index();
+    this->DeclareContinuousState(1);
   }
   brick_revolute_x_position_index_ =
       plant_->GetJointByName("brick_revolute_x_joint").position_start();
@@ -303,8 +309,29 @@ void InstantaneousContactForceQPController::CalcFingersControl(
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
+  // Adds integral error to desired acceleration term.
+  // Integral error, which is stored in the continuous state.
+  const systems::VectorBase<double>& state_vector =
+      context.get_continuous_state_vector();
+  const Eigen::VectorBlock<const VectorX<double>> state_block =
+      dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+          .get_value();
+  VectorX<double> brick_accel_ff;
+  if (brick_type_ == BrickType::PlanarBrick) {
+    brick_accel_ff = Vector3d::Zero();
+    brick_accel_ff.head<2>() =
+        desired_brick_acceleration.head<2>() + (Ki_t_ * state_block.head<2>());
+    brick_accel_ff.tail<1>() =
+        desired_brick_acceleration.tail<1>() + (Ki_r_ * state_block.tail<1>());
+  } else {
+    brick_accel_ff = Vector1d::Zero();
+    brick_accel_ff(0) =
+        desired_brick_acceleration(0) + (Ki_r_ * state_block(0));
+  }
+
+
   InstantaneousContactForceQP qp(
-      brick_type_, brick_state, desired_brick_state, desired_brick_acceleration,
+      brick_type_, brick_state, desired_brick_state, brick_accel_ff,
       Kp_t_, Kd_t_, Kp_r_, Kd_r_, finger_face_assignments, weight_a_error_,
       weight_thetaddot_error_, weight_f_Cb_B_, mu_, I_B_, mass_B_,
       rotational_damping_, translational_damping_);
@@ -344,6 +371,57 @@ void InstantaneousContactForceQPController::CalcBrickControl(
     contact_forces->push_back(finger_control.second);
   }
 }
+
+void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
+    const drake::systems::Context<double>& context,
+    drake::systems::ContinuousState<double>* derivatives) const {
+  const Eigen::VectorBlock<const VectorX<double>> plant_state =
+      get_input_port_estimated_state().Eval(context);
+  const Eigen::VectorBlock<const VectorX<double>> desired_brick_state =
+      get_input_port_desired_brick_state().Eval(context);
+  VectorX<double> brick_positions;
+  VectorX<double> desired_brick_positions;
+  if (brick_type_ == BrickType::PlanarBrick) {
+    VectorX<double> brick_state;
+    brick_state = Vector6<double>::Zero();
+    brick_state << plant_state(brick_translate_y_position_index_),
+        plant_state(brick_translate_z_position_index_),
+        plant_state(brick_revolute_x_position_index_),
+        plant_state(plant_->num_positions() +
+            brick_translate_y_position_index_),
+        plant_state(plant_->num_positions() +
+            brick_translate_z_position_index_),
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_positions = brick_state.head<3>();
+    desired_brick_positions = desired_brick_state.head<3>();
+  } else {  // brick_type is PinBrick
+    VectorX<double> brick_state;
+    brick_state = Eigen::Vector2d::Zero();
+    brick_state << plant_state(brick_revolute_x_position_index_),
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_positions = brick_state.head<1>();
+    desired_brick_positions = desired_brick_state.head<1>();
+
+    // Saturate the integral term.
+    const systems::VectorBase<double>& state_vector =
+        context.get_continuous_state_vector();
+    const Eigen::VectorBlock<const VectorX<double>> state_block =
+        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+            .get_value();
+    if (state_block(0) > Ki_r_sat && (desired_brick_positions(0) > brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    }
+    if (state_block(0) < -Ki_r_sat && (desired_brick_positions(0) < brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    }
+
+//    unused(Ki_r_sat);
+
+  }
+  derivatives->get_mutable_vector().SetFromVector(desired_brick_positions -
+                                                  brick_positions);
+}
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

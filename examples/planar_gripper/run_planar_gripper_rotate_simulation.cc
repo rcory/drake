@@ -18,6 +18,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/systems/primitives/trajectory_source.h"
 
 namespace drake {
 namespace examples {
@@ -125,6 +126,9 @@ DEFINE_string(use_QP, "local",
               "We provide 3 types of QP controller, LCM, UDP or local.");
 DEFINE_double(QP_Kp_t, 350, "QP controller translational Kp gain.");
 DEFINE_double(QP_Kd_t, 100, "QP controller translational Kd gain.");
+DEFINE_double(QP_Ki_t, 0, "QP controller translational Ki gain.");
+DEFINE_double(QP_Ki_r, 0, "QP controller rotational Ki gain.");
+DEFINE_double(QP_Ki_r_sat, 0.0001, "QP integral saturation value.");
 DEFINE_double(QP_Kp_r_pinned, 150,
               "QP controller rotational Kp gain for pinned brick.");
 DEFINE_double(QP_Kd_r_pinned, 50,
@@ -157,6 +161,36 @@ DEFINE_int32(receiver_local_port, 1100, "local port number for UDP receiver");
 DEFINE_bool(add_floor, true, "Adds a floor to the simulation.");
 DEFINE_bool(test, false,
             "If true, checks the simulation result against a known value.");
+
+class BrickPlanFrameViz final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BrickPlanFrameViz);
+
+  BrickPlanFrameViz(int num_positions) {
+    this->DeclareVectorInputPort("brick_positions",
+                                 systems::BasicVector<double>(num_positions));
+    this->DeclareAbstractOutputPort("brick_xform",
+                                    &BrickPlanFrameViz::CalcXForm);
+  }
+
+  void CalcXForm(const systems::Context<double>& context,
+                 std::vector<math::RigidTransform<double>>* xform_vec) const {
+    VectorX<double> brick_q = this->EvalVectorInput(context, 0)->get_value();
+    double ypos = 0, zpos = 0, theta = 0;
+    if (brick_q.size() == 1) {
+      theta = brick_q(0);
+    } else {
+      ypos = brick_q(0);
+      zpos = brick_q(1);
+      theta = brick_q(2);
+    }
+    auto xform = math::RigidTransform<double>(
+        math::RollPitchYaw<double>(Vector3d(theta, 0, 0)),
+        Vector3d(0, ypos, zpos));
+    xform_vec->clear();
+    xform_vec->push_back(xform);
+  }
+};
 
 /// Utility function that returns the fingers that will be used for this
 /// simulation.
@@ -200,10 +234,14 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   qpoptions->QP_Kd_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_Kd_r_pinned
                                          : FLAGS_QP_Kd_r_planar);
+  qpoptions->QP_Ki_r_ = FLAGS_QP_Ki_r;
   qpoptions->QP_Kp_t_ =
       Eigen::Vector2d(FLAGS_QP_Kp_t, FLAGS_QP_Kp_t).asDiagonal();
   qpoptions->QP_Kd_t_ =
       Eigen::Vector2d(FLAGS_QP_Kd_t, FLAGS_QP_Kd_t).asDiagonal();
+  qpoptions->QP_Ki_t_ =
+      Eigen::Vector2d(FLAGS_QP_Ki_t, FLAGS_QP_Ki_t).asDiagonal();
+  qpoptions->QP_Ki_r_sat_ = FLAGS_QP_Ki_r_sat;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_acceleration_error_ = FLAGS_QP_weight_a_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
@@ -371,10 +409,24 @@ int DoMain() {
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   frame_viz->get_input_port(0));
 
-  math::RigidTransformd goal_frame;
-  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
-  goal_frame.set_translation(Eigen::Vector3d(0, FLAGS_yf, FLAGS_zf));
-  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
+  auto frame_viz_path = builder.AddSystem<FrameViz>(
+      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, true);
+  auto brick_desired_pos_traj_source =
+      builder.AddSystem<systems::TrajectorySource<double>>(
+          qpoptions.desired_brick_traj_);
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  frame_viz_path->get_input_port(0));
+  auto brick_xform_src = builder.AddSystem<BrickPlanFrameViz>(
+      planar_gripper->get_num_brick_positions());
+  builder.Connect(brick_desired_pos_traj_source->get_output_port(),
+                  brick_xform_src->get_input_port(0));
+  builder.Connect(brick_xform_src->get_output_port(0),
+                  frame_viz_path->get_input_port(1));
+
+//  math::RigidTransformd goal_frame;
+//  goal_frame.set_rotation(math::RollPitchYaw<double>(FLAGS_thetaf, 0, 0));
+//  goal_frame.set_translation(Eigen::Vector3d(0, FLAGS_yf, FLAGS_zf));
+//  PublishFramesToLcm("GOAL_FRAME", {goal_frame}, {"goal"}, &drake_lcm);
 
   // Connect drake visualizer.
   geometry::ConnectDrakeVisualizer(
