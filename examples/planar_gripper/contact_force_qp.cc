@@ -171,9 +171,10 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, double Kp_r, double Kd_r,
-    double Ki_r, double Ki_r_sat, double weight_a_error, double weight_thetaddot_error,
-    double weight_f_Cb_B, double mu, double translational_damping,
-    double rotational_damping, double I_B, double mass_B)
+    double Ki_r, double Ki_r_sat, double Ki_t_sat, double weight_a_error,
+    double weight_thetaddot_error, double weight_f_Cb_B, double mu,
+    double translational_damping, double rotational_damping, double I_B,
+    double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
@@ -184,6 +185,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       Kd_r_{Kd_r},
       Ki_r_{Ki_r},
       Ki_r_sat{Ki_r_sat},
+      Ki_t_sat{Ki_t_sat},
       weight_a_error_{weight_a_error},
       weight_thetaddot_error_{weight_thetaddot_error},
       weight_f_Cb_B_{weight_f_Cb_B},
@@ -292,6 +294,16 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     return;
   }
 
+  // If we have a planar brick and there is only one finger in contact, then
+  // don't attempt to apply a force.
+  // TODO(rcory) currently the planner gives bogus results when a single finger
+  //  is in contact with the planar grip, which can result in the brick state
+  //  actually getting further away from the goal.
+  if (finger_face_assignments.size() == 1 && brick_type_ ==
+          BrickType::PlanarBrick) {
+    return;
+  }
+
   VectorX<double> brick_state;
   if (brick_type_ == BrickType::PlanarBrick) {
     brick_state = Vector6<double>::Zero();
@@ -321,8 +333,8 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     brick_accel_ff = Vector3d::Zero();
     brick_accel_ff.head<2>() =
         desired_brick_acceleration.head<2>() + (Ki_t_ * state_block.head<2>());
-    brick_accel_ff.tail<1>() =
-        desired_brick_acceleration.tail<1>() + (Ki_r_ * state_block.tail<1>());
+    brick_accel_ff(2) =
+        desired_brick_acceleration(2) + (Ki_r_ * state_block(2));
   } else {
     brick_accel_ff = Vector1d::Zero();
     brick_accel_ff(0) =
@@ -394,6 +406,34 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
     brick_positions = brick_state.head<3>();
     desired_brick_positions = desired_brick_state.head<3>();
+
+    // Saturate the integral terms.
+    const systems::VectorBase<double>& state_vector =
+        context.get_continuous_state_vector();
+    const Eigen::VectorBlock<const VectorX<double>> state_block =
+        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+            .get_value();
+
+    // rotation
+    if (state_block(2) > Ki_r_sat && (desired_brick_positions(2) > brick_positions(2))) {
+      brick_positions = desired_brick_positions;
+    } else if (state_block(2) < -Ki_r_sat && (desired_brick_positions(2) < brick_positions(2))) {
+      brick_positions = desired_brick_positions;
+    }
+
+    // y
+    if (state_block(0) > Ki_t_sat && (desired_brick_positions(0) > brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    } else if (state_block(0) < -Ki_t_sat && (desired_brick_positions(0) < brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    }
+
+    // z
+    if (state_block(1) > Ki_t_sat && (desired_brick_positions(1) > brick_positions(1))) {
+      brick_positions = desired_brick_positions;
+    } else if (state_block(1) < -Ki_t_sat && (desired_brick_positions(1) < brick_positions(1))) {
+      brick_positions = desired_brick_positions;
+    }
   } else {  // brick_type is PinBrick
     VectorX<double> brick_state;
     brick_state = Eigen::Vector2d::Zero();
@@ -410,14 +450,11 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
             .get_value();
     if (state_block(0) > Ki_r_sat && (desired_brick_positions(0) > brick_positions(0))) {
       brick_positions = desired_brick_positions;
-    }
-    if (state_block(0) < -Ki_r_sat && (desired_brick_positions(0) < brick_positions(0))) {
+    } else if (state_block(0) < -Ki_r_sat && (desired_brick_positions(0) < brick_positions(0))) {
       brick_positions = desired_brick_positions;
     }
-
-//    unused(Ki_r_sat);
-
   }
+
   derivatives->get_mutable_vector().SetFromVector(desired_brick_positions -
                                                   brick_positions);
 }

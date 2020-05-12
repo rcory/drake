@@ -161,7 +161,7 @@ class InstantaneousContactForceQPController
       const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
       const Eigen::Ref<const Eigen::Matrix2d>& Kd_t,
       const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, double Kp_r, double Kd_r,
-      double Ki_r, double Ki_r_sat, double weight_a_error,
+      double Ki_r, double Ki_r_sat,  double Ki_t_sat, double weight_a_error,
       double weight_thetaddot_error, double weight_f_Cb_B, double mu,
       double translational_damping, double rotational_damping, double I_B,
       double mass_B);
@@ -262,6 +262,7 @@ class InstantaneousContactForceQPController
   double Kd_r_;  // Rotational derivative QP gain.
   double Ki_r_;  // Rotational integral QP gain.
   double Ki_r_sat; // saturation
+  double Ki_t_sat; // saturation
   double weight_a_error_;
   double weight_thetaddot_error_;
   double weight_f_Cb_B_;

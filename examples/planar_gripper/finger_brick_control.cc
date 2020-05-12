@@ -766,7 +766,8 @@ void AddGripperQPControllerToDiagram(
 
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
-          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Ki_t, Kp_r, Kd_r, Ki_r, qpoptions.QP_Ki_r_sat_,
+          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Ki_t, Kp_r, Kd_r, Ki_r,
+          qpoptions.QP_Ki_r_sat_, qpoptions.QP_Ki_t_sat_,
           weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
           translational_damping, rotational_damping, I_B, mass_B);
 

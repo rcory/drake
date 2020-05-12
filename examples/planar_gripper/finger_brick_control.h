@@ -194,6 +194,7 @@ struct QPControlOptions {
   Eigen::Matrix2d QP_Kd_t_{Eigen::Matrix2d::Zero()};  // translational Kd gain.
   Eigen::Matrix2d QP_Ki_t_{Eigen::Matrix2d::Zero()};  // translational Ki gain.
   double QP_Ki_r_sat_{0};  // rotation integral saturation limit.
+  double QP_Ki_t_sat_{0};  // translation integral saturation limit.
   double QP_weight_thetaddot_error_{0};  // thetaddot error weight.
   double QP_weight_acceleration_error_{0};  // tran. acceleration error weight.
   double QP_weight_f_Cb_B_{0};  // contact force magnitude penalty weight.
