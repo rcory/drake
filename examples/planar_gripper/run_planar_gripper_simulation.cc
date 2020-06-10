@@ -199,6 +199,18 @@ int DoMain() {
   builder.Connect(status_encoder->get_output_port(0),
                   status_pub->get_input_port());
 
+  // Additionally, publish the entire MBP state via LCM.
+  auto state_pub = builder.AddSystem(
+      systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_plant_state>(
+          "ESTIMATED_PLANT_STATE", lcm, kGripperLcmPeriod));
+  auto estimated_plant_state_enc = builder.AddSystem<QPEstimatedStateEncoder>(
+      planar_gripper->get_multibody_plant().num_multibody_states());
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  estimated_plant_state_enc->get_input_port(0));
+  builder.Connect(
+      estimated_plant_state_enc->GetOutputPort("planar_plant_state_lcm"),
+      state_pub->get_input_port());
+
   auto diagram = builder.Build();
 
   // Extract the initial gripper and brick poses by parsing the keyframe file.
