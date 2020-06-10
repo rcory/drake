@@ -7,7 +7,7 @@ import sys
 
 from _drake_visualizer_builtin_scripts import (
     AVAILABLE_SCRIPTS,
-    show_forces,	
+    show_forces,
     limit_clipping_range,
     show_frame,
     show_hydroelastic_contact,
