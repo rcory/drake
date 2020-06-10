@@ -26,6 +26,8 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   geometry::SceneGraph<double>& scene_graph =
       *builder.AddSystem<geometry::SceneGraph>();
   scene_graph.set_name("scene_graph");
+  const geometry::SceneGraphInspector<double>& inspector =
+      scene_graph.model_inspector();
 
   // Make and add the planar_finger model.
   const std::string full_name =
@@ -55,7 +57,7 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   const multibody::Frame<double>& brick_frame =
       plant.GetFrameByName("brick_link");
   const geometry::GeometryId finger_tip_geometry_id =
-      GetFingertipSphereGeometryId(plant, scene_graph.model_inspector(),
+      GetFingertipSphereGeometryId(plant, inspector,
                                    Finger::kFinger1);  // fingertip sphere id
   // First solve an IK problem that the finger is making contact with the brick.
   multibody::InverseKinematics ik(plant);
@@ -89,11 +91,17 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
   drake::log()->info("j1_angle: {}", q_ik(j1index));
   drake::log()->info("j2_angle: {}", q_ik(j2index));
 
-  const multibody::CoulombFriction<double>& brick_friction =
-      plant.default_coulomb_friction(
+  const geometry::ProximityProperties* brick_proximity_props =
+      inspector.GetProximityProperties(
           plant.GetCollisionGeometriesForBody(brick_frame.body())[0]);
+  const multibody::CoulombFriction<double>& brick_friction =
+      brick_proximity_props->GetProperty<multibody::CoulombFriction<double>>(
+          "material", "coulomb_friction");
+  const geometry::ProximityProperties* ftip_proximity_props =
+      inspector.GetProximityProperties(finger_tip_geometry_id);
   const multibody::CoulombFriction<double>& finger_tip_friction =
-      plant.default_coulomb_friction(finger_tip_geometry_id);
+      ftip_proximity_props->GetProperty<multibody::CoulombFriction<double>>(
+          "material", "coulomb_friction");
   const double mu = multibody::CalcContactFrictionFromSurfaceProperties(
                         brick_friction, finger_tip_friction)
                         .static_friction();
