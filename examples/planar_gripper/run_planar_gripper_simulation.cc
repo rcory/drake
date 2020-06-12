@@ -65,6 +65,7 @@
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
@@ -83,6 +84,9 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 namespace {
+
+using multibody::MultibodyPlant;
+using geometry::SceneGraph;
 
 // TODO(rcory) Move all common flags to a shared YAML file.
 DEFINE_double(target_realtime_rate, 1.0,
@@ -200,16 +204,41 @@ int DoMain() {
                   status_pub->get_input_port());
 
   // Additionally, publish the entire MBP state via LCM.
+  const MultibodyPlant<double> &plant = planar_gripper->get_multibody_plant();
+  const SceneGraph<double>& scene_graph = planar_gripper->get_scene_graph();
   auto state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_plant_state>(
           "ESTIMATED_PLANT_STATE", lcm, kGripperLcmPeriod));
   auto estimated_plant_state_enc = builder.AddSystem<QPEstimatedStateEncoder>(
-      planar_gripper->get_multibody_plant().num_multibody_states());
+      plant.num_multibody_states());
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
                   estimated_plant_state_enc->get_input_port(0));
   builder.Connect(
       estimated_plant_state_enc->GetOutputPort("planar_plant_state_lcm"),
       state_pub->get_input_port());
+
+  // Publish the finger face assignments.
+  auto finger_face_assignments_pub =
+      builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
+                        drake::lcmt_planar_gripper_finger_face_assignments>(
+          "FINGER_FACE_ASSIGNMENTS", lcm, kGripperLcmPeriod));
+  auto finger_face_assignments_enc =
+      builder.AddSystem<QPFingerFaceAssignmentsEncoder>();
+  builder.Connect(
+      finger_face_assignments_enc->GetOutputPort("finger_face_assignments_lcm"),
+      finger_face_assignments_pub->get_input_port());
+
+  auto finger_face_assigner =
+      builder.AddSystem<FingerFaceAssigner>(plant, scene_graph);
+  builder.Connect(planar_gripper->GetOutputPort("contact_results"),
+                  finger_face_assigner->GetInputPort("contact_results"));
+  builder.Connect(planar_gripper->GetOutputPort("scene_graph_query"),
+                  finger_face_assigner->GetInputPort("geometry_query"));
+  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
+                  finger_face_assigner->GetInputPort("plant_state"));
+  builder.Connect(
+      finger_face_assigner->GetOutputPort("finger_face_assignments"),
+      finger_face_assignments_enc->GetInputPort("qp_finger_face_assignments"));
 
   auto diagram = builder.Build();
 

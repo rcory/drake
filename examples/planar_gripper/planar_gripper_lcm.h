@@ -16,6 +16,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_finger_face_assignments.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
@@ -370,8 +371,7 @@ class QPFingerFaceAssignmentsDecoder : public systems::LeafSystem<double> {
  private:
   void OutputFingerFaceAssignments(
       const systems::Context<double>& context,
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-          finger_face_assignments) const;
+      std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const;
 
   /// Event handler of the periodic discrete state update.
   systems::EventStatus UpdateAbstractState(

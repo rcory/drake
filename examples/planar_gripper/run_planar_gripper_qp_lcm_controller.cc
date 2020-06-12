@@ -99,7 +99,11 @@ int DoMain() {
   systems::lcm::LcmInterfaceSystem* lcm =
       builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
 
-  PlanarGripper planar_gripper(0.0 /* time step */, ControlType::kTorque);
+  // Sets up a planar gripper diagram with an arbitrarily set time step. This
+  // avoids MBP complaining about joint limits. Since we don't use the MBP
+  // for simulation here, the time step is irrelevant.
+  PlanarGripper planar_gripper(1e-3 /* arbitrary time step */,
+                               ControlType::kTorque);
   planar_gripper.SetupPinBrick("vertical");
   planar_gripper.zero_gravity();
   planar_gripper.Finalize();
