@@ -192,6 +192,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 void GetForceControllerOptions(const PlanarGripper& planar_gripper,
                                const Finger finger,
                                ForceControlOptions* foptions) {
+  unused(planar_gripper);
   foptions->kpf_t_ = FLAGS_kpf_t;
   foptions->kpf_n_ = FLAGS_kpf_n;
   foptions->kif_t_ = FLAGS_kif_t;
