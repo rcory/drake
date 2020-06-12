@@ -7,6 +7,7 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/lcmt_planar_gripper_command.hpp"
 #include "drake/lcmt_planar_gripper_status.hpp"
 #include "drake/lcmt_planar_manipuland_desired.hpp"
@@ -551,12 +552,8 @@ QPFingerFaceAssignmentsDecoder::QPFingerFaceAssignmentsDecoder() {
   this->DeclareAbstractOutputPort(
       "qp_finger_face_assignments",
       &QPFingerFaceAssignmentsDecoder::OutputFingerFaceAssignments);
-
-  // State holds an abstract value of
-  // std::unordered_map<Finger, std::pair(BrickFace, Eigen::Vector2d)>
   this->DeclareAbstractState(
-      std::make_unique<Value<std::unordered_map<
-          Finger, std::pair<BrickFace, Eigen::Vector2d>>>>());
+      std::make_unique<Value<std::unordered_map<Finger, BrickFaceInfo>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
       kGripperLcmPeriod, 0.,
       &QPFingerFaceAssignmentsDecoder::UpdateAbstractState);
@@ -578,7 +575,7 @@ systems::EventStatus QPFingerFaceAssignmentsDecoder::UpdateAbstractState(
         static_cast<int>(assignments_lcm.finger_face_assignments.size()) ==
         assignments_lcm.num_fingers);
     auto& assignments = state->get_mutable_abstract_state<
-        std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(0);
+        std::unordered_map<Finger, BrickFaceInfo>>(0);
     assignments.clear();
     for (int i = 0; i < assignments_lcm.num_fingers; ++i) {
       auto assignment_lcm = assignments_lcm.finger_face_assignments[i];
@@ -587,7 +584,9 @@ systems::EventStatus QPFingerFaceAssignmentsDecoder::UpdateAbstractState(
       Eigen::Vector2d p_BoBq_B;
       p_BoBq_B(0) = assignment_lcm.p_BoBq_B[0];
       p_BoBq_B(1) = assignment_lcm.p_BoBq_B[1];
-      assignments.emplace(finger, std::make_pair(brick_face, p_BoBq_B));
+      bool is_in_contact = assignment_lcm.is_in_contact;
+      assignments.emplace(finger,
+                          BrickFaceInfo(brick_face, p_BoBq_B, is_in_contact));
     }
   }
   return systems::EventStatus::Succeeded();
@@ -595,18 +594,16 @@ systems::EventStatus QPFingerFaceAssignmentsDecoder::UpdateAbstractState(
 
 void QPFingerFaceAssignmentsDecoder::OutputFingerFaceAssignments(
     const systems::Context<double>& context,
-    std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-        finger_face_assignments) const {
+    std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const {
   finger_face_assignments->clear();
-  *finger_face_assignments = context.get_abstract_state<
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(0);
+  *finger_face_assignments =
+      context.get_abstract_state<std::unordered_map<Finger, BrickFaceInfo>>(0);
 }
 
 QPFingerFaceAssignmentsEncoder::QPFingerFaceAssignmentsEncoder() {
   this->DeclareAbstractInputPort(
       "qp_finger_face_assignments",
-      Value<
-          std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>{});
+      Value<std::unordered_map<Finger, BrickFaceInfo>>{});
 
   this->DeclareAbstractOutputPort(
       "finger_face_assignments_lcm",
@@ -619,9 +616,7 @@ void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
     const {
   auto finger_face_assignments =
       this->GetInputPort("qp_finger_face_assignments")
-          .Eval<std::unordered_map<Finger,
-                                   std::pair<BrickFace, Eigen::Vector2d>>>(
-              context);
+          .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
   size_t num_fingers = finger_face_assignments.size();
   finger_face_assignments_lcm->num_fingers = num_fingers;
   //  finger_face_assignments_lcm->finger_face_assignments.resize(num_fingers);
@@ -634,11 +629,13 @@ void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
     finger_face_assignment_lcm.finger_name =
         to_string(finger_face_assignment.first);
     finger_face_assignment_lcm.brick_face_name =
-        to_string(finger_face_assignment.second.first);
+        to_string(finger_face_assignment.second.brick_face);
     finger_face_assignment_lcm.p_BoBq_B[0] =
-        finger_face_assignment.second.second(0);
+        finger_face_assignment.second.p_BCb(0);
     finger_face_assignment_lcm.p_BoBq_B[1] =
-        finger_face_assignment.second.second(1);
+        finger_face_assignment.second.p_BCb(1);
+    finger_face_assignment_lcm.is_in_contact =
+        finger_face_assignment.second.is_in_contact;
     finger_face_assignments_lcm->finger_face_assignments.push_back(
         finger_face_assignment_lcm);
   }
