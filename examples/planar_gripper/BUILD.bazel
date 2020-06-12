@@ -71,6 +71,7 @@ drake_cc_library(
     hdrs = ["planar_gripper_lcm.h"],
     deps = [
         "//examples/planar_gripper:planar_gripper_common",
+        "//examples/planar_gripper:planar_gripper_utils",
         "//lcmtypes:planar_gripper",
         "//lcmtypes:planar_gripper_qp",
         "//lcmtypes:planar_manipuland",
@@ -237,6 +238,7 @@ drake_cc_binary(
         ":planar_gripper",
         ":planar_gripper_common",
         ":planar_gripper_lcm",
+        ":planar_gripper_utils",
         "//common:find_resource",
         "//geometry:geometry_visualization",
         "//multibody/plant",
