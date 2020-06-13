@@ -174,7 +174,12 @@ int DoMain() {
 
   VectorX<double> torques(num_joints); torques.setZero();
   auto torques_src = builder.AddSystem<systems::ConstantVectorSource>(torques);
+  auto plant_state_to_pref_state =
+      builder.AddSystem<MapPlantStateToUserOrderedState>(
+          control_plant, GetPreferredGripperJointOrdering());
   builder.Connect(finger_state_src->get_output_port(),
+                  plant_state_to_pref_state->get_input_port(0));
+  builder.Connect(plant_state_to_pref_state->get_output_port(0),
                   gripper_command_encoder->get_state_input_port());
   builder.Connect(torques_src->get_output_port(),
                   gripper_command_encoder->get_torques_input_port());

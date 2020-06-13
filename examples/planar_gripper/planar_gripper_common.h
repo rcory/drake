@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -169,7 +170,7 @@ std::vector<std::string> GetPreferredFingerJointOrdering();
 /// finger is ordered according to GetPreferredFingerJointOrdering().
 std::vector<std::string> GetPreferredGripperJointOrdering();
 
-/// Returns the state plant's state selector matrix corresponding to the
+/// Returns the plant's state selector matrix corresponding to the
 /// provided joint names in PlanarGripper.
 MatrixX<double> MakeStateSelectorMatrix(
     const MultibodyPlant<double>& plant,
@@ -221,18 +222,65 @@ class ExternalSpatialToSpatialViz final : public systems::LeafSystem<double> {
 /// Takes in a state vector from MBP state output port, and outputs a state
 /// whose order is dictated by `user_order`. The user ordered output state can
 /// be a subset of the full state.
-class MapStateToUserOrderedState final : public systems::LeafSystem<double> {
+class MapPlantStateToUserOrderedState final
+    : public systems::LeafSystem<double> {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapStateToUserOrderedState)
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapPlantStateToUserOrderedState)
 
-  MapStateToUserOrderedState(const MultibodyPlant<double>& plant,
-                             std::vector<std::string> user_order_vec);
+  MapPlantStateToUserOrderedState(const MultibodyPlant<double>& plant,
+                                  std::vector<std::string> user_order_vec);
 
   void CalcOutput(const systems::Context<double>& context,
                   systems::BasicVector<double>* output_vector) const;
 
  private:
   MatrixX<double> Sx_;  // state selector matrix.
+};
+
+/// Takes in a plant state vector whose ordering is given by joint names
+/// contained in `user_order_vec` and outputs a state vector whose ordering
+/// matches the MBP joint ordering. The user ordered input state must be the
+/// same size as MultibodyPlant::num_velocities(model_index). If the optional
+/// argument model index is not provided, this size is equal to the number of
+/// velocities in the full MBP.
+class MapUserOrderedStateToPlantState final
+    : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapUserOrderedStateToPlantState)
+
+  MapUserOrderedStateToPlantState(
+      const MultibodyPlant<double>& plant,
+      const std::vector<std::string>& user_order_vec,
+      std::optional<multibody::ModelInstanceIndex> model_index);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  systems::BasicVector<double>* output_vector) const;
+
+ private:
+  MatrixX<double> Sx_inv_;  // state selector matrix inverse.
+};
+
+/// Takes in a plant actuation vector whose ordering is given by joint names
+/// contained in `user_order_vec` and outputs an actuation vector whose ordering
+/// matches the MBP actuation ordering. The user ordered input must be the same
+/// size as MultibodyPlant::num_actuated_dofs(model_index). If the optional
+/// argument `model_index` is not provided, this size is equal to the number of
+/// actuated dofs in the full MBP.
+class MapUserOrderedActuationToPlantActuation final
+    : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MapUserOrderedActuationToPlantActuation)
+
+  MapUserOrderedActuationToPlantActuation(
+      const MultibodyPlant<double>& plant,
+      const std::vector<std::string>& user_order_vec,
+      std::optional<multibody::ModelInstanceIndex> model_index);
+
+  void CalcOutput(const systems::Context<double>& context,
+                  systems::BasicVector<double>* output_vector) const;
+
+ private:
+  MatrixX<double> Su_inv_;  // actuation selector matrix inverse.
 };
 
 }  // namespace planar_gripper

@@ -80,7 +80,8 @@ systems::EventStatus GripperCommandDecoder::UpdateDiscreteState(
   for (int i = 0; i < command.num_fingers; ++i) {
     const lcmt_planar_gripper_finger_command& fcommand =
         command.finger_command[i];
-    const int st_index = 2 * i;
+    const int finger_num = to_num(to_Finger(fcommand.finger_name));
+    const int st_index = 2 * (finger_num - 1);
     positions(st_index) = fcommand.joint_position[0];
     positions(st_index + 1) = fcommand.joint_position[1];
     velocities(st_index) = fcommand.joint_velocity[0];
@@ -129,6 +130,8 @@ void GripperCommandEncoder::OutputCommand(
   for (int i = 0; i < num_fingers_; ++i) {
     const int st_index = 2 * i;
     lcmt_planar_gripper_finger_command& fcommand = command->finger_command[i];
+    fcommand.utime = static_cast<int64_t>(context.get_time() * 1e6);
+    fcommand.finger_name = to_string_from_finger_num(i + 1);
     fcommand.joint_position[0] = state_input->GetAtIndex(st_index);
     fcommand.joint_position[1] = state_input->GetAtIndex(st_index + 1);
     fcommand.joint_velocity[0] =
