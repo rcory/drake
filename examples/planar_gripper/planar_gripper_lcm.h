@@ -46,9 +46,15 @@ constexpr double kGripperLcmPeriod = 0.002;
 /// This system has one abstract valued input port which expects a
 /// Value object templated on type `lcmt_planar_gripper_command`.
 ///
-/// This system has two output ports. The first reports the commanded position
-/// and velocity for all joints, and the second reports the commanded joint
-/// torques.
+/// This system has two output ports. The first reports the commanded state
+/// for all joints [q, v], and the second reports the commanded joint torques
+/// (tau).
+//
+/// This system orders gripper joints according to q =
+/// [q_finger_1, q_finger_2, ..., q_finger_n], where n is the number of fingers
+/// and assumes each q_finger_i vector is ordered according to the preferred
+/// finger joint ordering (see GetPreferredFingerJointOrdering in
+/// planar_gripper_common.h). The same ordering applies to v and tau.
 class GripperCommandDecoder : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GripperCommandDecoder)
@@ -62,7 +68,8 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
   /// This position will be the commanded position (with zero
   /// velocity) until a position message is received.  If this
   /// function is not called, the starting position will be the zero
-  /// configuration.
+  /// configuration. The ordering of x follows the ordering of q described
+  /// above.
   void set_initial_position(systems::Context<double>* context,
                             const Eigen::Ref<const VectorX<double>> x) const;
 
@@ -97,8 +104,14 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
 /// Creates and outputs lcmt_planar_gripper_command messages.
 ///
 /// This system has two vector-valued input ports containing the
-/// desired position and velocity in the first port, and commanded torque on the
+/// desired state [q, v] on the first port, and commanded torque (tau) on the
 /// second port.
+///
+/// This system assumes the gripper joints are ordered according to q =
+/// [q_finger_1, q_finger_2, ..., q_finger_n], where n is the number of fingers
+/// and each q_finger_i vector is ordered according to the preferred finger
+/// joint ordering (see GetPreferredFingerJointOrdering in
+/// planar_gripper_common.h). The same ordering applies to v and tau.
 ///
 /// This system has one abstract valued output port that contains a
 /// Value object templated on type `lcmt_planar_gripper_command`. Note

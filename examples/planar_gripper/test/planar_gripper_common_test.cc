@@ -18,7 +18,7 @@ class PlanarGripperCommonTest : public ::testing::Test {
             "drake/examples/planar_gripper/planar_gripper.sdf")),
         brick_full_file_name_(FindResourceOrThrow(
             "drake/examples/planar_gripper/planar_brick.sdf")),
-        plant_(MultibodyPlant<double>(0.0)) {
+        plant_(MultibodyPlant<double>(1e-3)) {
     gripper_index_ = multibody::Parser(&plant_).AddModelFromFile(
         gripper_full_file_name_, "planar_gripper");
     WeldGripperFrames<double>(&plant_, math::RigidTransformd::Identity());
@@ -36,6 +36,76 @@ class PlanarGripperCommonTest : public ::testing::Test {
   MultibodyPlant<double> plant_;
   multibody::ModelInstanceIndex gripper_index_;
 };
+
+TEST_F(PlanarGripperCommonTest, MapUserOrderedStateToPlantState) {
+  systems::DiagramBuilder<double> builder;
+  auto user_order_vec = GetPreferredGripperJointOrdering();
+  auto dut = builder.AddSystem<MapUserOrderedStateToPlantState>(
+      plant_, user_order_vec, gripper_index_);
+
+  auto outport = builder.ExportOutput(dut->get_output_port(0));
+  builder.ExportInput(dut->get_input_port(0));
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+
+  VectorX<double> user_state = VectorX<double>::Zero(12);
+  user_state.head(6) << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6;
+
+  diagram->get_input_port(0).FixValue(diagram_context.get(), user_state);
+  systems::State<double>& diagram_state = diagram_context->get_mutable_state();
+  diagram->CalcUnrestrictedUpdate(*diagram_context, &diagram_state);
+
+  auto plant_state =
+      diagram->get_output_port(outport).Eval<systems::BasicVector<double>>(
+          *diagram_context).get_value();
+
+  // Create the state selector matrix.
+  std::vector<multibody::JointIndex> joint_indices;
+  joint_indices.reserve(user_order_vec.size());
+  for (auto & iter : user_order_vec) {
+    joint_indices.push_back(plant_.GetJointByName(iter).index());
+  }
+  MatrixX<double> Sx_inv =
+      plant_.MakeStateSelectorMatrix(joint_indices).inverse();
+  drake::log()->info("Sx_inv: \n{}", Sx_inv);
+
+  EXPECT_TRUE(CompareMatrices(Sx_inv * user_state, plant_state));
+}
+
+TEST_F(PlanarGripperCommonTest, MapUserOrderedActuationToPlantActuation) {
+  systems::DiagramBuilder<double> builder;
+  auto user_order_vec = GetPreferredGripperJointOrdering();
+  auto dut = builder.AddSystem<MapUserOrderedActuationToPlantActuation>(
+      plant_, user_order_vec, gripper_index_);
+
+  auto outport = builder.ExportOutput(dut->get_output_port(0));
+  builder.ExportInput(dut->get_input_port(0));
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+
+  VectorX<double> user_actuation = VectorX<double>::Zero(6);
+  user_actuation << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6;
+
+  diagram->get_input_port(0).FixValue(diagram_context.get(), user_actuation);
+  systems::State<double>& diagram_state = diagram_context->get_mutable_state();
+  diagram->CalcUnrestrictedUpdate(*diagram_context, &diagram_state);
+
+  auto plant_actuation =
+      diagram->get_output_port(outport).Eval<systems::BasicVector<double>>(
+          *diagram_context).get_value();
+
+  // Create the actuation selector matrix.
+  std::vector<multibody::JointIndex> joint_indices;
+  joint_indices.reserve(user_order_vec.size());
+  for (auto & iter : user_order_vec) {
+    joint_indices.push_back(plant_.GetJointByName(iter).index());
+  }
+  MatrixX<double> Su_inv =
+      plant_.MakeActuatorSelectorMatrix(joint_indices).inverse();
+  drake::log()->info("Sx_inv: \n{}", Su_inv);
+
+  EXPECT_TRUE(CompareMatrices(Su_inv * user_actuation, plant_actuation));
+}
 
 TEST_F(PlanarGripperCommonTest, MakeStateSelectorMatrix) {
   std::vector<std::string> joint_names =

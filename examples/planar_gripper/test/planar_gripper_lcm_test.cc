@@ -38,6 +38,7 @@ GTEST_TEST(GripperLcmTest, GripperCommandPassthroughTest) {
   command.num_fingers = kNumFingers;
   command.finger_command.resize(kNumFingers);
   auto& fcommand_in = command.finger_command[0];
+  fcommand_in.finger_name = "finger1";
   fcommand_in.joint_position[0] = 0.1;
   fcommand_in.joint_position[1] = 0.2;
   fcommand_in.joint_velocity[0] = 0.3;
@@ -59,6 +60,7 @@ GTEST_TEST(GripperLcmTest, GripperCommandPassthroughTest) {
   auto& fcommand_out = command_out.finger_command[0];
 
   ASSERT_EQ(command.num_fingers, command_out.num_fingers);
+  ASSERT_EQ(fcommand_in.finger_name, fcommand_out.finger_name);
   ASSERT_EQ(fcommand_in.joint_position[0], fcommand_out.joint_position[0]);
   ASSERT_EQ(fcommand_in.joint_position[1], fcommand_out.joint_position[1]);
   ASSERT_EQ(fcommand_in.joint_velocity[0], fcommand_out.joint_velocity[0]);
