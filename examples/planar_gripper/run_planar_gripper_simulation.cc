@@ -171,11 +171,25 @@ int DoMain() {
   // (desired torques are ignored) or torque control mode (desired state is
   // ignored).
   if (FLAGS_use_position_control) {
+    auto user_to_plant_state_ordering =
+        builder.AddSystem<MapUserOrderedStateToPlantState>(
+            planar_gripper->get_control_plant(),
+            GetPreferredGripperJointOrdering(),
+            planar_gripper->get_planar_gripper_index());
     builder.Connect(command_decoder->get_state_output_port(),
+                    user_to_plant_state_ordering->get_input_port(0));
+    builder.Connect(user_to_plant_state_ordering->get_output_port(0),
                     planar_gripper->GetInputPort("desired_gripper_state"));
   } else {  // Use torque control.
+    auto user_to_plant_actuation_ordering =
+        builder.AddSystem<MapUserOrderedActuationToPlantActuation>(
+            planar_gripper->get_control_plant(),
+            GetPreferredGripperJointOrdering(),
+            planar_gripper->get_planar_gripper_index());
     builder.Connect(command_decoder->get_torques_output_port(),
-                    planar_gripper->GetInputPort("actuation"));
+                    user_to_plant_actuation_ordering->get_input_port(0));
+    builder.Connect(user_to_plant_actuation_ordering->get_output_port(0),
+                    planar_gripper->GetInputPort("torque_control_u"));
   }
 
   geometry::ConnectDrakeVisualizer(&builder,
@@ -293,10 +307,12 @@ int DoMain() {
 
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   systems::Context<double>& simulator_context = simulator.get_mutable_context();
+  auto Sx = MakeStateSelectorMatrix(planar_gripper->get_control_plant(),
+                                    GetPreferredGripperJointOrdering());
   command_decoder->set_initial_position(
       &diagram->GetMutableSubsystemContext(*command_decoder,
                                            &simulator_context),
-      gripper_initial_positions);
+      Sx * gripper_initial_positions);
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();

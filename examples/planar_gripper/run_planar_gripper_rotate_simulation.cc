@@ -348,7 +348,7 @@ int DoMain() {
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
           "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmPeriod));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
-  auto state_remapper = builder.AddSystem<MapStateToUserOrderedState>(
+  auto state_remapper = builder.AddSystem<MapPlantStateToUserOrderedState>(
       planar_gripper->get_multibody_plant(),
       GetPreferredGripperJointOrdering());
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),

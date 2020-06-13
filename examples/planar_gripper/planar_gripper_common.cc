@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <map>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -521,10 +522,10 @@ void ExternalSpatialToSpatialViz::CalcOutput(
   }
 }
 
-MapStateToUserOrderedState::MapStateToUserOrderedState(
+MapPlantStateToUserOrderedState::MapPlantStateToUserOrderedState(
     const MultibodyPlant<double>& plant,
     std::vector<std::string> user_order_vec) {
-  // Create the state selctor matrix.
+  // Create the state selector matrix.
   std::vector<multibody::JointIndex> joint_indices;
   for (auto iter = user_order_vec.begin(); iter != user_order_vec.end();
        ++iter) {
@@ -533,15 +534,15 @@ MapStateToUserOrderedState::MapStateToUserOrderedState(
   Sx_ = plant.MakeStateSelectorMatrix(joint_indices);
 
   this->DeclareVectorInputPort(
-      "plant_state", systems::BasicVector<double>(plant.num_positions() +
-                                                  plant.num_velocities()));
+      "plant_state",
+      systems::BasicVector<double>(plant.num_multibody_states()));
 
   this->DeclareVectorOutputPort(
-      "user_x", systems::BasicVector<double>(user_order_vec.size() * 2),
-      &MapStateToUserOrderedState::CalcOutput);
+      "user_state", systems::BasicVector<double>(user_order_vec.size() * 2),
+      &MapPlantStateToUserOrderedState::CalcOutput);
 }
 
-void MapStateToUserOrderedState::CalcOutput(
+void MapPlantStateToUserOrderedState::CalcOutput(
     const systems::Context<double>& context,
     systems::BasicVector<double>* output_vector) const {
   auto output_value = output_vector->get_mutable_value();
@@ -549,6 +550,85 @@ void MapStateToUserOrderedState::CalcOutput(
 
   output_value.setZero();
   output_value = Sx_ * plant_state;  // User ordered state.
+}
+
+MapUserOrderedStateToPlantState::MapUserOrderedStateToPlantState(
+    const MultibodyPlant<double>& plant,
+    const std::vector<std::string>& user_order_vec,
+    std::optional<multibody::ModelInstanceIndex> model_index) {
+  const int num_velocities = model_index.has_value()
+                                    ? plant.num_velocities(model_index.value())
+                                    : plant.num_velocities();
+  if (static_cast<int>(user_order_vec.size()) != num_velocities) {
+    throw std::runtime_error(
+        "MapUserOrderedStateToPlantState: the size of user_order_vec does not "
+        "match num_velocities.");
+  }
+
+  // Create the state selector matrix.
+  std::vector<multibody::JointIndex> joint_indices;
+  joint_indices.reserve(user_order_vec.size());
+  for (const auto& iter : user_order_vec) {
+    joint_indices.push_back(plant.GetJointByName(iter).index());
+  }
+  Sx_inv_ = plant.MakeStateSelectorMatrix(joint_indices).inverse();
+
+  this->DeclareVectorInputPort(
+      "user_state", systems::BasicVector<double>(num_velocities * 2));
+
+  this->DeclareVectorOutputPort(
+      "plant_state", systems::BasicVector<double>(num_velocities * 2),
+      &MapUserOrderedStateToPlantState::CalcOutput);
+}
+
+void MapUserOrderedStateToPlantState::CalcOutput(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* output_vector) const {
+  auto output_value = output_vector->get_mutable_value();
+  auto user_state = this->EvalVectorInput(context, 0)->get_value();
+
+  output_value.setZero();
+  output_value = Sx_inv_ * user_state;  // MBP ordered state.
+}
+
+MapUserOrderedActuationToPlantActuation::
+    MapUserOrderedActuationToPlantActuation(
+        const MultibodyPlant<double>& plant,
+        const std::vector<std::string>& user_order_vec,
+        std::optional<multibody::ModelInstanceIndex> model_index) {
+  const int num_actuated_dofs =
+      model_index.has_value() ? plant.num_actuated_dofs(model_index.value())
+                              : plant.num_actuated_dofs();
+  if (static_cast<int>(user_order_vec.size()) != num_actuated_dofs) {
+    throw std::runtime_error(
+        "MapUserOrderedActuationToPlantActuation: the size of user_order_vec "
+        "does not match num_actuated_dofs.");
+  }
+
+  // Create the actuation selector matrix.
+  std::vector<multibody::JointIndex> joint_indices;
+  joint_indices.reserve(user_order_vec.size());
+  for (auto & iter : user_order_vec) {
+    joint_indices.push_back(plant.GetJointByName(iter).index());
+  }
+  Su_inv_ = plant.MakeActuatorSelectorMatrix(joint_indices).inverse();
+
+  this->DeclareVectorInputPort("user_actuation",
+                               systems::BasicVector<double>(num_actuated_dofs));
+
+  this->DeclareVectorOutputPort(
+      "plant_actuation", systems::BasicVector<double>(num_actuated_dofs),
+      &MapUserOrderedActuationToPlantActuation::CalcOutput);
+}
+
+void MapUserOrderedActuationToPlantActuation::CalcOutput(
+    const systems::Context<double>& context,
+    systems::BasicVector<double>* output_vector) const {
+  auto output_value = output_vector->get_mutable_value();
+  auto user_actuation = this->EvalVectorInput(context, 0)->get_value();
+
+  output_value.setZero();
+  output_value = Su_inv_ * user_actuation;  // MBP ordered state.
 }
 
 }  // namespace planar_gripper

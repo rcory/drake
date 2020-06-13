@@ -2,6 +2,12 @@ package drake;
 
 struct lcmt_planar_gripper_finger_command
 {
+  // in microseconds
+  int64_t utime;
+
+  // Finger name: {finger1, finger2, finger3}
+  string finger_name;
+
   // Only used when the planar gripper is in joint position control mode.
   // Otherwise, ignored.
   double joint_position[2];
