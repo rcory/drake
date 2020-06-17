@@ -82,11 +82,11 @@ GetClosestFacesToFinger(const multibody::MultibodyPlant<double>& plant,
                         Finger finger);
 
 /**
- * A system that outputs the closest faces to each finger, and the witness
- * points on the brick. The output format is std::unordered_map<Finger,
- * std::pair<BrickFace, Eigen::Vector2d>>. The input port takes in a
- * geometry::QueryObject<double> object, this input port should be connected to
- * the scene graph geometry query output port.
+ * A system that outputs the closest faces to each finger, and the contact (or
+ * witness points) on the brick. The output format is std::unordered_map<Finger,
+ * BrickFaceInfo>. The input port takes in a geometry::QueryObject<double>
+ * object, this input port should be connected to the scene graph geometry query
+ * output port.
  */
 class FingerFaceAssigner final : public systems::LeafSystem<double> {
  public:
