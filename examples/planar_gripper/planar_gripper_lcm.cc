@@ -622,7 +622,6 @@ void QPFingerFaceAssignmentsEncoder::EncodeFingerFaceAssignments(
           .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
   size_t num_fingers = finger_face_assignments.size();
   finger_face_assignments_lcm->num_fingers = num_fingers;
-  //  finger_face_assignments_lcm->finger_face_assignments.resize(num_fingers);
   finger_face_assignments_lcm->finger_face_assignments.clear();
   finger_face_assignments_lcm->utime =
       static_cast<int64_t>(context.get_time() * 1e6);

@@ -372,8 +372,7 @@ class QPEstimatedStateEncoder : public systems::LeafSystem<double> {
 
 /*
  * This class takes in an lcmt_planar_gripper_finger_face_assignments object
- * and outputs a
- * std::unordered_map<Finger, std::pair(BrickFace, Eigen::Vector2d)>.
+ * and outputs a std::unordered_map<Finger, BrickFaceInfo> object.
  */
 class QPFingerFaceAssignmentsDecoder : public systems::LeafSystem<double> {
  public:
@@ -394,8 +393,12 @@ class QPFingerFaceAssignmentsDecoder : public systems::LeafSystem<double> {
 
 /*
  * This class takes in a
- * std::unordered_map<Finger, std::pair(BrickFace, Eigen::Vector2d)>
- * and outputs an lcmt_planar_gripper_finger_face_assignments object.
+ * std::unordered_map<Finger, BrickFaceInfo> object and outputs an
+ * lcmt_planar_gripper_finger_face_assignments object. Note that an
+ * lcmt_planar_gripper_finger_face_assignments object contains a
+ * `finger_face_assignment` array, whose entries are identified by the
+ * `finger_name` field, i.e., the array ordering should not be assumed to be in
+ * any particular order.
  */
 class QPFingerFaceAssignmentsEncoder : public systems::LeafSystem<double> {
  public:
