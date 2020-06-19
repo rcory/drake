@@ -7,13 +7,13 @@
 #include <unordered_map>
 #include <utility>
 
+#include "drake/common/trajectories/piecewise_polynomial.h"
 #include "drake/examples/planar_gripper/contact_force_qp.h"
 #include "drake/examples/planar_gripper/planar_gripper.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
-#include "drake/common/trajectories/piecewise_polynomial.h"
 
 namespace drake {
 namespace examples {

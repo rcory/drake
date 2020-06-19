@@ -135,13 +135,21 @@ class InstantaneousContactForceQPController
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(InstantaneousContactForceQPController)
 
   /**
-   * @param gripper_brick The gripper_brick system.
+   * @param brick_type The type of brick (planar, pinned) to be manipulated.
+   * @param plant The MBP containing the planar-gripper/brick system.
    * @param Kp_t The proportional gain for the brick y/z translational
    * position.
    * @param Kd_t The derivative gain for the brick y/z translational position.
+   * @param Ki_t The integral gain for the brick y/z translational position
+   * error.
    * @param Kp_r The proportional gain for the brick rotational position
    * (angle).
    * @param Kd_r The derivative gain for the brick rotational velocity.
+   * @param Ki_r The integral gain for the brick rotational position (angular)
+   * error.
+   * @param Ki_r_sat The angular error integral controller's saturation value.
+   * @param Ki_t_sat The translational error integral controller's saturation
+   * value.
    * @param weight_a_error The weighting for the brick y/z acceleration in the
    * cost. This error is made up of a PD term and a FF term.
    * @param weight_thetaddot_error The weighting for the brick thetaddot in the
@@ -261,8 +269,8 @@ class InstantaneousContactForceQPController
   double Kp_r_;  // Rotational proportional QP gain.
   double Kd_r_;  // Rotational derivative QP gain.
   double Ki_r_;  // Rotational integral QP gain.
-  double Ki_r_sat; // saturation
-  double Ki_t_sat; // saturation
+  double Ki_r_sat;  // Rotational integral control saturation value.
+  double Ki_t_sat;  // Translational integral control saturation value.
   double weight_a_error_;
   double weight_thetaddot_error_;
   double weight_f_Cb_B_;

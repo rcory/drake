@@ -8,8 +8,8 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
-#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/plant/spatial_forces_to_lcm.h"
+#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_value_source.h"
@@ -207,6 +207,7 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl) {
                               F_Bq_W_actual, 4.7e-4));
 }
 
+// Test at a second finger configuration with a much larger force.
 GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl2) {
   systems::DiagramBuilder<double> builder;
 
@@ -230,9 +231,10 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl2) {
   const multibody::Frame<double>& brick_base_frame =
       plant->GetFrameByName("brick_base_link", brick_index);
   math::RigidTransformd weld_xform;
-  weld_xform.set_rotation(math::RollPitchYaw<double>(0.35879774282006216, 0, 0));
+  weld_xform.set_rotation(
+      math::RollPitchYaw<double>(0.35880, 0, 0));
   weld_xform.set_translation(
-      Eigen::Vector3d(0, -0.00853645415347704, 0.037589689080274054));
+      Eigen::Vector3d(0, -0.00854, 0.03759));
   plant->WeldFrames(plant->world_frame(), brick_base_frame, weld_xform);
 
   plant->Finalize();
@@ -313,7 +315,6 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl2) {
   multibody::ExternallyAppliedSpatialForce<double> desired_force;
   desired_force.F_Bq_W = multibody::SpatialForce<double>(
       Eigen::Vector3d::Zero() /* torque */,
-//      Eigen::Vector3d(0 /* fx_*/, 0.200073 /* fy */, 0.0750335 /* fz*/));
       Eigen::Vector3d(0 /* fx_*/, 0.183284 /* fy */, 0.1198 /* fz*/));
 
   // Draw the desired force in drake viz.
@@ -388,7 +389,7 @@ GTEST_TEST(ForceControllerTest, PlanarFingerStaticForceControl2) {
   // Check to within a threshold. This threshold is highly dependent on the
   // force controller gains chosen and how long the simulation is run.
   EXPECT_TRUE(CompareMatrices(desired_force.F_Bq_W.translational(),
-                              F_Bq_W_actual, 2.0e-4));
+                              F_Bq_W_actual, 2e-4));
 }
 }  // namespace planar_gripper
 }  // namespace examples

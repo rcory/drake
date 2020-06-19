@@ -2,6 +2,7 @@
 
 #include <limits>
 
+#include "drake/math/matrix_util.h"
 #include "drake/solvers/solve.h"
 
 namespace drake {
@@ -170,11 +171,12 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
     const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
     const Eigen::Ref<const Eigen::Matrix2d>& Kd_t,
-    const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, double Kp_r, double Kd_r,
-    double Ki_r, double Ki_r_sat, double Ki_t_sat, double weight_a_error,
-    double weight_thetaddot_error, double weight_f_Cb_B, double mu,
-    double translational_damping, double rotational_damping, double I_B,
-    double mass_B)
+    const Eigen::Ref<const Eigen::Matrix2d>& Ki_t, const double Kp_r,
+    const double Kd_r, const double Ki_r, const double Ki_r_sat,
+    const double Ki_t_sat, const double weight_a_error,
+    const double weight_thetaddot_error, const double weight_f_Cb_B,
+    const double mu, const double translational_damping,
+    const double rotational_damping, const double I_B, const double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
@@ -193,7 +195,9 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       rotational_damping_(rotational_damping),
       mass_B_(mass_B),
       I_B_(I_B) {
-  // TODO(rcory) Check positive definiteness of Kp_tr and Kd_tr
+  DRAKE_DEMAND(math::IsPositiveDefinite(Kp_t_));
+  DRAKE_DEMAND(math::IsPositiveDefinite(Kd_t_));
+  DRAKE_DEMAND(math::IsPositiveDefinite(Ki_t_));
   DRAKE_DEMAND(Kp_r_ >= 0);
   DRAKE_DEMAND(Kd_r_ >= 0);
   DRAKE_DEMAND(weight_a_error_ >= 0);
@@ -243,6 +247,8 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
         plant_->GetJointByName("brick_translate_y_joint").position_start();
     brick_translate_z_position_index_ =
         plant_->GetJointByName("brick_translate_z_joint").position_start();
+    // Declare a continuous state that holds the integrated error for {y, z,
+    // theta}.
     this->DeclareContinuousState(3);
   } else {  // Pin Brick
     input_index_desired_brick_state_ =
@@ -251,6 +257,7 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     input_index_desired_brick_acceleration_ =
         this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 1)
             .get_index();
+    // Declare a continuous state that holds the integrated error for theta.
     this->DeclareContinuousState(1);
   }
   brick_revolute_x_position_index_ =
@@ -304,8 +311,10 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     return;
   }
 
+  VectorX<double> brick_accel_ff;
   VectorX<double> brick_state;
   if (brick_type_ == BrickType::PlanarBrick) {
+    brick_accel_ff = Vector3d::Zero();
     brick_state = Vector6<double>::Zero();
     brick_state << plant_state(brick_translate_y_position_index_),
         plant_state(brick_translate_z_position_index_),
@@ -316,31 +325,28 @@ void InstantaneousContactForceQPController::CalcFingersControl(
                     brick_translate_z_position_index_),
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   } else {  // brick_type is PinBrick
+    brick_accel_ff = Vector1d::Zero();
     brick_state = Eigen::Vector2d::Zero();
     brick_state << plant_state(brick_revolute_x_position_index_),
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
   // Adds integral error to desired acceleration term.
-  // Integral error, which is stored in the continuous state.
+  // Integral error is stored in the continuous state.
   const systems::VectorBase<double>& state_vector =
       context.get_continuous_state_vector();
   const Eigen::VectorBlock<const VectorX<double>> state_block =
       dynamic_cast<const systems::BasicVector<double>&>(state_vector)
           .get_value();
-  VectorX<double> brick_accel_ff;
   if (brick_type_ == BrickType::PlanarBrick) {
-    brick_accel_ff = Vector3d::Zero();
     brick_accel_ff.head<2>() =
         desired_brick_acceleration.head<2>() + (Ki_t_ * state_block.head<2>());
     brick_accel_ff(2) =
         desired_brick_acceleration(2) + (Ki_r_ * state_block(2));
   } else {
-    brick_accel_ff = Vector1d::Zero();
     brick_accel_ff(0) =
         desired_brick_acceleration(0) + (Ki_r_ * state_block(0));
   }
-
 
   InstantaneousContactForceQP qp(
       brick_type_, brick_state, desired_brick_state, brick_accel_ff,
@@ -394,8 +400,7 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
   VectorX<double> brick_positions;
   VectorX<double> desired_brick_positions;
   if (brick_type_ == BrickType::PlanarBrick) {
-    VectorX<double> brick_state;
-    brick_state = Vector6<double>::Zero();
+    Vector6<double> brick_state;
     brick_state << plant_state(brick_translate_y_position_index_),
         plant_state(brick_translate_z_position_index_),
         plant_state(brick_revolute_x_position_index_),
@@ -407,31 +412,37 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
     brick_positions = brick_state.head<3>();
     desired_brick_positions = desired_brick_state.head<3>();
 
-    // Saturate the integral terms.
+    // Enforce a saturation limit on the integral terms.
     const systems::VectorBase<double>& state_vector =
         context.get_continuous_state_vector();
     const Eigen::VectorBlock<const VectorX<double>> state_block =
         dynamic_cast<const systems::BasicVector<double>&>(state_vector)
             .get_value();
 
-    // rotation
-    if (state_block(2) > Ki_r_sat && (desired_brick_positions(2) > brick_positions(2))) {
+    // y-translation.
+    if (state_block(0) > Ki_t_sat &&
+        (desired_brick_positions(0) > brick_positions(0))) {
       brick_positions = desired_brick_positions;
-    } else if (state_block(2) < -Ki_r_sat && (desired_brick_positions(2) < brick_positions(2))) {
-      brick_positions = desired_brick_positions;
-    }
-
-    // y
-    if (state_block(0) > Ki_t_sat && (desired_brick_positions(0) > brick_positions(0))) {
-      brick_positions = desired_brick_positions;
-    } else if (state_block(0) < -Ki_t_sat && (desired_brick_positions(0) < brick_positions(0))) {
+    } else if (state_block(0) < -Ki_t_sat &&
+               (desired_brick_positions(0) < brick_positions(0))) {
       brick_positions = desired_brick_positions;
     }
 
-    // z
-    if (state_block(1) > Ki_t_sat && (desired_brick_positions(1) > brick_positions(1))) {
+    // z-translation.
+    if (state_block(1) > Ki_t_sat &&
+        (desired_brick_positions(1) > brick_positions(1))) {
       brick_positions = desired_brick_positions;
-    } else if (state_block(1) < -Ki_t_sat && (desired_brick_positions(1) < brick_positions(1))) {
+    } else if (state_block(1) < -Ki_t_sat &&
+               (desired_brick_positions(1) < brick_positions(1))) {
+      brick_positions = desired_brick_positions;
+    }
+
+    // theta-rotation.
+    if (state_block(2) > Ki_r_sat &&
+        (desired_brick_positions(2) > brick_positions(2))) {
+      brick_positions = desired_brick_positions;
+    } else if (state_block(2) < -Ki_r_sat &&
+        (desired_brick_positions(2) < brick_positions(2))) {
       brick_positions = desired_brick_positions;
     }
   } else {  // brick_type is PinBrick
@@ -448,13 +459,14 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
     const Eigen::VectorBlock<const VectorX<double>> state_block =
         dynamic_cast<const systems::BasicVector<double>&>(state_vector)
             .get_value();
-    if (state_block(0) > Ki_r_sat && (desired_brick_positions(0) > brick_positions(0))) {
+    if (state_block(0) > Ki_r_sat &&
+        (desired_brick_positions(0) > brick_positions(0))) {
       brick_positions = desired_brick_positions;
-    } else if (state_block(0) < -Ki_r_sat && (desired_brick_positions(0) < brick_positions(0))) {
+    } else if (state_block(0) < -Ki_r_sat &&
+               (desired_brick_positions(0) < brick_positions(0))) {
       brick_positions = desired_brick_positions;
     }
   }
-
   derivatives->get_mutable_vector().SetFromVector(desired_brick_positions -
                                                   brick_positions);
 }

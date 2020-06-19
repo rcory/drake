@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
+#include "drake/examples/planar_gripper/planar_gripper_utils.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/systems/framework/leaf_system.h"
 
@@ -347,8 +348,7 @@ class QPtoSimUdpReceiverSystem : public systems::LeafSystem<double> {
       systems::BasicVector<double>* plant_state) const;
   void OutputFingerFaceAssignments(
       const systems::Context<double>& context,
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-          finger_face_assignments) const;
+      std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const;
   void OutputBrickDesiredState(
       const systems::Context<double>& context,
       systems::BasicVector<double>* qp_desired_brick_state) const;

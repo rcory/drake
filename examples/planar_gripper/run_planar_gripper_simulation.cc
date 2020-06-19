@@ -98,7 +98,7 @@ DEFINE_double(time_step, 1e-3,
               "If greater than zero, the plant is modeled as a system with "
               "discrete updates and period equal to this time_step. "
               "If 0, the plant is modeled as a continuous system.");
-DEFINE_double(penetration_allowance, 0.2,
+DEFINE_double(penetration_allowance, 1e-3,
               "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
 DEFINE_double(floor_coef_static_friction, 0.5,
@@ -114,12 +114,12 @@ DEFINE_string(orientation, "vertical",
               "horizontal}.");
 DEFINE_bool(visualize_contacts, true,
             "Visualize contacts in Drake visualizer.");
-DEFINE_string(brick_type, "pinned", "The brick type {pinned, planar}");
+DEFINE_string(brick_type, "planar", "The brick type {pinned, planar}");
 DEFINE_bool(
     use_position_control, true,
     "If true (default) we simulate position control via inverse dynamics "
     "control. If false we actuate torques directly.");
-DEFINE_string(keyframes_filename, "pinned_brick_postures_04.txt",
+DEFINE_string(keyframes_filename, "planar_brick_multi_mode.txt",
               "The name of the file containing the keyframes.");
 DEFINE_bool(zero_gravity, true, "Set MBP gravity vector to zero?");
 DEFINE_bool(add_floor, true, "Adds a floor to the simulation");
@@ -211,12 +211,6 @@ int DoMain() {
         &builder, planar_gripper->get_mutable_multibody_plant(),
         planar_gripper->GetOutputPort("contact_results"));
   }
-
-  // publish body frames.
-  auto frame_viz = builder.AddSystem<FrameViz>(
-      planar_gripper->get_multibody_plant(), &drake_lcm, 1.0 / 60.0, false);
-  builder.Connect(planar_gripper->GetOutputPort("plant_state"),
-                  frame_viz->get_input_port(0));
 
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(

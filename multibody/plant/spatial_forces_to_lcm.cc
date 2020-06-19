@@ -90,7 +90,7 @@ systems::lcm::LcmPublisherSystem* ConnectSpatialForcesToDrakeVisualizer(
 
   auto spatial_forces_publisher = builder->AddSystem(
       systems::lcm::LcmPublisherSystem::Make<lcmt_spatial_forces_for_viz>(
-          "SPATIAL_FORCES", lcm, 1.0 / 4320 /* publish period */));
+          "SPATIAL_FORCES", lcm, 1.0 / 60 /* publish period */));
   spatial_forces_publisher->set_name("spatial_forces_publisher");
 
   builder->Connect(

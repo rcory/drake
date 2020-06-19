@@ -78,7 +78,7 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->thetaf_ = FLAGS_thetaf;
+  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
   qpoptions->QP_Kp_r_ = FLAGS_QP_Kp_ro;
   qpoptions->QP_Kd_r_ = FLAGS_QP_Kd_ro;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;

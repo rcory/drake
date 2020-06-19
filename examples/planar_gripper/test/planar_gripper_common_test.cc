@@ -15,9 +15,9 @@ class PlanarGripperCommonTest : public ::testing::Test {
  protected:
   PlanarGripperCommonTest()
       : gripper_full_file_name_(FindResourceOrThrow(
-            "drake/examples/planar_gripper/planar_gripper.sdf")),
+            "drake/examples/planar_gripper/models/planar_gripper.sdf")),
         brick_full_file_name_(FindResourceOrThrow(
-            "drake/examples/planar_gripper/planar_brick.sdf")),
+            "drake/examples/planar_gripper/models/planar_brick.sdf")),
         plant_(MultibodyPlant<double>(1e-3)) {
     gripper_index_ = multibody::Parser(&plant_).AddModelFromFile(
         gripper_full_file_name_, "planar_gripper");
@@ -208,8 +208,8 @@ TEST_F(PlanarGripperCommonTest, ReorderKeyframesTest) {
   multibody::Parser(&bad_plant)
       .AddModelFromFile(gripper_full_file_name_, "gripper");
   WeldGripperFrames(&bad_plant);
-  const std::string extra_model_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  const std::string extra_model_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_brick.sdf");
   multibody::Parser(&bad_plant).AddModelFromFile(extra_model_name, "brick");
   bad_plant.Finalize();
   EXPECT_THROW(

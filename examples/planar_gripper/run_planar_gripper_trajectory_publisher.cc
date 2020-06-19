@@ -37,7 +37,7 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
-DEFINE_string(keyframes_filename, "planar_brick_postures_02.txt",
+DEFINE_string(keyframes_filename, "planar_brick_multi_mode.txt",
               "The name of the file containing the keyframes.");
 DEFINE_double(time_scale_factor, 1, "time scale factor.");
 
@@ -140,7 +140,7 @@ int DoMain() {
   MatrixX<double> brick_keyframes = brick_keyframe_info.first;
   std::map<std::string, int> brick_joint_name_to_row_index_map =
       brick_keyframe_info.second;
-  // This is a hack.
+  // If the brick is pinned, we just set the translation DOFs to zero.
   if (brick_keyframes.rows() == 1) {
     int nkeys = brick_keyframes.cols();
     brick_keyframes.conservativeResize(3, nkeys);

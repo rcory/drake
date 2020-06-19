@@ -40,11 +40,11 @@ DEFINE_double(time_step, 1e-3,
               "If 0, the plant is modeled as a continuous system.");
 DEFINE_double(penetration_allowance, 0.2, "The contact penetration allowance.");
 DEFINE_double(stiction_tolerance, 1e-3, "MBP v_stiction_tolerance");
-DEFINE_double(floor_coef_static_friction, 0.5,
+DEFINE_double(floor_coef_static_friction, 0 /*0.5*/,
               "The floor's coefficient of static friction");
-DEFINE_double(floor_coef_kinetic_friction, 0.5,
+DEFINE_double(floor_coef_kinetic_friction, 0 /*0.5*/,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 1e-4,
+DEFINE_double(brick_floor_penetration, 0 /* 1e-5 */,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -128,8 +128,8 @@ DEFINE_double(QP_Kp_t, 350, "QP controller translational Kp gain.");
 DEFINE_double(QP_Kd_t, 100, "QP controller translational Kd gain.");
 DEFINE_double(QP_Ki_t, 0, "QP controller translational Ki gain.");
 DEFINE_double(QP_Ki_r, 0, "QP controller rotational Ki gain.");
-DEFINE_double(QP_Ki_r_sat, 0.0001, "QP integral saturation value.");
-DEFINE_double(QP_Ki_t_sat, 0.0001, "QP integral translational saturation value.");
+DEFINE_double(QP_Ki_r_sat, 0, "QP integral saturation value.");
+DEFINE_double(QP_Ki_t_sat, 0, "QP integral translational saturation value.");
 DEFINE_double(QP_Kp_r_pinned, 150,
               "QP controller rotational Kp gain for pinned brick.");
 DEFINE_double(QP_Kd_r_pinned, 50,
@@ -167,7 +167,7 @@ class BrickPlanFrameViz final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BrickPlanFrameViz);
 
-  BrickPlanFrameViz(int num_positions) {
+  explicit BrickPlanFrameViz(int num_positions) {
     this->DeclareVectorInputPort("brick_positions",
                                  systems::BasicVector<double>(num_positions));
     this->DeclareAbstractOutputPort("brick_xform",
@@ -326,7 +326,7 @@ int DoMain() {
   QPControlOptions qpoptions;
   GetQPPlannerOptions(*planar_gripper, brick_type, &qpoptions);
   if (FLAGS_brick_type == "pinned") {
-    // The planned theta trajectory is from 0 to theta_f degree in T seconds.
+    // The planned theta trajectory is from 0 to theta_f degrees in T seconds.
     std::vector<double> T = {-0.5, 0, qpoptions.T_, qpoptions.T_ + 0.5};
     std::vector<MatrixX<double>> Y(T.size(), MatrixX<double>::Zero(1, 1));
     Y[0](0, 0) = FLAGS_theta0;
