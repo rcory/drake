@@ -88,8 +88,9 @@ geometry::GeometryId PlanarGripper::brick_geometry_id() const {
 }
 
 void PlanarGripper::SetInverseDynamicsControlGains(
-    const Eigen::Ref<VectorX<double>> Kp, const Eigen::Ref<VectorX<double>> Ki,
-    const Eigen::Ref<VectorX<double>> Kd) {
+    const Eigen::Ref<const VectorX<double>>& Kp,
+    const Eigen::Ref<const VectorX<double>>& Ki,
+    const Eigen::Ref<const VectorX<double>>& Kd) {
   if (Kp.size() != kNumGripperJoints || Ki.rows() != kNumGripperJoints ||
       Kd.rows() != kNumGripperJoints) {
     throw std::logic_error(
