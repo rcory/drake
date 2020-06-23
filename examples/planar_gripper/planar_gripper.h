@@ -300,9 +300,10 @@ class PlanarGripper : public systems::Diagram<double> {
   /**
    * Sets the gains for the internal inverse dynamics controller.
    */
-  void SetInverseDynamicsControlGains(const Eigen::Ref<VectorX<double>> Kp,
-                                      const Eigen::Ref<VectorX<double>> Ki,
-                                      const Eigen::Ref<VectorX<double>> Kd);
+  void SetInverseDynamicsControlGains(
+      const Eigen::Ref<const VectorX<double>>& Kp,
+      const Eigen::Ref<const VectorX<double>>& Ki,
+      const Eigen::Ref<const VectorX<double>>& Kd);
 
   void GetInverseDynamicsControlGains(EigenPtr<VectorX<double>> Kp,
                                       EigenPtr<VectorX<double>> Ki,
