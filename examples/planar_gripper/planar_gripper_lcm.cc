@@ -50,7 +50,7 @@ GripperCommandDecoder::GripperCommandDecoder(int num_fingers)
 
 void GripperCommandDecoder::set_initial_position(
     Context<double>* context,
-    const Eigen::Ref<const VectorX<double>> pos) const {
+    const Eigen::Ref<const VectorX<double>>& pos) const {
   // The Discrete state consists of positions, velocities, torques.
   auto state_value = context->get_mutable_discrete_state(0).get_mutable_value();
   DRAKE_ASSERT(pos.size() == num_joints_);

@@ -16,7 +16,7 @@ namespace planar_gripper {
 // TODO(rcory) I believe most of the functionality in this file can be moved
 //  over to planar_gripper.h/cc
 template <typename T>
-void WeldFingerFrame(multibody::MultibodyPlant<T>* plant);
+void WeldFingerFrame(multibody::MultibodyPlant<T>* plant, T finger_angle = 0);
 
 Eigen::Vector3d GetFingerTipSpherePositionInLt(
     const multibody::MultibodyPlant<double>& plant,

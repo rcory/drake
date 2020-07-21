@@ -19,6 +19,9 @@
 namespace drake {
 namespace examples {
 namespace planar_gripper {
+
+using Eigen::Vector2d;
+
 DEFINE_double(target_realtime_rate, 1.0,
               "Desired rate relative to real time.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
@@ -76,15 +79,20 @@ int DoMain() {
   planar_gripper->Finalize();
 
   // Setup the QP controller parameters.
-  const Eigen::Matrix2d Kp_t = Eigen::Vector2d(150, 150).asDiagonal();
-  const Eigen::Matrix2d Kd_t = Eigen::Vector2d(50, 50).asDiagonal();
-  double Kp_r = 150;
-  double Kd_r = 50;
-  double weight_a_error = 1;
-  double weight_thetaddot_error = 1;
-  double weight_f_Cb_B = 1;
-  double mu = 1.0;
-  double brick_translational_damping = 0;
+  // Translation gains (y, z).
+  const Vector2d Kp_t = Vector2d(150, 150);
+  const Vector2d Kd_t = Vector2d(50, 50);
+  const Vector2d Ki_t = Vector2d::Zero();
+  const Vector2d Ki_t_sat = Vector2d::Zero();
+  const double Ki_r = 0;
+  const double Ki_r_sat = 0;
+  const double kp_r = 150;
+  const double kd_r = 50;
+  const double weight_a_error = 1;
+  const double weight_thetaddot_error = 1;
+  const double weight_f_Cb_B = 1;
+  const double mu = 1.0;
+  const double brick_translational_damping = 0;
 
   // Get the brick's Ixx moment of inertia (i.e., around the pinned axis).
   const int kIxx_index = 0;
@@ -93,9 +101,10 @@ int DoMain() {
   double brick_revolute_damping = planar_gripper->GetBrickPinJointDamping();
 
   auto qp_controller = builder.AddSystem<InstantaneousContactForceQPController>(
-      brick_type, &planar_gripper->get_multibody_plant(), Kp_t, Kd_t, Kp_r,
-      Kd_r, weight_a_error, weight_thetaddot_error, weight_f_Cb_B, mu,
-      brick_translational_damping, brick_revolute_damping, I_B, mass_B);
+      brick_type, &planar_gripper->get_multibody_plant(), Kp_t, Kd_t, Ki_t,
+      Ki_t_sat, kp_r, kd_r, Ki_r, Ki_r_sat, weight_a_error,
+      weight_thetaddot_error, weight_f_Cb_B, mu, brick_translational_damping,
+      brick_revolute_damping, I_B, mass_B);
 
   // Connect the QP controller.
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
@@ -120,15 +129,15 @@ int DoMain() {
   constexpr double kBoxDimension = 0.1;
   finger_face_assignments.emplace(
       Finger::kFinger1,
-      BrickFaceInfo(BrickFace::kNegY, Eigen::Vector2d(-kBoxDimension / 2, 0),
+      BrickFaceInfo(BrickFace::kNegY, Vector2d(-kBoxDimension / 2, 0),
                     true));
   finger_face_assignments.emplace(
       Finger::kFinger2,
-      BrickFaceInfo(BrickFace::kPosY, Eigen::Vector2d(kBoxDimension / 2, 0),
+      BrickFaceInfo(BrickFace::kPosY, Vector2d(kBoxDimension / 2, 0),
                     true));
   finger_face_assignments.emplace(
       Finger::kFinger3,
-      BrickFaceInfo(BrickFace::kNegZ, Eigen::Vector2d(0, -kBoxDimension / 2),
+      BrickFaceInfo(BrickFace::kNegZ, Vector2d(0, -kBoxDimension / 2),
                     true));
 
   auto finger_face_assignments_source =
@@ -169,7 +178,7 @@ int DoMain() {
 
     // Defines a constant state target...{theta, thetadot}. This is used if
     // the control task type is `regulate`.
-    des_state_vec = Eigen::Vector2d(FLAGS_brick_thetaf, 0);
+    des_state_vec = Vector2d(FLAGS_brick_thetaf, 0);
   }
   auto brick_acceleration_planned_source =
       builder.AddSystem<systems::ConstantVectorSource<double>>(

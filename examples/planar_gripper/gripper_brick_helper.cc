@@ -40,13 +40,13 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
   systems::DiagramBuilder<T> builder;
   std::tie(*plant, *scene_graph) =
       multibody::AddMultibodyPlantSceneGraph(&builder, 0.0);
-  const std::string gripper_path =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
+  const std::string gripper_path = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_gripper.sdf");
   multibody::Parser parser(*plant, *scene_graph);
   parser.AddModelFromFile(gripper_path, "gripper");
   examples::planar_gripper::WeldGripperFrames(*plant);
-  const std::string brick_path =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  const std::string brick_path = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_brick.sdf");
   parser.AddModelFromFile(brick_path, "brick");
   (*plant)->WeldFrames((*plant)->world_frame(),
                        (*plant)->GetFrameByName("brick_base_link"),

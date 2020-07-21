@@ -37,15 +37,9 @@ namespace examples {
 namespace planar_gripper {
 namespace {
 
-DEFINE_double(keyframe_dt, 0.02,
-              "Defines a uniform time step between `break` points in our "
-              "spline interpolator (see "
-              "PiecewisePolynomial::CubicShapePreserving), where each keyframe "
-              "corresponds to a `knot` point. Note that keyframe data in "
-              "postures.txt contains static equilibrium poses and we play "
-              "these back at an arbitrary speed for this simulation.");
-DEFINE_string(keyframes_filename, "postures.txt",
+DEFINE_string(keyframes_filename, "planar_brick_multi_mode.txt",
               "The name of the file containing the keyframes.");
+DEFINE_double(time_scale_factor, 1, "time scale factor.");
 
 const char* const kLcmGripperStatusChannel = "PLANAR_GRIPPER_STATUS";
 const char* const kLcmBrickStatusChannel = "BRICK_STATUS";
@@ -58,15 +52,15 @@ int DoMain() {
 
   // Create the full plant. Contains the fingers and brick. Used
   // (only) to extract joint velocity ordering.
-  const std::string full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
-  MultibodyPlant<double> plant(FLAGS_keyframe_dt);
+  const std::string full_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_gripper.sdf");
+  MultibodyPlant<double> plant(1e-3 /* to suppress continuous time warnings */);
   multibody::Parser(&plant).AddModelFromFile(full_name);
   WeldGripperFrames<double>(&plant);
 
   // Adds the brick to be manipulated.
-  const std::string brick_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_brick.sdf");
+  const std::string brick_file_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_brick.sdf");
   auto brick_index =
       multibody::Parser(&plant).AddModelFromFile(brick_file_name, "brick");
 
@@ -81,7 +75,8 @@ int DoMain() {
 
   // Create the controlled plant. Contains only the fingers (no brick). Used
   // (only) to extract joint velocity ordering.
-  MultibodyPlant<double> control_plant(FLAGS_keyframe_dt);
+  MultibodyPlant<double> control_plant(
+      1e-3 /* to suppress continuous time warnings */);
   multibody::Parser(&control_plant).AddModelFromFile(full_name);
   WeldGripperFrames<double>(&control_plant);
   control_plant.Finalize();
@@ -115,23 +110,27 @@ int DoMain() {
 
   // Parse the keyframes from a file.
   const std::string keyframe_path =
-      "drake/examples/planar_gripper/" + FLAGS_keyframes_filename;
+      "drake/examples/planar_gripper/keyframes/" + FLAGS_keyframes_filename;
   MatrixX<double> finger_keyframes;
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
+
+  VectorX<double> times;
+  MatrixX<double> modes;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =
-      ParseKeyframes(keyframe_path, &brick_keyframe_info);
-  finger_keyframes = ReorderKeyframesForPlant(control_plant, finger_keyframes,
-                                       &finger_joint_name_to_row_index_map);
+      ParseKeyframesAndModes(keyframe_path, &times, &modes,
+                             &brick_keyframe_info);
+  DRAKE_DEMAND(times.size() == finger_keyframes.cols());
+  DRAKE_DEMAND(modes.rows() == 3 && modes.cols() == finger_keyframes.cols());
+  finger_keyframes = ReorderKeyframesForPlant(
+      control_plant, finger_keyframes, &finger_joint_name_to_row_index_map);
   // Here we assume the gripper frame G is aligned with the world frame W, e.g.,
   // as given by calling WeldGripperFrames().
   // TODO(rcory) Figure out a way to enforce this.
 
-  // Creates the time vector for the plan interpolator.
-  Eigen::VectorXd times = Eigen::VectorXd::Zero(finger_keyframes.cols());
-  for (int i = 1; i < finger_keyframes.cols(); ++i) {
-    times(i) = i * FLAGS_keyframe_dt;
-  }
+  // time rescaling hack.
+  times = times * FLAGS_time_scale_factor;
+
   const auto finger_pp =
       trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
           times, finger_keyframes);
@@ -141,6 +140,14 @@ int DoMain() {
   MatrixX<double> brick_keyframes = brick_keyframe_info.first;
   std::map<std::string, int> brick_joint_name_to_row_index_map =
       brick_keyframe_info.second;
+  // If the brick is pinned, we just set the translation DOFs to zero.
+  if (brick_keyframes.rows() == 1) {
+    int nkeys = brick_keyframes.cols();
+    brick_keyframes.conservativeResize(3, nkeys);
+    brick_keyframes.block(1, 0, 2, nkeys) = MatrixX<double>::Zero(2, nkeys);
+    brick_joint_name_to_row_index_map["brick_translate_y_joint"] = 1;
+    brick_joint_name_to_row_index_map["brick_translate_z_joint"] = 2;
+  }
   const auto brick_pp =
       trajectories::PiecewisePolynomial<double>::CubicShapePreserving(
           times, brick_keyframes);

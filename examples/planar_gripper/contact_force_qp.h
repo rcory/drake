@@ -20,6 +20,8 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
+using Eigen::Vector2d;
+
 enum class BrickType {
   PinBrick,
   PlanarBrick,
@@ -62,10 +64,12 @@ class InstantaneousContactForceQP {
    * If brick_type is BrickType::PlanarBrick, the feedforward acceleration
    * vector is: [ÿ, z̈, θ̈]ᵀ. If brick_type is BrickType::PinBrick, the
    * feedforward acceleration is a 1-dimensional vector θ̈.
-   * @param Kp_t The proportional gain of the brick translational position.
-   * @param Kd_t The derivative gain of the brick translational velocity.
-   * @param Kp_r The proportional gain of the brick rotational angle.
-   * @param Kd_r The derivative gain of the brick rotational (angular) velocity.
+   * @param Kp_t The proportional gains (kp_y, kp_z) of the brick translational
+   * position.
+   * @param Kd_t The derivative gains (kd_y, kd_z) of the brick translational
+   * velocity.
+   * @param kp_r The proportional gain of the brick rotational angle.
+   * @param kd_r The derivative gain of the brick rotational (angular) velocity.
    * @param finger_face_assignments a std::unordered_map which assigns a Finger
    * to a contact face on the brick (BrickFace) and to a contact point on the
    * brick. finger_face_assignments[Finger] gives a std::pair(BrickFace,
@@ -89,8 +93,8 @@ class InstantaneousContactForceQP {
       const Eigen::Ref<const VectorX<double>>& brick_state,
       const Eigen::Ref<const VectorX<double>>& brick_state_desired,
       const Eigen::Ref<const VectorX<double>>& brick_accel_feedforward,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
+      const Eigen::Ref<const Vector2d>& Kp_t,
+      const Eigen::Ref<const Vector2d>& Kd_t, double kp_r, double kd_r,
       const std::unordered_map<Finger, BrickFaceInfo>&
           finger_face_assignments,
       double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
@@ -104,7 +108,7 @@ class InstantaneousContactForceQP {
    * on the brick, expressed in the brick frame. p_Cb_B is the contact point Cb
    * expressed in the brick frame.
    */
-  std::unordered_map<Finger, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
+  std::unordered_map<Finger, std::pair<Vector2d, Vector2d>>
   GetContactForceResult(
       const solvers::MathematicalProgramResult& result) const;
 
@@ -112,7 +116,7 @@ class InstantaneousContactForceQP {
   struct FingerFaceContact {
     FingerFaceContact(Finger m_finger, BrickFace m_brick_face,
                       const Vector2<symbolic::Variable>& m_f_Cb_B_edges,
-                      double m_mu, const Eigen::Vector2d& m_p_BCb)
+                      double m_mu, const Vector2d& m_p_BCb)
         : finger{m_finger},
           brick_face{m_brick_face},
           f_Cb_B_edges{m_f_Cb_B_edges},
@@ -128,6 +132,7 @@ class InstantaneousContactForceQP {
   std::vector<FingerFaceContact> finger_face_contacts_;
 };
 
+// TODO(rcory) Add unit tests for this class.
 class InstantaneousContactForceQPController
     : public systems::controllers::StateFeedbackControllerInterface<double>,
       public systems::LeafSystem<double> {
@@ -135,13 +140,22 @@ class InstantaneousContactForceQPController
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(InstantaneousContactForceQPController)
 
   /**
-   * @param gripper_brick The gripper_brick system.
-   * @param Kp_t The proportional gain for the brick y/z translational
-   * position.
-   * @param Kd_t The derivative gain for the brick y/z translational position.
-   * @param Kp_r The proportional gain for the brick rotational position
+   * @param brick_type The type of brick (planar, pinned) to be manipulated.
+   * @param plant The MBP containing the planar-gripper/brick system.
+   * @param Kp_t The proportional gains (kpy, kpz) for the brick y/z
+   * translational position.
+   * @param Kd_t The derivative gains (kd_y, kd_z) for the brick y/z
+   * translational position.
+   * @param Ki_t The integral gains (ki_y, ki_z) for the brick y/z translational
+   * position error.
+   * @param Ki_t_sat The translational error integral controller's saturation
+   * values (ki_y_sat, ki_z_sat).
+   * @param kp_r The proportional gain for the brick rotational position
    * (angle).
-   * @param Kd_r The derivative gain for the brick rotational velocity.
+   * @param kd_r The derivative gain for the brick rotational velocity.
+   * @param ki_r The integral gain for the brick rotational position (angular)
+   * error.
+   * @param ki_r_sat The angular error integral controller's saturation value.
    * @param weight_a_error The weighting for the brick y/z acceleration in the
    * cost. This error is made up of a PD term and a FF term.
    * @param weight_thetaddot_error The weighting for the brick thetaddot in the
@@ -158,11 +172,14 @@ class InstantaneousContactForceQPController
    */
   InstantaneousContactForceQPController(
       BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-      const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r,
-      double Kd_r, double weight_a_error, double weight_thetaddot_error,
-      double weight_f_Cb_B, double mu, double translational_damping,
-      double rotational_damping, double I_B, double mass_B);
+      const Eigen::Ref<const Vector2d>& Kp_t,
+      const Eigen::Ref<const Vector2d>& Kd_t,
+      const Eigen::Ref<const Vector2d>& Ki_t,
+      const Eigen::Ref<const Vector2d>& Ki_t_sat, double kp_r, double kd_r,
+      double ki_r, double ki_r_sat, double weight_a_error,
+      double weight_thetaddot_error, double weight_f_Cb_B, double mu,
+      double translational_damping, double rotational_damping, double I_B,
+      double mass_B);
 
   const systems::InputPort<double>& get_input_port_estimated_plant_state()
       const {
@@ -206,7 +223,7 @@ class InstantaneousContactForceQPController
 
   /**
    * This port passes std::unordered_map<Finger, std::pair<BrickFace,
-   * Eigen::Vector2d>>, namely it matches a finger to its designated brick face
+   * Vector2d>>, namely it matches a finger to its designated brick face
    * in contact, and the y/z location of the contact point on the brick,
    * expressed in the brick frame.
    */
@@ -233,6 +250,11 @@ class InstantaneousContactForceQPController
     return this->get_output_port(output_index_brick_control_);
   }
 
+ protected:
+  void DoCalcTimeDerivatives(
+      const systems::Context<double>& context,
+      systems::ContinuousState<double>* derivatives) const override;
+
  private:
   void CalcFingersControl(
       const systems::Context<double>& context,
@@ -248,10 +270,15 @@ class InstantaneousContactForceQPController
   const BrickType brick_type_;
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;
-  Eigen::Matrix2d Kp_t_;  // Translational proportional QP gain.
-  Eigen::Matrix2d Kd_t_;  // Translational derivative QP gain.
-  double Kp_r_;  // Rotational proportional QP gain.
-  double Kd_r_;  // Rotational derivative QP gain.
+  // Translational (y,z) gain vectors, assuming no cross-coupling.
+  Vector2d Kp_t_;  // Proportional QP gains.
+  Vector2d Kd_t_;  // Derivative QP gains.
+  Vector2d Ki_t_;  // Integral QP gains.
+  Vector2d Ki_t_sat_;  // Integral control saturation values.
+  double kp_r_;  // Rotational proportional QP gain.
+  double kd_r_;  // Rotational derivative QP gain.
+  double ki_r_;  // Rotational integral QP gain.
+  double ki_r_sat_;  // Rotational integral control saturation value.
   double weight_a_error_;
   double weight_thetaddot_error_;
   double weight_f_Cb_B_;
