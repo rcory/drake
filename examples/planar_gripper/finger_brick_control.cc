@@ -211,9 +211,14 @@ void ForceController::CalcTauOutput(
   // contact results object and it lies inside the intersection of the
   // fingertip sphere and brick geometries (i.e., the actual contact point).
   if (is_contact) {
-    Eigen::Vector3d p_BrCb(0, brick_face_info.p_BCb(0),
-                           brick_face_info.p_BCb(1));
-    p_WCr = R_BrW.inverse() * p_BrCb;
+    Eigen::Vector3d p_BCb(0, brick_face_info.p_BCb(0),
+                          brick_face_info.p_BCb(1));
+    Eigen::Vector3d p_WCb;
+    plant_.CalcPointsPositions(*plant_context_,
+                               plant_.GetFrameByName("brick_link"), p_BCb,
+                               plant_.world_frame(), &p_WCb);
+    p_WCr =
+        Eigen::Vector3d(0, p_WCb(1), p_WCb(2));  // take the y,z components.
     plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
                                tip_link_frame, &p_LtCr);
   } else {  // otherwise we have no contact, and we take the fingertip sphere
@@ -226,7 +231,9 @@ void ForceController::CalcTauOutput(
 
   // Regulate position (in brick frame).
   // First, rotate the contact point reference into the brick frame.
-  Eigen::Vector3d p_BrC = R_BrW * p_WCr;
+  Eigen::Vector3d p_BrC;
+  plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCr,
+                             brick_frame, &p_BrC);
 
   // Compute the translational velocity Jacobian.
   // For the finger/1-dof brick case, the plant consists of 3 dofs total (2 of
@@ -592,47 +599,75 @@ void DoConnectGripperQPController(
     const std::map<std::string, const InputPort<double>&>& in_ports,
     const std::map<std::string, const OutputPort<double>&>& out_ports,
     systems::DiagramBuilder<double>* builder) {
-  systems::ConstantVectorSource<double>* brick_acceleration_planned_source;
-  systems::ConstantVectorSource<double>* brick_planned_state_traj_source;
+  systems::ConstantVectorSource<double>* brick_goal_acceleration_source;
+  systems::ConstantVectorSource<double>* brick_goal_state_source{nullptr};
+  systems::TrajectorySource<double>* brick_desired_state_traj_source{nullptr};
 
   if (qpoptions.brick_type_ == BrickType::PlanarBrick) {
     // brick accel planned is 0 {yddot, zddot, thetaddot}. Use a constant
     // source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Eigen::Vector3d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
-    Eigen::VectorXd des_state_vec(6);
-    des_state_vec << qpoptions.yf_, qpoptions.zf_, qpoptions.thetaf_, 0, 0, 0;
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
-  } else {
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant target...{y, z, theta, ydot, zdot, thetadot}
+      Eigen::VectorXd des_state_vec(6);
+      des_state_vec << qpoptions.brick_goal_.y_goal,
+          qpoptions.brick_goal_.z_goal, qpoptions.brick_goal_.theta_goal, 0, 0,
+          0;
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown planar-brick control task specified.");
+    }
+  } else {  // brick_type is PlanarBrick
     // brick accel planned is 0 {thetaddot}. Use a constant source.
-    brick_acceleration_planned_source =
+    brick_goal_acceleration_source =
         builder->AddSystem<systems::ConstantVectorSource<double>>(
             Vector1d::Zero());
-    builder->Connect(brick_acceleration_planned_source->get_output_port(),
+    builder->Connect(brick_goal_acceleration_source->get_output_port(),
                      in_ports.at("qp_desired_brick_accel"));
-
-    // Just use a constant state target...{theta, thetadot}
-    Eigen::Vector2d des_state_vec(qpoptions.thetaf_, 0);
-    brick_planned_state_traj_source =
-        builder->AddSystem<systems::ConstantVectorSource<double>>(
-            des_state_vec);
-    builder->Connect(brick_planned_state_traj_source->get_output_port(),
-                     in_ports.at("qp_desired_brick_state"));
+    if (qpoptions.control_task_ == ControlTask::kRegulation) {
+      // Just use a constant state target: {theta, thetadot}
+      Eigen::Vector2d des_state_vec(qpoptions.brick_goal_.theta_goal, 0);
+      brick_goal_state_source =
+          builder->AddSystem<systems::ConstantVectorSource<double>>(
+              des_state_vec);
+      builder->Connect(brick_goal_state_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else if (qpoptions.control_task_ == ControlTask::kTracking) {
+      brick_desired_state_traj_source =
+          builder->AddSystem<systems::TrajectorySource<double>>(
+              qpoptions.desired_brick_traj_, 1 /* with one derivative */);
+      builder->Connect(brick_desired_state_traj_source->get_output_port(),
+                       in_ports.at("qp_desired_brick_state"));
+    } else {
+      throw std::logic_error("Unknown pinned-brick control task specified.");
+    }
   }
 
-  // Spit out to scope
-  systems::lcm::ConnectLcmScope(
-      brick_planned_state_traj_source->get_output_port(), "BRICK_STATE_TRAJ",
-      builder, lcm);
+  // Spit out to scope.
+  if (brick_goal_state_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_goal_state_source->get_output_port(), "BRICK_GOAL_STATE",
+        builder, lcm);
+  }
+  if (brick_desired_state_traj_source) {
+    systems::lcm::ConnectLcmScope(
+        brick_desired_state_traj_source->get_output_port(),
+        "BRICK_DES_STATE_TRAJ", builder, lcm);
+  }
 
   // Connect the plant state to the QP controller
   builder->Connect(out_ports.at("plant_state"),
@@ -710,10 +745,14 @@ void AddGripperQPControllerToDiagram(
     std::map<std::string, const InputPort<double>&>* in_ports,
     std::map<std::string, const OutputPort<double>&>* out_ports) {
   // QP controller
-  Eigen::Matrix2d Kp_t = qpoptions.QP_Kp_t_;
-  Eigen::Matrix2d Kd_t = qpoptions.QP_Kd_t_;
-  double Kp_r = qpoptions.QP_Kp_r_;
-  double Kd_r = qpoptions.QP_Kd_r_;
+  Vector2d Kp_t = qpoptions.QP_Kp_t_;
+  Vector2d Kd_t = qpoptions.QP_Kd_t_;
+  Vector2d Ki_t = qpoptions.QP_Ki_t_;
+  Vector2d Ki_t_sat = qpoptions.QP_Ki_t_sat_;
+  double kp_r = qpoptions.QP_kp_r_;
+  double kd_r = qpoptions.QP_kd_r_;
+  double ki_r = qpoptions.QP_ki_r_;
+  double ki_r_sat = qpoptions.QP_ki_r_sat_;
   double weight_thetaddot_error = qpoptions.QP_weight_thetaddot_error_;
   double weight_acceleration_error = qpoptions.QP_weight_acceleration_error_;
   double weight_f_Cb_B = qpoptions.QP_weight_f_Cb_B_;
@@ -725,9 +764,10 @@ void AddGripperQPControllerToDiagram(
 
   InstantaneousContactForceQPController* qp_controller =
       builder->AddSystem<InstantaneousContactForceQPController>(
-          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Kp_r, Kd_r,
-          weight_acceleration_error, weight_thetaddot_error, weight_f_Cb_B, mu,
-          translational_damping, rotational_damping, I_B, mass_B);
+          qpoptions.brick_type_, &plant, Kp_t, Kd_t, Ki_t, Ki_t_sat, kp_r, kd_r,
+          ki_r, ki_r_sat, weight_acceleration_error, weight_thetaddot_error,
+          weight_f_Cb_B, mu, translational_damping, rotational_damping, I_B,
+          mass_B);
 
   // Insert a zero order hold on the output of the controller, so that its
   // output (and hence it's computation of the QP) is only pulled at the

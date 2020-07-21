@@ -71,7 +71,7 @@ class GripperCommandDecoder : public systems::LeafSystem<double> {
   /// configuration. The ordering of x follows the ordering of q described
   /// above.
   void set_initial_position(systems::Context<double>* context,
-                            const Eigen::Ref<const VectorX<double>> x) const;
+                            const Eigen::Ref<const VectorX<double>>& x) const;
 
   const systems::OutputPort<double>& get_state_output_port() const {
     DRAKE_DEMAND(state_output_port_ != nullptr);

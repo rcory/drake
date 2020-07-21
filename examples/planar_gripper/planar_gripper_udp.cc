@@ -330,8 +330,7 @@ SimToQPUdpPublisherSystem::SimToQPUdpPublisherSystem(
   finger_face_assignments_input_port_ =
       this->DeclareAbstractInputPort(
               "qp_finger_face_assignments",
-              Value<std::unordered_map<
-                  Finger, std::pair<BrickFace, Eigen::Vector2d>>>{})
+              Value<std::unordered_map<Finger, BrickFaceInfo>>{})
           .get_index();
 
   desired_brick_state_input_port_ =
@@ -361,9 +360,7 @@ std::vector<uint8_t> SimToQPUdpPublisherSystem::Serialize(
   finger_face_assignments.utime = utime;
   const auto finger_face_assignments_input =
       this->get_input_port(finger_face_assignments_input_port_)
-          .Eval<std::unordered_map<Finger,
-                                   std::pair<BrickFace, Eigen::Vector2d>>>(
-              context);
+          .Eval<std::unordered_map<Finger, BrickFaceInfo>>(context);
   int finger_face_index = 0;
   for (const auto& finger_face_assignment : finger_face_assignments_input) {
     finger_face_assignments.finger_face_assignments[finger_face_index].utime =
@@ -371,9 +368,9 @@ std::vector<uint8_t> SimToQPUdpPublisherSystem::Serialize(
     finger_face_assignments.finger_face_assignments[finger_face_index].finger =
         finger_face_assignment.first;
     finger_face_assignments.finger_face_assignments[finger_face_index]
-        .brick_face = finger_face_assignment.second.first;
+        .brick_face = finger_face_assignment.second.brick_face;
     finger_face_assignments.finger_face_assignments[finger_face_index]
-        .p_BoBq_B = finger_face_assignment.second.second;
+        .p_BoBq_B = finger_face_assignment.second.p_BCb;
     finger_face_assignments.in_contact[finger_face_index] = true;
     finger_face_index++;
   }
@@ -571,8 +568,7 @@ QPtoSimUdpReceiverSystem::QPtoSimUdpReceiverSystem(int local_port,
 
   plant_state_index_ = this->DeclareDiscreteState(num_plant_states_);
   finger_face_assignments_state_index_ = this->DeclareAbstractState(
-      std::make_unique<Value<std::unordered_map<
-          Finger, std::pair<BrickFace, Eigen::Vector2d>>>>());
+      std::make_unique<Value<std::unordered_map<Finger, BrickFaceInfo>>>());
   brick_state_index_ = this->DeclareDiscreteState(num_brick_states_);
   brick_accel_index_ = this->DeclareDiscreteState(num_brick_accels_);
 
@@ -657,16 +653,16 @@ systems::EventStatus QPtoSimUdpReceiverSystem::UpdateState(
     plant_state = plant_state_udp.plant_state;
 
     auto& assignments = state->get_mutable_abstract_state<
-        std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
+        std::unordered_map<Finger, BrickFaceInfo>>(
         finger_face_assignments_state_index_);
     assignments.clear();
     for (int i = 0; i < num_fingers_; ++i) {
       if (finger_face_udp.in_contact[i]) {
         assignments.emplace(
             finger_face_udp.finger_face_assignments[i].finger,
-            std::make_pair(
-                finger_face_udp.finger_face_assignments[i].brick_face,
-                finger_face_udp.finger_face_assignments[i].p_BoBq_B));
+            BrickFaceInfo(finger_face_udp.finger_face_assignments[i].brick_face,
+                          finger_face_udp.finger_face_assignments[i].p_BoBq_B,
+                          true));
       }
     }
 
@@ -692,12 +688,11 @@ void QPtoSimUdpReceiverSystem::OutputEstimatedPlantState(
 
 void QPtoSimUdpReceiverSystem::OutputFingerFaceAssignments(
     const systems::Context<double>& context,
-    std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>*
-        finger_face_assignments) const {
+    std::unordered_map<Finger, BrickFaceInfo>* finger_face_assignments) const {
   finger_face_assignments->clear();
-  *finger_face_assignments = context.get_abstract_state<
-      std::unordered_map<Finger, std::pair<BrickFace, Eigen::Vector2d>>>(
-      finger_face_assignments_state_index_);
+  *finger_face_assignments =
+      context.get_abstract_state<std::unordered_map<Finger, BrickFaceInfo>>(
+          finger_face_assignments_state_index_);
 }
 
 void QPtoSimUdpReceiverSystem::OutputBrickDesiredState(

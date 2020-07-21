@@ -202,8 +202,8 @@ MatrixX<double> MakeKeyframes(MatrixX<double> all_keyframes,
   return joint_keyframes;
 }
 
-std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
-    const std::string& name,
+std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframesAndModes(
+    const std::string& name, VectorX<double>* times, MatrixX<double>* modes,
     std::pair<MatrixX<double>, std::map<std::string, int>>*
         brick_keyframe_info) {
   const std::string keyframe_path = FindResourceOrThrow(name);
@@ -217,7 +217,11 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
   while (!std::getline(file, line).eof()) {
     line_count++;
   }
-  const int keyframe_count = line_count - 1;
+
+  // There is one line for the header and three lines per keyframe (q, t, mode)
+  // (and a newline/EOF at the end, which isn't counted in line_count).
+  const int keyframe_count = (line_count - 1) / 3;
+  drake::log()->info("Found {} lines", line_count);
   drake::log()->info("Found {} keyframes", keyframe_count);
 
   // Get the file headers.
@@ -232,26 +236,51 @@ std::pair<MatrixX<double>, std::map<std::string, int>> ParseKeyframes(
   }
 
   // Make sure we read the correct number of headers.
-  const int kNumHeaders = 9;
-  if (headers.size() != kNumHeaders) {
+  const int kNumHeadersPinBrick = 7;
+  const int kNumHeadersPlanarBrick = kNumHeadersPinBrick + 2;
+  if ((headers.size() != kNumHeadersPinBrick) &&
+      (headers.size() != kNumHeadersPlanarBrick)) {
     throw std::runtime_error(
         "Unexpected number of headers found in keyframe input file.");
   }
+  bool is_planar_brick = headers.size() == kNumHeadersPlanarBrick;
 
   // Extract all keyframes (finger and brick)
   MatrixX<double> all_keyframes(keyframe_count, headers.size());
+  VectorX<double> all_times(keyframe_count);
+  MatrixX<double> all_modes(keyframe_count, 3);
   for (int i = 0; i < all_keyframes.rows(); ++i) {
+    // First read the keyframes.
     for (int j = 0; j < all_keyframes.cols(); ++j) {
       file >> all_keyframes(i, j);
     }
+    // Next read the time.
+    file >> all_times(i);
+
+    // Finally, read the contact modes.
+    for (int j = 0; j < 3 /* num modes */; ++j) {
+      file >> all_modes(i, j);
+    }
   }
+  all_modes.transposeInPlace();
+
+  // Assign the times and modes outputs.
+  times->resize(all_times.size());
+  modes->resize(all_modes.rows(), all_modes.cols());
+  *times = all_times;
+  *modes = all_modes;
 
   // Find the columns in the keyframe data for just the brick joints and create
   // the corresponding keyframe matrix. Note: Only the first keyframe is used to
   // set the brick's initial position. All other brick keyframe data is unused.
-  std::vector<std::string> brick_joint_ordering = {"brick_translate_y_joint",
-                                                   "brick_translate_z_joint",
-                                                   "brick_revolute_x_joint"};
+  std::vector<std::string> brick_joint_ordering;
+  if (is_planar_brick) {
+    brick_joint_ordering = {"brick_translate_y_joint",
+                            "brick_translate_z_joint",
+                            "brick_revolute_x_joint"};
+  } else {
+    brick_joint_ordering = {"brick_revolute_x_joint"};
+  }
   MatrixX<double> brick_joint_keyframes =
       MakeKeyframes(all_keyframes, brick_joint_ordering, headers);
   if (brick_keyframe_info != nullptr) {
@@ -400,7 +429,7 @@ void PublishBodyFrames(const systems::Context<double>& plant_context,
     poses.push_back(X_WB);
   }
 
-  PublishFramesToLcm("SIM", poses, body_names, lcm);
+  PublishFramesToLcm("SIM_BODIES", poses, body_names, lcm);
 }
 
 std::vector<std::string> GetPreferredFingerJointOrdering() {
@@ -443,8 +472,7 @@ FrameViz::FrameViz(const multibody::MultibodyPlant<double>& plant,
                    lcm::DrakeLcm* lcm, double period, bool frames_input)
     : plant_(plant), lcm_(lcm), frames_input_(frames_input) {
   this->DeclareVectorInputPort(
-      "x", systems::BasicVector<double>(plant.num_positions() +
-                                        plant.num_velocities() /* mbp state*/));
+      "x", systems::BasicVector<double>(plant.num_multibody_states()));
   // if true, then we create an additional input port which takes arbitrary
   // frames to visualize (a vector of type RigidTransform).
   if (frames_input_) {
@@ -467,7 +495,7 @@ systems::EventStatus FrameViz::PublishFramePose(
           "sim_frame_" + std::to_string(iter - frames_vec.begin());
       frames_names.push_back(name);
     }
-    PublishFramesToLcm("SIM", frames_vec, frames_names, lcm_);
+    PublishFramesToLcm("SIM_FRAMES", frames_vec, frames_names, lcm_);
   } else {
     auto state = this->EvalVectorInput(context, 0)->get_value();
     plant_.SetPositionsAndVelocities(plant_context_.get(), state);

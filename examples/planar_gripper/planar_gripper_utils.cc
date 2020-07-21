@@ -159,17 +159,17 @@ void FingerFaceAssigner::CalcFingerFaceAssignments(
                            plant_state.tail(plant_.num_velocities()));
       auto p_WCb = contact_results.point_pair_contact_info(pair_index.value())
                        .contact_point();
-      Eigen::Vector3d result;
+      Eigen::Vector3d p_BCb;  // Contact point in brick frame;
       plant_.CalcPointsPositions(*plant_context_, plant_.world_frame(), p_WCb,
                                  plant_.GetFrameByName("brick_link"),
-                                 &result);
+                                 &p_BCb);
       BrickFaceInfo face_info(*brick_faces.first.begin(),
-                              Eigen::Vector2d(result.tail<2>()),
+                              Vector2d(p_BCb.tail<2>()),
                               true /* in contact */);
       finger_face_assignments->emplace(finger_id_pair.first, face_info);
     } else {
-      BrickFaceInfo face_info(*brick_faces.first.begin(),
-                              Eigen::Vector2d(brick_faces.second.tail<2>()),
+      Vector2d p_BCb = Vector2d(brick_faces.second.tail<2>());
+      BrickFaceInfo face_info(*brick_faces.first.begin(), p_BCb,
                               false /* no contact */);
       finger_face_assignments->emplace(finger_id_pair.first, face_info);
     }
@@ -240,19 +240,19 @@ std::unordered_map<Finger, BrickFaceInfo> BrickSpatialForceAssignments(
     if (finger == Finger::kFinger1) {
       brick_spatial_force_assignments.emplace(
           finger, BrickFaceInfo(BrickFace::kNegY,
-                                Eigen::Vector2d(-kBoxDimension / 2, 0),
+                                Vector2d(-kBoxDimension / 2, 0),
                                 true /* is in contact */));
     }
     if (finger == Finger::kFinger2) {
       brick_spatial_force_assignments.emplace(
           finger, BrickFaceInfo(BrickFace::kPosY,
-                                Eigen::Vector2d(kBoxDimension / 2, 0),
+                                Vector2d(kBoxDimension / 2, 0),
                                 true /* is in contact */));
     }
     if (finger == Finger::kFinger3) {
       brick_spatial_force_assignments.emplace(
           finger, BrickFaceInfo(BrickFace::kNegZ,
-                                Eigen::Vector2d(0, -kBoxDimension / 2),
+                                Vector2d(0, -kBoxDimension / 2),
                                 true /* is in contact */));
     }
   }

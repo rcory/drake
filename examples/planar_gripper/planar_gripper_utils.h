@@ -14,15 +14,21 @@ namespace drake {
 namespace examples {
 namespace planar_gripper {
 
+using Eigen::Vector2d;
+
 struct BrickFaceInfo {
-  BrickFaceInfo(const BrickFace face, const Eigen::Vector2d point,
-           bool contact)
-      : brick_face(face),
-        p_BCb(point),
-        is_in_contact(contact) {}
+  BrickFaceInfo(const BrickFace face,
+                const Eigen::Ref<const Vector2d>& p_BCb,
+                bool contact)
+      : brick_face(face), p_BCb(p_BCb), is_in_contact(contact) {}
   BrickFace brick_face;   //  the brick face this finger is assigned to.
-  Eigen::Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
-  bool is_in_contact;     // true if this finger is in contact.
+  Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
+
+  // A boolean that indicates whether a finger is in contact with this
+  // `brick_face`. If true, then this structure stores the actual contact point,
+  // given by the contact results object. If false, this structure stores the
+  // witness point to a proximity query.
+  bool is_in_contact;
 };
 
 /**

@@ -2,6 +2,7 @@
 
 #include <limits>
 
+#include "drake/math/matrix_util.h"
 #include "drake/solvers/solve.h"
 
 namespace drake {
@@ -38,8 +39,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
     const Eigen::Ref<const VectorX<double>>& brick_state,
     const Eigen::Ref<const VectorX<double>>& brick_state_desired,
     const Eigen::Ref<const VectorX<double>>& brick_accel_feedforward,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
+    const Eigen::Ref<const Vector2d>& Kp_t,
+    const Eigen::Ref<const Vector2d>& Kd_t, double kp_r, double kd_r,
     const std::unordered_map<Finger, BrickFaceInfo>& finger_face_assignments,
     double weight_a_error, double weight_thetaddot_error, double weight_f_Cb,
     double mu, double I_B, double brick_mass, double rotational_damping,
@@ -110,8 +111,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
   total_torque += -rotational_damping * thetadot;
 
   // Form the desired angular acceleration as a PD + FF term.
-  const double thetaddot_des = Kp_r * (theta_desired - theta) +
-                               Kd_r * (thetadot_desired - thetadot) +
+  const double thetaddot_des = kp_r * (theta_desired - theta) +
+                               kd_r * (thetadot_desired - thetadot) +
                                thetaddot_feedforward;
   symbolic::Expression thetaddot = total_torque / I_B;
   prog_->AddQuadraticCost(pow(thetaddot - thetaddot_des, 2) *
@@ -134,8 +135,8 @@ InstantaneousContactForceQP::InstantaneousContactForceQP(
         Eigen::Vector2d(0, 0 * -multibody::UniformGravityFieldElement<
             double>::kDefaultStrength) +
             (R_WB * f_total_B - D * v_WB) / brick_mass;
-    const Eigen::Vector2d a_WB_des = Kp_t * (p_WB_desired - p_WB) +
-        Kd_t * (v_WB_desired - v_WB) + a_WB_feedforward;
+    const Eigen::Vector2d a_WB_des = Kp_t.asDiagonal() * (p_WB_desired - p_WB) +
+        Kd_t.asDiagonal() * (v_WB_desired - v_WB) + a_WB_feedforward;
     prog_->AddQuadraticCost((a_WB - a_WB_des).squaredNorm() * weight_a_error);
   }
 
@@ -168,18 +169,26 @@ InstantaneousContactForceQP::GetContactForceResult(
 
 InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     const BrickType brick_type, const multibody::MultibodyPlant<double>* plant,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kp_t,
-    const Eigen::Ref<const Eigen::Matrix2d>& Kd_t, double Kp_r, double Kd_r,
-    double weight_a_error, double weight_thetaddot_error, double weight_f_Cb_B,
-    double mu, double translational_damping, double rotational_damping,
-    double I_B, double mass_B)
+    const Eigen::Ref<const Vector2d>& Kp_t,
+    const Eigen::Ref<const Vector2d>& Kd_t,
+    const Eigen::Ref<const Vector2d>& Ki_t,
+    const Eigen::Ref<const Vector2d>& Ki_t_sat, const double kp_r,
+    const double kd_r, const double ki_r, const double ki_r_sat,
+    const double weight_a_error, const double weight_thetaddot_error,
+    const double weight_f_Cb_B, const double mu,
+    const double translational_damping, const double rotational_damping,
+    const double I_B, const double mass_B)
     : brick_type_(brick_type),
       plant_{plant},
       mu_{mu},
       Kp_t_{Kp_t},
       Kd_t_{Kd_t},
-      Kp_r_{Kp_r},
-      Kd_r_{Kd_r},
+      Ki_t_{Ki_t},
+      Ki_t_sat_{Ki_t_sat},
+      kp_r_{kp_r},
+      kd_r_{kd_r},
+      ki_r_{ki_r},
+      ki_r_sat_{ki_r_sat},
       weight_a_error_{weight_a_error},
       weight_thetaddot_error_{weight_thetaddot_error},
       weight_f_Cb_B_{weight_f_Cb_B},
@@ -187,9 +196,11 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
       rotational_damping_(rotational_damping),
       mass_B_(mass_B),
       I_B_(I_B) {
-  // TODO(rcory) Check positive definiteness of Kp_tr and Kd_tr
-  DRAKE_DEMAND(Kp_r_ >= 0);
-  DRAKE_DEMAND(Kd_r_ >= 0);
+  DRAKE_DEMAND(!(Kp_t_.array() < 0).any());
+  DRAKE_DEMAND(!(Kd_t_.array() < 0).any());
+  DRAKE_DEMAND(!(Ki_t_.array() < 0).any());
+  DRAKE_DEMAND(kp_r_ >= 0);
+  DRAKE_DEMAND(kd_r_ >= 0);
   DRAKE_DEMAND(weight_a_error_ >= 0);
   DRAKE_DEMAND(weight_thetaddot_error_ >= 0);
   DRAKE_DEMAND(weight_f_Cb_B_ >= 0);
@@ -237,6 +248,9 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
         plant_->GetJointByName("brick_translate_y_joint").position_start();
     brick_translate_z_position_index_ =
         plant_->GetJointByName("brick_translate_z_joint").position_start();
+    // Declare a continuous state that holds the integrated error for {y, z,
+    // theta}.
+    this->DeclareContinuousState(3);
   } else {  // Pin Brick
     input_index_desired_brick_state_ =
         this->DeclareInputPort("desired_brick_state", systems::kVectorValued, 2)
@@ -244,6 +258,8 @@ InstantaneousContactForceQPController::InstantaneousContactForceQPController(
     input_index_desired_brick_acceleration_ =
         this->DeclareInputPort("desired_brick_accel", systems::kVectorValued, 1)
             .get_index();
+    // Declare a continuous state that holds the integrated error for theta.
+    this->DeclareContinuousState(1);
   }
   brick_revolute_x_position_index_ =
       plant_->GetJointByName("brick_revolute_x_joint").position_start();
@@ -286,8 +302,23 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     return;
   }
 
+  // If we have a planar brick and there is only one finger in contact, then
+  // don't attempt to apply a force.
+  // TODO(rcory) currently the planner gives bogus results when a single finger
+  //  is in contact with the planar brick, which can result in the brick state
+  //  actually getting further away from the goal.
+  if (finger_face_assignments.size() == 1 && brick_type_ ==
+          BrickType::PlanarBrick) {
+    drake::log()->warn(
+        "QP force planning for single-finger contact with a planar-brick is "
+        "currently unreliable. Skipping force calculation.");
+    return;
+  }
+
+  VectorX<double> brick_accel_ff;
   VectorX<double> brick_state;
   if (brick_type_ == BrickType::PlanarBrick) {
+    brick_accel_ff = Vector3d::Zero();
     brick_state = Vector6<double>::Zero();
     brick_state << plant_state(brick_translate_y_position_index_),
         plant_state(brick_translate_z_position_index_),
@@ -298,14 +329,32 @@ void InstantaneousContactForceQPController::CalcFingersControl(
                     brick_translate_z_position_index_),
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   } else {  // brick_type is PinBrick
+    brick_accel_ff = Vector1d::Zero();
     brick_state = Eigen::Vector2d::Zero();
     brick_state << plant_state(brick_revolute_x_position_index_),
         plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
+  // Adds integral error to desired acceleration term.
+  // Integral error is stored in the continuous state.
+  const systems::VectorBase<double>& state_vector =
+      context.get_continuous_state_vector();
+  const Eigen::VectorBlock<const VectorX<double>> state_block =
+      dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+          .get_value();
+  if (brick_type_ == BrickType::PlanarBrick) {
+    brick_accel_ff.head<2>() = desired_brick_acceleration.head<2>() +
+                               (Ki_t_.asDiagonal() * state_block.head<2>());
+    brick_accel_ff(2) =
+        desired_brick_acceleration(2) + (ki_r_ * state_block(2));
+  } else {
+    brick_accel_ff(0) =
+        desired_brick_acceleration(0) + (ki_r_ * state_block(0));
+  }
+
   InstantaneousContactForceQP qp(
-      brick_type_, brick_state, desired_brick_state, desired_brick_acceleration,
-      Kp_t_, Kd_t_, Kp_r_, Kd_r_, finger_face_assignments, weight_a_error_,
+      brick_type_, brick_state, desired_brick_state, brick_accel_ff,
+      Kp_t_, Kd_t_, kp_r_, kd_r_, finger_face_assignments, weight_a_error_,
       weight_thetaddot_error_, weight_f_Cb_B_, mu_, I_B_, mass_B_,
       rotational_damping_, translational_damping_);
 
@@ -344,6 +393,73 @@ void InstantaneousContactForceQPController::CalcBrickControl(
     contact_forces->push_back(finger_control.second);
   }
 }
+
+void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
+    const drake::systems::Context<double>& context,
+    drake::systems::ContinuousState<double>* derivatives) const {
+  const Eigen::VectorBlock<const VectorX<double>> plant_state =
+      get_input_port_estimated_state().Eval(context);
+  const Eigen::VectorBlock<const VectorX<double>> desired_brick_state =
+      get_input_port_desired_brick_state().Eval(context);
+  VectorX<double> brick_positions;
+  VectorX<double> desired_brick_positions;
+  if (brick_type_ == BrickType::PlanarBrick) {
+    Vector6<double> brick_state;
+    brick_state << plant_state(brick_translate_y_position_index_),
+        plant_state(brick_translate_z_position_index_),
+        plant_state(brick_revolute_x_position_index_),
+        plant_state(plant_->num_positions() +
+            brick_translate_y_position_index_),
+        plant_state(plant_->num_positions() +
+            brick_translate_z_position_index_),
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_positions = brick_state.head<3>();
+    desired_brick_positions = desired_brick_state.head<3>();
+
+    // Enforce a saturation limit on the integral terms.
+    const systems::VectorBase<double>& state_vector =
+        context.get_continuous_state_vector();
+    const Eigen::VectorBlock<const VectorX<double>> state_block =
+        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+            .get_value();
+
+    // Loop over y-translation, z-translation, theta-rotation.
+    Eigen::Vector3d Ki_sat(Ki_t_sat_(0), Ki_t_sat_(1), ki_r_sat_);
+    for (int i=0; i < 3; i++) {
+      if (state_block(i) > Ki_sat(i) &&
+          (desired_brick_positions(i) > brick_positions(i))) {
+        brick_positions = desired_brick_positions;
+      } else if (state_block(i) < -Ki_sat(i) &&
+          (desired_brick_positions(i) < brick_positions(i))) {
+        brick_positions = desired_brick_positions;
+      }
+    }
+  } else {  // brick_type is PinBrick
+    VectorX<double> brick_state;
+    brick_state = Eigen::Vector2d::Zero();
+    brick_state << plant_state(brick_revolute_x_position_index_),
+        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
+    brick_positions = brick_state.head<1>();
+    desired_brick_positions = desired_brick_state.head<1>();
+
+    // Saturate the integral term for rotation only (PinBrick).
+    const systems::VectorBase<double>& state_vector =
+        context.get_continuous_state_vector();
+    const Eigen::VectorBlock<const VectorX<double>> state_block =
+        dynamic_cast<const systems::BasicVector<double>&>(state_vector)
+            .get_value();
+    if (state_block(0) > ki_r_sat_ &&
+        (desired_brick_positions(0) > brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    } else if (state_block(0) < -ki_r_sat_ &&
+               (desired_brick_positions(0) < brick_positions(0))) {
+      brick_positions = desired_brick_positions;
+    }
+  }
+  derivatives->get_mutable_vector().SetFromVector(desired_brick_positions -
+                                                  brick_positions);
+}
+
 }  // namespace planar_gripper
 }  // namespace examples
 }  // namespace drake

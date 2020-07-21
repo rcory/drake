@@ -35,8 +35,8 @@ DEFINE_double(thetaf, M_PI_4, "final theta (rad)");
 DEFINE_double(T, 1.5, "time horizon (s)");
 DEFINE_double(QP_plan_dt, 0.002, "The QP planner's timestep.");
 
-DEFINE_double(QP_Kp_ro, 150, "QP controller rotational Kp gain");
-DEFINE_double(QP_Kd_ro, 50, "QP controller rotational Kd gain");
+DEFINE_double(QP_kp_r, 150, "QP controller rotational proportional gain");
+DEFINE_double(QP_kd_r, 50, "QP controller rotational derivative gain");
 DEFINE_double(QP_weight_thetaddot_error, 1, "thetaddot error weight.");
 DEFINE_double(QP_weight_f_Cb_B, 1, "Contact force magnitude penalty weight");
 DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
@@ -78,9 +78,9 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
 
   qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->thetaf_ = FLAGS_thetaf;
-  qpoptions->QP_Kp_r_ = FLAGS_QP_Kp_ro;
-  qpoptions->QP_Kd_r_ = FLAGS_QP_Kd_ro;
+  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
+  qpoptions->QP_kp_r_ = FLAGS_QP_kp_r;
+  qpoptions->QP_kd_r_ = FLAGS_QP_kd_r;
   qpoptions->QP_weight_thetaddot_error_ = FLAGS_QP_weight_thetaddot_error;
   qpoptions->QP_weight_f_Cb_B_ = FLAGS_QP_weight_f_Cb_B;
   qpoptions->QP_mu_ = FLAGS_QP_mu;

@@ -30,16 +30,16 @@ GTEST_TEST(PlanarFingerInstantaneousQPTest, Test) {
       scene_graph.model_inspector();
 
   // Make and add the planar_finger model.
-  const std::string full_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/planar_finger.sdf");
+  const std::string full_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/planar_finger.sdf");
   multibody::MultibodyPlant<double>& plant =
       *builder.AddSystem<multibody::MultibodyPlant>(1e-3);
   multibody::Parser(&plant, &scene_graph).AddModelFromFile(full_name);
   WeldFingerFrame<double>(&plant);
 
   // Adds the object to be manipulated.
-  auto object_file_name =
-      FindResourceOrThrow("drake/examples/planar_gripper/1dof_brick.sdf");
+  auto object_file_name = FindResourceOrThrow(
+      "drake/examples/planar_gripper/models/1dof_brick.sdf");
   auto brick_index = multibody::Parser(&plant, &scene_graph)
                          .AddModelFromFile(object_file_name, "brick");
   const multibody::Frame<double>& brick_base_frame =

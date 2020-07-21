@@ -14,6 +14,16 @@ load(
     "drake_cc_vector_gen_library",
 )
 
+filegroup(
+    name = "keyframe_files",
+    srcs = glob([
+        "keyframes/*.txt",
+    ]),
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
 drake_cc_library(
     name = "planar_gripper_utils",
     srcs = ["planar_gripper_utils.cc"],
@@ -32,9 +42,7 @@ drake_cc_library(
         "planar_gripper.h",
     ],
     data = [
-        "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:planar_brick.sdf",
-        "//examples/planar_gripper:planar_gripper.sdf",
+        ":models",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -102,6 +110,7 @@ drake_cc_library(
     hdrs = ["planar_gripper_udp.h"],
     deps = [
         ":planar_gripper_common",
+        ":planar_gripper_utils",
         "//multibody/plant:externally_applied_spatial_force",
     ],
 )
@@ -144,11 +153,8 @@ drake_cc_binary(
     name = "run_planar_gripper_trajectory_publisher",
     srcs = ["run_planar_gripper_trajectory_publisher.cc"],
     data = [
+        ":keyframe_files",
         ":models",
-        "//examples/planar_gripper:pinned_brick_postures_01.txt",
-        "//examples/planar_gripper:pinned_brick_postures_02.txt",
-        "//examples/planar_gripper:pinned_brick_postures_03.txt",
-        "//examples/planar_gripper:postures.txt",
     ],
     deps = [
         ":planar_gripper_common",
@@ -226,9 +232,7 @@ drake_cc_binary(
     srcs = ["run_planar_gripper_simulation.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:pinned_brick_postures_01.txt",
-        "//examples/planar_gripper:pinned_brick_postures_02.txt",
-        "//examples/planar_gripper:postures.txt",
+        ":keyframe_files",
     ],
     test_rule_args = [
         "--simulation_time=0.1",
@@ -284,6 +288,7 @@ drake_cc_binary(
         "--test",
         "--simulation_time=3.5",
         "--target_realtime_rate=0",
+        "--is_regulation_task",
     ],
     deps = [
         ":finger_brick",
@@ -306,11 +311,37 @@ drake_cc_binary(
     srcs = ["test/hybrid_control_simulation.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/planar_gripper:pinned_brick_postures_03.txt",
+        ":keyframe_files",
     ],
     test_rule_args = [
         "--test",
         "--simulation_time=3.5",
+        "--target_realtime_rate=0",
+    ],
+    deps = [
+        ":finger_brick",
+        ":finger_brick_control",
+        ":planar_gripper",
+        ":planar_gripper_common",
+        ":planar_gripper_utils",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "force_control_stabilization",
+    srcs = ["test/force_control_stabilization.cc"],
+    add_test_rule = 1,
+    data = [
+        ":keyframe_files",
+    ],
+    test_rule_args = [
+        "--test",
         "--target_realtime_rate=0",
     ],
     deps = [
@@ -449,8 +480,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "contact_force_qp_test",
     data = [
-        "//examples/planar_gripper:1dof_brick.sdf",
-        "//examples/planar_gripper:planar_finger.sdf",
+        ":models",
     ],
     deps = [
         ":contact_force_qp",
@@ -504,6 +534,7 @@ drake_cc_googletest(
         "//common/test_utilities:eigen_matrix_compare",
         "//geometry:geometry_visualization",
         "//multibody/plant:contact_results_to_lcm",
+        "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
     ],
