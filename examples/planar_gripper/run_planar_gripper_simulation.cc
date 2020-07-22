@@ -105,7 +105,7 @@ DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 1e-5,
+DEFINE_double(brick_floor_penetration, 1e-4,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -215,7 +215,7 @@ int DoMain() {
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_gripper_status>(
-          "PLANAR_GRIPPER_STATUS", lcm, kGripperLcmPeriod));
+          "PLANAR_GRIPPER_STATUS", lcm, get_planar_gripper_lcm_period()));
   auto status_encoder = builder.AddSystem<GripperStatusEncoder>();
 
   builder.Connect(planar_gripper->GetOutputPort("gripper_state"),
@@ -230,7 +230,7 @@ int DoMain() {
   const SceneGraph<double>& scene_graph = planar_gripper->get_scene_graph();
   auto state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<drake::lcmt_planar_plant_state>(
-          "ESTIMATED_PLANT_STATE", lcm, kGripperLcmPeriod));
+          "ESTIMATED_PLANT_STATE", lcm, get_planar_gripper_lcm_period()));
   auto estimated_plant_state_enc = builder.AddSystem<QPEstimatedStateEncoder>(
       plant.num_multibody_states());
   builder.Connect(planar_gripper->GetOutputPort("plant_state"),
@@ -243,7 +243,7 @@ int DoMain() {
   auto finger_face_assignments_pub =
       builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<
                         drake::lcmt_planar_gripper_finger_face_assignments>(
-          "FINGER_FACE_ASSIGNMENTS", lcm, kGripperLcmPeriod));
+          "FINGER_FACE_ASSIGNMENTS", lcm, get_planar_gripper_lcm_period()));
   auto finger_face_assignments_enc =
       builder.AddSystem<QPFingerFaceAssignmentsEncoder>();
   builder.Connect(
@@ -272,6 +272,8 @@ int DoMain() {
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
 
+  // Note: The keyframe file is parsed strictly for extracting initial
+  // conditions. The `time` and `modes` values are unused.
   VectorX<double> times;
   MatrixX<double> modes;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =

@@ -37,9 +37,9 @@ namespace planar_gripper {
 using systems::InputPort;
 using systems::OutputPort;
 
-// This is rather arbitrary, for now.
-// TODO(rcory) Refine this value once the planner comes online.
-constexpr double kGripperLcmPeriod = 0.002;
+/// Returns the period at which we publish/receive LCM messages for the planar
+/// gripper.
+double get_planar_gripper_lcm_period();
 
 /// Handles lcmt_planar_gripper_command messages from a LcmSubscriberSystem.
 ///
@@ -242,8 +242,8 @@ class GripperStatusEncoder : public systems::LeafSystem<double> {
 /// =================== QP Controller Section ===========================
 
 // TODO(rcory) Make the "decoder" classes take in an LCM period as an argument.
-//  Currently, it the discrete variable update is hard-coded to be
-//  kGripperLCMPeriod.
+//  Currently, the discrete variable update period is set to
+//  `get_planar_gripper_lcm_period()`.
 
 /*
  * This takes in an lcmt_planar_manipuland_spatial_forces object and outputs

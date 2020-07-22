@@ -72,24 +72,6 @@ DEFINE_bool(use_finger1, true, "Use finger1?");
 DEFINE_bool(use_finger2, true, "Use finger2?");
 DEFINE_bool(use_finger3, true, "Use finger3?");
 
-// Boundary conditions.
-DEFINE_double(theta0, -0.6478211916450246, "initial theta (rad)");
-DEFINE_double(thetadot0, 0, "initial brick rotational velocity.");
-DEFINE_double(y0, 0, "initial brick y position (m).");
-DEFINE_double(z0, 0, "initial brick z position (m).");
-DEFINE_double(yf, 0, "goal brick y position (m), for regulation task.");
-DEFINE_double(zf, 0, "goal brick z position (m), for regulation task.");
-DEFINE_double(thetaf, M_PI_4,
-              "goal brick theta rotation (rad), for regulation task.");
-DEFINE_bool(
-    is_regulation_task, false,
-    "Defines the type of control task. If set to `true`, the QP planner "
-    "executes a regulation task. If set to false, the QP planner executes a "
-    "tracking task. A `regulation` task controls the brick to a set-point "
-    "goal. A `tracking` task controls the brick to follow a desired state "
-    "trajectory.");
-DEFINE_double(T, 1.5, "time horizon (s)");
-
 // QP task parameters.
 DEFINE_string(brick_type, "planar",
               "Defines the brick type: {pinned, planar}.");
@@ -119,7 +101,6 @@ DEFINE_double(QP_mu, 1.0, "QP mu"); /* MBP defaults to mu1 == mu2 == 1.0 */
 
 DEFINE_bool(test, false,
             "If true, checks the simulation result against a known value.");
-DEFINE_double(switch_time, 0.7, "Hybrid control switch time");
 DEFINE_bool(print_keyframes, false,
             "Print joint positions (keyframes) to standard out?");
 
@@ -271,14 +252,8 @@ void GetQPPlannerOptions(const PlanarGripper& planar_gripper,
   double brick_inertia = planar_gripper.GetBrickMoments()(kIxx_index);
   double brick_mass = planar_gripper.GetBrickMass();
 
-  qpoptions->T_ = FLAGS_T;
   qpoptions->plan_dt = FLAGS_QP_plan_dt;
-  qpoptions->brick_goal_.y_goal = FLAGS_yf;
-  qpoptions->brick_goal_.z_goal = FLAGS_zf;
-  qpoptions->brick_goal_.theta_goal = FLAGS_thetaf;
-  qpoptions->control_task_ = (FLAGS_is_regulation_task)
-                                 ? ControlTask::kRegulation
-                                 : ControlTask::kTracking;
+  qpoptions->control_task_ = ControlTask::kTracking;
   qpoptions->QP_kp_r_ =
       (brick_type == BrickType::PinBrick ? FLAGS_QP_kp_r_pinned
                                          : FLAGS_QP_kp_r_planar);
@@ -394,7 +369,7 @@ int DoMain() {
       planar_gripper->get_control_plant(), finger_keyframes,
       &finger_joint_name_to_row_index_map);
 
-  // time rescaling hack.
+  // Changes the speed of the trajectory via uniform scaling of the time vector.
   times = times * FLAGS_time_scale_factor;
 
   MatrixX<double> brick_keyframes = brick_keyframe_info.first;

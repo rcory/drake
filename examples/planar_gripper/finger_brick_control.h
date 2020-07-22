@@ -178,13 +178,13 @@ struct BrickGoal {
 };
 
 struct QPControlOptions {
-  double T_{0};  // time horizon
+  double T_{0};  // time horizon (for regulation task)
 
   // The QP planner's timestep (enforced by a ZOH). This works in two ways:
   // 1) For a local QP controller, a zero order hold is placed at it's outputs.
   // 2) For a remote (LCM) controller, it is currently ignored.
   // TODO(rcory) Replace the LCM updates/publishes to use this parameter instead
-  //  of kGripperLcmPeriod.
+  //  of `get_planar_gripper_lcm_period()`.
   double plan_dt{0.01};
 
   double QP_kp_r_{0};  // rotational proportional gain.
