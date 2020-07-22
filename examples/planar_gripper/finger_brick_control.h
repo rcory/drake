@@ -178,7 +178,7 @@ struct BrickGoal {
 };
 
 struct QPControlOptions {
-  double T_{0};  // time horizon
+  double T_{0};  // time horizon (for regulation task)
 
   // The QP planner's timestep (enforced by a ZOH). This works in two ways:
   // 1) For a local QP controller, a zero order hold is placed at it's outputs.

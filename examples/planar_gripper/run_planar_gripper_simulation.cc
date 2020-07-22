@@ -105,7 +105,7 @@ DEFINE_double(floor_coef_static_friction, 0.5,
               "The floor's coefficient of static friction");
 DEFINE_double(floor_coef_kinetic_friction, 0.5,
               "The floor's coefficient of kinetic friction");
-DEFINE_double(brick_floor_penetration, 1e-5,
+DEFINE_double(brick_floor_penetration, 1e-4,
               "Determines how much the brick should penetrate the floor "
               "(in meters). When simulating the vertical case this penetration "
               "distance will remain fixed.");
@@ -272,6 +272,8 @@ int DoMain() {
   std::map<std::string, int> finger_joint_name_to_row_index_map;
   std::pair<MatrixX<double>, std::map<std::string, int>> brick_keyframe_info;
 
+  // Note: The keyframe file is parsed strictly for extracting initial
+  // conditions. The `time` and `modes` values are unused.
   VectorX<double> times;
   MatrixX<double> modes;
   std::tie(finger_keyframes, finger_joint_name_to_row_index_map) =

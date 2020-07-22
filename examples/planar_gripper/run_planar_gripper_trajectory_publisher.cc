@@ -91,20 +91,20 @@ int DoMain() {
   // Communicates the gripper command.
   auto gripper_command_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<lcmt_planar_gripper_command>(
-          kLcmGripperCommandChannel, &lcm));
+          kLcmGripperCommandChannel, &lcm, kGripperLcmPeriod));
   auto gripper_command_encoder = builder.AddSystem<GripperCommandEncoder>();
 
   // Communicates the pose of the brick.
   auto brick_status_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<lcmt_planar_manipuland_status>(
-          kLcmBrickStatusChannel, &lcm));
+          kLcmBrickStatusChannel, &lcm, kGripperLcmPeriod));
   auto brick_status_encoder =
       builder.AddSystem<PlanarManipulandStatusEncoder>();
 
   // Communicates the plant state.
   auto plant_state_pub = builder.AddSystem(
       systems::lcm::LcmPublisherSystem::Make<lcmt_planar_plant_state>(
-          kLcmPlantStateChannel, &lcm));
+          kLcmPlantStateChannel, &lcm, kGripperLcmPeriod));
   auto plant_state_encoder =
       builder.AddSystem<QPEstimatedStateEncoder>(plant.num_multibody_states());
 
@@ -246,9 +246,6 @@ int DoMain() {
     status_value.GetMutableData()->set_value(status_sub.message());
     const double time = status_sub.message().utime * 1e-6;
     simulator.AdvanceTo(time);
-    // Force-publish the lcmt_planar_gripper_command (via the command_pub system
-    // within the diagram).
-    diagram->Publish(diagram_context);
   }
 
   // We should never reach here.
