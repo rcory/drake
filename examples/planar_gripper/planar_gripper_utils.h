@@ -18,9 +18,9 @@ using Eigen::Vector2d;
 
 struct BrickFaceInfo {
   BrickFaceInfo(const BrickFace face,
-                const Eigen::Ref<const Vector2d>& p_BCb,
+                const Eigen::Ref<const Vector2d>& m_p_BCb,
                 bool contact)
-      : brick_face(face), p_BCb(p_BCb), is_in_contact(contact) {}
+      : brick_face(face), p_BCb(m_p_BCb), is_in_contact(contact) {}
   BrickFace brick_face;   //  the brick face this finger is assigned to.
   Vector2d p_BCb;  // holds the contact or witness point, in Brick frame.
 
