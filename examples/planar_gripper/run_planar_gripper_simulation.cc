@@ -327,7 +327,8 @@ int DoMain() {
   command_decoder->set_initial_position(
       &diagram->GetMutableSubsystemContext(*command_decoder,
                                            &simulator_context),
-      Sx * gripper_initial_positions);
+      Sx.topLeftCorner(Sx.rows() / 2, Sx.cols() / 2) *
+          gripper_initial_positions);
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
