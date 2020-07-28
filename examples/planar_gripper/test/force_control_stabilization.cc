@@ -101,7 +101,7 @@ DEFINE_double(QP_kd_t, 100, "QP controller translational derivative gain.");
 DEFINE_double(QP_ki_t, 500, "QP controller translational integral gain.");
 DEFINE_double(QP_ki_r, 19e3, "QP controller rotational integral gain.");
 DEFINE_double(QP_ki_r_sat, 0.004, "QP integral rotational saturation value.");
-DEFINE_double(QP_ki_t_sat, 0.05,
+DEFINE_double(QP_ki_t_sat, 1.5e-3,
               "QP integral translational saturation value.");
 DEFINE_double(QP_kp_r_pinned, 2e3,
               "QP controller rotational proportional gain for pinned brick.");
@@ -556,22 +556,18 @@ int DoMain() {
   // TODO(rcory) Implement a proper unit test once all shared parameters are
   //  moved to a YAML file.
   if (FLAGS_test) {
-    VectorX<double> x_known(18);
-    x_known << -0.1084140, 0.8320280, -0.9261075, 0.0103368, -0.3157280,
-        -1.3742861, 1.1213269, -0.0037305, 1.5645424, -0.0488483, 0.0323931,
-        -0.0975373, 0.0012728, 0.1022895, 0.0680081, 0.1914062, -0.0044967,
-        -0.0784012;
+    VectorX<double> brick_xg = VectorX<double>::Zero(6);
+    brick_xg << 0, 0, M_PI_2, 0, 0, 0;
     const auto& post_sim_context = simulator.get_context();
     const auto& post_plant_context = diagram->GetSubsystemContext(
         planar_gripper->get_mutable_multibody_plant(), post_sim_context);
-    const auto post_plant_state =
+    const auto post_brick_state =
         planar_gripper->get_multibody_plant().GetPositionsAndVelocities(
-            post_plant_context);
+            post_plant_context, planar_gripper->get_brick_index());
 
-    // Check to within an arbitrary threshold.
-    DRAKE_DEMAND(x_known.isApprox(post_plant_state, 1e-5));
+    // Check to within an experimentally determined threshold.
+    DRAKE_DEMAND(brick_xg.isApprox(post_brick_state, 5e-2));  // thetadot
   }
-
   return 0;
 }
 

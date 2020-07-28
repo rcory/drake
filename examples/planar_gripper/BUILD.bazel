@@ -395,20 +395,15 @@ drake_cc_library(
     ],
 )
 
-drake_cc_binary(
-    name = "brick_only_qp_simulation",
-    srcs = ["test/brick_only_qp_simulation.cc"],
-    add_test_rule = 1,
-    test_rule_args = [
-        "--test",
-        "--simulation_time=2.3",
-        "--target_realtime_rate=0",
-    ],
+drake_cc_googletest(
+    name = "brick_only_qp_test",
     deps = [
         ":contact_force_qp",
         ":planar_gripper",
         ":planar_gripper_utils",
+        "//common/test_utilities:eigen_matrix_compare",
         "//geometry:geometry_visualization",
+        "//multibody/plant:contact_results_to_lcm",
         "//multibody/plant:spatial_forces_to_lcm",
         "//systems/analysis:simulator",
         "//systems/primitives:constant_value_source",
