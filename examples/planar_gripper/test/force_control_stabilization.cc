@@ -201,8 +201,8 @@ class KeyframeControlType final : public systems::LeafSystem<double> {
   }
 
   systems::EventStatus DiscreteCallbackTest(
-      const systems::Context<double>& context,
-      const systems::DiscreteUpdateEvent<double>& event,
+      const systems::Context<double>&,
+      const systems::DiscreteUpdateEvent<double>&,
       systems::DiscreteValues<double>* values) const {
     double current_index = values->get_vector().get_value()(0);
     values->get_mutable_vector().get_mutable_value()(0) =
