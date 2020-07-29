@@ -79,6 +79,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 
 namespace drake {
 namespace examples {
@@ -123,6 +124,7 @@ DEFINE_string(keyframes_filename, "planar_brick_multi_mode.txt",
               "The name of the file containing the keyframes.");
 DEFINE_bool(zero_gravity, true, "Set MBP gravity vector to zero?");
 DEFINE_bool(add_floor, true, "Adds a floor to the simulation");
+DEFINE_double(camera_publish_rate_sec, 0.1, "Sets the camera publish rate.");
 
 int DoMain() {
   systems::DiagramBuilder<double> builder;
@@ -204,6 +206,15 @@ int DoMain() {
                                    planar_gripper->get_mutable_scene_graph(),
                                    planar_gripper->GetOutputPort("pose_bundle"),
                                    lcm, geometry::Role::kIllustration);
+
+  // Publish camera image.
+  auto image_array_lcm_publisher =
+      builder.template AddSystem(drake::systems::lcm::LcmPublisherSystem::Make<
+                                 robotlocomotion ::image_array_t>(
+          "DRAKE_RGBD_CAMERA_IMAGES", lcm, FLAGS_camera_publish_rate_sec));
+  builder.Connect(planar_gripper->GetOutputPort(
+                      planar_gripper->get_default_camera_name() + "_images"),
+                  image_array_lcm_publisher->get_input_port());
 
   // Publish contact results for visualization.
   if (FLAGS_visualize_contacts) {

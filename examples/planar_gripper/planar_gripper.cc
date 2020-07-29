@@ -1,5 +1,6 @@
 #include "drake/examples/planar_gripper/planar_gripper.h"
 
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -9,6 +10,7 @@
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
 #include "drake/examples/planar_gripper/planar_gripper_utils.h"
+#include "drake/geometry/render/render_engine_vtk_factory.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -17,6 +19,8 @@
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/demultiplexer.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
+#include "drake/systems/sensors/pixel_types.h"
 
 namespace drake {
 namespace examples {
@@ -24,6 +28,10 @@ namespace planar_gripper {
 
 using Eigen::Vector3d;
 using geometry::SceneGraph;
+using geometry::render::MakeRenderEngineVtk;
+using geometry::render::RenderEngineVtkParams;
+using math::RigidTransformd;
+using math::RotationMatrix;
 using multibody::JointActuatorIndex;
 using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
@@ -501,6 +509,10 @@ PlanarGripper::PlanarGripper(double time_step, ControlType control_type,
   scene_graph_->set_name("scene_graph");
   plant_->set_name("plant");
 
+  // Add a default renderer, which will be needed if a camera is added.
+  scene_graph_->AddRenderer(default_renderer_name_,
+                            MakeRenderEngineVtk(RenderEngineVtkParams()));
+
   // Create the default gains for the inverse dynamics controller. These gains
   // were chosen arbitrarily.
   Kp_.setConstant(1500);
@@ -534,7 +546,8 @@ void PlanarGripper::SetupPlant(std::string orientation,
 
   // Adds the brick to be manipulated.
   const std::string brick_full_file_name = FindResourceOrThrow(brick_file_name);
-  brick_index_ = Parser(plant_).AddModelFromFile(brick_full_file_name, "brick");
+  brick_index_ = Parser(plant_, scene_graph_)
+                     .AddModelFromFile(brick_full_file_name, "brick");
 
   // When the planar-gripper is welded via WeldGripperFrames(), motion always
   // lies in the world Y-Z plane (because the planar-gripper frame is aligned
@@ -583,6 +596,70 @@ void PlanarGripper::SetupPlant(std::string orientation,
         finger, GetFingertipSphereGeometryId(*plant_, inspector, finger));
   }
   brick_geometry_id_ = GetBrickGeometryId(*plant_, inspector);
+}
+
+systems::sensors::RgbdSensor* PlanarGripper::AddCamera(
+    const systems::OutputPort<double>& query_output_port,
+    const std::string& camera_name, systems::DiagramBuilder<double>* builder) {
+  DRAKE_DEMAND(builder != nullptr);
+
+  // Properties of a simple pin-hole camera.
+  // TODO(huihua) Move these parameters to a configuration file.
+  constexpr int kWidth = 1080;    // [pixel]
+  constexpr int kHeight = 720;    // [pixel]
+  constexpr double kFovY = 1.0;   // [rad]
+  constexpr double kZNear = 0.1;  // [m]
+  constexpr double kZFar = 5;     // [m]
+  geometry::render::CameraProperties color_properties(kWidth, kHeight, kFovY,
+                                                      default_renderer_name_);
+  geometry::render::DepthCameraProperties depth_properties(
+      kWidth, kHeight, kFovY, default_renderer_name_, kZNear, kZFar);
+
+  // Confirm the mount frame is valid. The camera is mounted on the brick base
+  // link, which is welded to the ground.
+  const auto& mount_frame = plant_->GetFrameByName("brick_base_link");
+  const std::optional<geometry::FrameId> mount_frame_id =
+      plant_->GetBodyFrameIdIfExists(mount_frame.body().index());
+  DRAKE_THROW_UNLESS(mount_frame_id.has_value());
+
+  // Set the position and orintation of the camera w.r.t to the brick base link.
+  // The Z rotation is to make sure the image has the same orientation as the
+  // drake visualizer. This will yield a more intuitive visual feedback from the
+  // image.
+  const RotationMatrix<double> R_BC =
+      RotationMatrix<double>::MakeYRotation(-M_PI_2) *
+      RotationMatrix<double>::MakeZRotation(M_PI_2);
+  constexpr double kCameraZOffset = 0.4;  // [m]
+  drake::Vector3<double> p_BC_B{kCameraZOffset, 0.0, 0.0};
+  const RigidTransformd X_BC(R_BC, p_BC_B);
+  const RigidTransformd X_PC = mount_frame.GetFixedPoseInBodyFrame() * X_BC;
+
+  auto camera = builder->template AddSystem<systems::sensors::RgbdSensor>(
+      mount_frame_id.value(), X_PC, color_properties, depth_properties);
+  camera->set_name(camera_name);
+
+  builder->Connect(query_output_port, camera->query_object_input_port());
+
+  // Publish the camera image (both rgb and depth) for visualization.
+  auto image_to_lcm_image_array =
+      builder->AddSystem<drake::systems::sensors::ImageToLcmImageArrayT>();
+  image_to_lcm_image_array->set_name(camera_name + "_viewer");
+
+  const auto& color_cam_port =
+      image_to_lcm_image_array
+          ->DeclareImageInputPort<drake::systems::sensors::PixelType::kRgba8U>(
+              "color_camera_" + camera_name);
+  builder->Connect(camera->color_image_output_port(), color_cam_port);
+
+  const auto& depth_cam_port = image_to_lcm_image_array->DeclareImageInputPort<
+      drake::systems::sensors::PixelType::kDepth16U>("depth_camera_" +
+                                                     camera_name);
+  builder->Connect(camera->depth_image_16U_output_port(), depth_cam_port);
+
+  builder->ExportOutput(
+      image_to_lcm_image_array->image_array_t_msg_output_port(),
+      camera_name + "_images");
+  return camera;
 }
 
 // Adds an inverse dynamics controller and internally remaps its generalized
@@ -703,6 +780,11 @@ void PlanarGripper::Finalize() {
     throw std::runtime_error(
         "Unknown control type. Options are {kPosition, kTorque, kHybrid}.");
   }
+
+  // Add an rgbd camera that sits on top of the planar gripper platform. The
+  // camera points exactly to the center of the platform.
+  AddCamera(scene_graph_->get_query_output_port(), default_camera_name_,
+            &builder);
 
   builder.ExportOutput(plant_->get_state_output_port(), "plant_state");
   builder.ExportOutput(plant_->get_state_output_port(gripper_index_),

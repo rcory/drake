@@ -50,10 +50,13 @@ drake_cc_library(
         ":planar_gripper_lcm",
         ":planar_gripper_utils",
         "//common:find_resource",
+        "//geometry/render:render_engine_vtk",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/controllers:inverse_dynamics_controller",
         "//systems/framework:diagram",
+        "//systems/sensors:image_to_lcm_image_array_t",
+        "//systems/sensors:rgbd_sensor",
     ],
 )
 
@@ -249,6 +252,7 @@ drake_cc_binary(
         "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        "//systems/sensors:image_to_lcm_image_array_t",
         "@gflags",
     ],
 )

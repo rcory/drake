@@ -69,8 +69,9 @@ GTEST_TEST(TestPlanarGripper, GetClosestFacesToFinger) {
   Eigen::Vector3d p_BS;
   planar_gripper->get_multibody_plant().CalcPointsPositions(
       *plant_context, finger1_tip_frame, p_TS, brick_frame, &p_BS);
-  EXPECT_TRUE(
-      CompareMatrices((p_BS - p_BCb).normalized(), Eigen::Vector3d::UnitZ()));
+  EXPECT_TRUE(CompareMatrices((p_BS - p_BCb).normalized(),
+                              Eigen::Vector3d::UnitZ(),
+                              std::numeric_limits<double>::epsilon()));
   // Also check if FingerFaceAssigner generates the right output.
   auto finger_face_assigner_output =
       finger_face_assigner->get_finger_face_assignments_output_port()

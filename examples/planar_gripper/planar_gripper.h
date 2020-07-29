@@ -15,6 +15,7 @@
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/controllers/inverse_dynamics_controller.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/sensors/rgbd_sensor.h"
 
 namespace drake {
 namespace examples {
@@ -283,6 +284,8 @@ class PlanarGripper : public systems::Diagram<double> {
     return plant_->num_multibody_states(brick_index_);
   }
 
+  std::string get_default_camera_name() const { return default_camera_name_; }
+
   double GetBrickPinJointDamping() const;
   Vector3d GetBrickMoments() const;
   double GetBrickMass() const;
@@ -320,6 +323,21 @@ class PlanarGripper : public systems::Diagram<double> {
   AddInverseDynamicsController(const systems::InputPort<double>& u_input,
                                systems::DiagramBuilder<double>* builder);
 
+  /// Adds an RGBD camera to the diagram.
+  /// @param query_output_port The query output port from a SceneGraph.
+  /// @param camera_name The name of the camera.
+  /// @param builder A pointer to the diagram builder for the PlanarGripper. It
+  /// will throw if this pointer is a nullptr. Currently, it only supports
+  /// adding one camera and the camera properties are hard-coded.
+  /// @note A "{camera_name}_images" output port will be created after calling
+  /// this function. To visualize the images in the Drake visualizer, a
+  /// LcmPublisherSystem<robotlocomotion::image_array_t> system has to be
+  /// created, with the input port connected to this output port. Also, rebuild
+  /// the drake visualizer when you first run the simulation with camera.
+  systems::sensors::RgbdSensor* AddCamera(
+      const systems::OutputPort<double>& query_output_port,
+      const std::string& camera_name, systems::DiagramBuilder<double>* builder);
+
   // These are only valid until Finalize() is called.
   std::unique_ptr<multibody::MultibodyPlant<double>> owned_control_plant_;
   std::unique_ptr<multibody::MultibodyPlant<double>> owned_plant_;
@@ -336,6 +354,8 @@ class PlanarGripper : public systems::Diagram<double> {
   ModelInstanceIndex brick_index_;
 
   ControlType control_type_;
+  const std::string default_renderer_name_ = "planar_gripper_render";
+  const std::string default_camera_name_ = "top_down_camera";
   bool add_floor_{false};
   double brick_floor_penetration_{0};  // For the vertical case.
   double floor_coef_static_friction_{0};

@@ -1,3 +1,4 @@
+#include <limits>
 #include <memory>
 
 #include <gflags/gflags.h>

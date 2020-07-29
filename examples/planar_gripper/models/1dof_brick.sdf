@@ -38,6 +38,23 @@
         <diffuse>0 0 0.8 0.2</diffuse>
       </material>
     </visual>
+    <visual name='brick_perception_texture'>
+      <!-- The small number 0.0001 here is to lift the perception texture
+      on top of the above two illustration visuals. This has minimum
+      impact on what the camera sees. -->
+      <pose>0.0001 0 0 0 1.57 0</pose>
+        <geometry>
+          <mesh>
+            <uri>./meshes/simple_brick.obj</uri>
+            <scale>1.0 1.0 1.0</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <drake:diffuse_map>./textures/simple_brick_color.png</drake:diffuse_map>
+          <drake:roughness_map>./textures/simple_brick_roughness.png</drake:roughness_map>
+          <drake:metalness_map>./textures/simple_brick_metalness.png</drake:metalness_map>
+        </material>
+    </visual>
     <collision name='box_collision'>
       <pose>0 0 0 0 0 0</pose>
       <geometry>

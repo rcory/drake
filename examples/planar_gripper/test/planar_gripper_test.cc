@@ -5,6 +5,7 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 
 namespace drake {
 namespace examples {
@@ -64,6 +65,26 @@ GTEST_TEST(TestPlanarGripper, InverseDynamicsGains) {
   EXPECT_THROW(
       planar_gripper.GetInverseDynamicsControlGains(&Kp_bad, &Ki_bad, &Kd_bad),
       std::logic_error);
+}
+
+GTEST_TEST(TestPlanarGripper, DefaultCameraSetup) {
+  systems::DiagramBuilder<double> builder;
+  auto planar_gripper = builder.AddSystem<PlanarGripper>(
+      0.1, ControlType::kPosition, false /* no floor */);
+  planar_gripper->SetupPlanarBrick("horizontal");
+  planar_gripper->Finalize();
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+  systems::Context<double>& planar_gripper_context =
+      diagram->GetMutableSubsystemContext(*planar_gripper,
+                                          diagram_context.get());
+
+  const std::string& camera_name = planar_gripper->get_default_camera_name();
+  const auto image_array_t =
+      planar_gripper->GetOutputPort(camera_name + "_images")
+          .Eval<robotlocomotion::image_array_t>(planar_gripper_context);
+  // Confirm that there are two images.
+  EXPECT_EQ(image_array_t.images.size(), 2);
 }
 
 GTEST_TEST(TestPlanarGripper, PositionControlSetup) {
