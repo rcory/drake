@@ -386,19 +386,17 @@ int DoMain() {
   // TODO(rcory) Implement a proper unit test once all shared parameters are
   //  moved to a YAML file.
   if (FLAGS_test) {
-    VectorX<double> x_known(14);
-    x_known << -0.6779083, 0.4575399, -0.7382065, 0.7823212, 0.6807362,
-        -1.2508255, 1.1141098, 0.0041306, -0.0002022, 0.0002803, -0.0009766,
-        -0.0082137, 0.0000462, -0.0012514;
+    VectorX<double> brick_xg = VectorX<double>::Zero(6);
+    brick_xg << FLAGS_thetaf, 0;
     const auto& post_sim_context = simulator.get_context();
     const auto& post_plant_context = diagram->GetSubsystemContext(
         planar_gripper->get_mutable_multibody_plant(), post_sim_context);
-    const auto post_plant_state =
+    const auto post_brick_state =
         planar_gripper->get_multibody_plant().GetPositionsAndVelocities(
-            post_plant_context);
+            post_plant_context, planar_gripper->get_brick_index());
 
-    // Check to within an arbitrary threshold.
-    DRAKE_DEMAND(x_known.isApprox(post_plant_state, 1e-6));
+    // Check to within an experimentally determined threshold.
+    DRAKE_DEMAND(brick_xg.isApprox(post_brick_state, 6e-3));
   }
 
   return 0;

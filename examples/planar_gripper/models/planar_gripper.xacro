@@ -1,49 +1,46 @@
 <?xml version="1.0"?>
-
-<sdf xmlns:xacro="http://www.ros.org/wiki/xacro" version='1.6'>
-  <model name='planar_gripper'>
-
+<sdf xmlns:xacro="http://www.ros.org/wiki/xacro" version="1.6">
+  <model name="planar_gripper">
     <!-- Link mass and inertia values are guesses (currently), calculated using
          a uniform rod model, rotating about its center of mass. -->
-    <xacro:property name="base_dim" value=".08" />
-    <xacro:property name="l1_length" value="0.085" />
-    <xacro:property name="l1_COM" value="0.03811" />
-    <xacro:property name="l1_radius" value="0.011" />
-    <xacro:property name="l1_mass" value="0.449" />
-    <xacro:property name="l1_xx_inertia" value="0.000200329" />
-    <xacro:property name="l1_yy_inertia" value="0.000774354" />
-    <xacro:property name="l1_zz_inertia" value="0.0006529" />
-    <xacro:property name="l1_xz_inertia" value="0.000028883" />
-    <xacro:property name="l1_xy_inertia" value="0" />
-    <xacro:property name="l1_yz_inertia" value="0" />
-    <xacro:property name="l2_length" value="0.040" />
-    <xacro:property name="l2_COM" value="0.02966" />
-    <xacro:property name="l2_radius" value="0.011" />
-    <xacro:property name="l2_mass" value="0.104" />
-    <xacro:property name="l2_xx_inertia" value="0.000078462" />
-    <xacro:property name="l2_yy_inertia" value="0.000083214" />
-    <xacro:property name="l2_zz_inertia" value="0.000012773" />
-    <xacro:property name="l2_xz_inertia" value="0.000006523" />
-    <xacro:property name="l2_xy_inertia" value="0" />
-    <xacro:property name="l2_yz_inertia" value="0" />
-    <xacro:property name="shaft_inertia" value="0.0006" />
-    <xacro:property name="N" value="50" />  <!-- gear reduction -->
-    <xacro:property name="sensor_length" value="0.005" />
-    <xacro:property name="sensor_width" value="0.02" />
-    <xacro:property name="tip_adapter_length" value="0.0113" />
-    <xacro:property name="tip_adapter_radius" value="0.0145" />
-    <xacro:property name="tip_cylinder_length" value="0.0035" />
-    <xacro:property name="tip_cylinder_radius" value="0.01" />
-    <xacro:property name="tip_sphere_radius" value="0.015" />
-    <xacro:property name="base_joint_limit" value="1.570796" />
-    <xacro:property name="mid_joint_limit" value="1.570796" />
-    <xacro:property name="base_joint_damping" value="0" />
-    <xacro:property name="mid_joint_damping" value="0" />
-
+    <xacro:property name="base_dim" value=".08"/>
+    <xacro:property name="l1_length" value="0.085"/>
+    <xacro:property name="l1_COM" value="0.03811"/>
+    <xacro:property name="l1_radius" value="0.011"/>
+    <xacro:property name="l1_mass" value="0.449"/>
+    <xacro:property name="l1_xx_inertia" value="0.000200329"/>
+    <xacro:property name="l1_yy_inertia" value="0.000774354"/>
+    <xacro:property name="l1_zz_inertia" value="0.0006529"/>
+    <xacro:property name="l1_xz_inertia" value="0.000028883"/>
+    <xacro:property name="l1_xy_inertia" value="0"/>
+    <xacro:property name="l1_yz_inertia" value="0"/>
+    <xacro:property name="l2_length" value="0.040"/>
+    <xacro:property name="l2_COM" value="0.02966"/>
+    <xacro:property name="l2_radius" value="0.011"/>
+    <xacro:property name="l2_mass" value="0.104"/>
+    <xacro:property name="l2_xx_inertia" value="0.000078462"/>
+    <xacro:property name="l2_yy_inertia" value="0.000083214"/>
+    <xacro:property name="l2_zz_inertia" value="0.000012773"/>
+    <xacro:property name="l2_xz_inertia" value="0.000006523"/>
+    <xacro:property name="l2_xy_inertia" value="0"/>
+    <xacro:property name="l2_yz_inertia" value="0"/>
+    <xacro:property name="shaft_inertia" value="0.0006"/>
+    <xacro:property name="N" value="50"/>
+    <!-- gear reduction -->
+    <xacro:property name="sensor_length" value="0.005"/>
+    <xacro:property name="sensor_width" value="0.02"/>
+    <xacro:property name="tip_adapter_length" value="0.0113"/>
+    <xacro:property name="tip_adapter_radius" value="0.0145"/>
+    <xacro:property name="tip_cylinder_length" value="0.0035"/>
+    <xacro:property name="tip_cylinder_radius" value="0.01"/>
+    <xacro:property name="tip_sphere_radius" value="0.015"/>
+    <xacro:property name="base_joint_limit" value="1.570796"/>
+    <xacro:property name="mid_joint_limit" value="1.570796"/>
+    <xacro:property name="base_joint_damping" value="0"/>
+    <xacro:property name="mid_joint_damping" value="0"/>
     <xacro:macro name="finger" params="fnum">
       <link name="finger${fnum}_base">
-        <visual name='base_visual'>
-          <pose>0 0 0 0 0 0</pose>
+        <visual name="base_visual">
           <geometry>
             <box>
               <size>${base_dim} ${base_dim} ${base_dim/10}</size>
@@ -55,7 +52,6 @@
         </visual>
       </link>
       <link name="finger${fnum}_link1">
-        <pose>0 0 0 0 0 0</pose>
         <inertial>
           <pose>0 0 -${l1_COM} 0 0 0</pose>
           <mass>${l1_mass}</mass>
@@ -75,7 +71,7 @@
             <iyz>${l1_yz_inertia}</iyz>
           </inertia>
         </inertial>
-        <visual name='link1_visual'>
+        <visual name="link1_visual">
           <pose>0 0 -${l1_length/2} 0 0 0</pose>
           <geometry>
             <cylinder>
@@ -87,7 +83,7 @@
             <diffuse>1 0 0 1</diffuse>
           </material>
         </visual>
-        <visual name='link1_joint_visual'>
+        <visual name="link1_joint_visual">
           <pose>0 0 -${l1_length} 0 0 0</pose>
           <geometry>
             <sphere>
@@ -95,11 +91,11 @@
             </sphere>
           </geometry>
           <material>
-            <diffuse>.1 .1 .1 1</diffuse>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
           </material>
         </visual>
       </link>
-      <joint name='finger${fnum}_BaseJoint' type='revolute'>
+      <joint name="finger${fnum}_BaseJoint" type="revolute">
         <child>finger${fnum}_link1</child>
         <parent>finger${fnum}_base</parent>
         <axis>
@@ -113,7 +109,6 @@
           <dynamics>
             <damping>${base_joint_damping}</damping>
           </dynamics>
-          <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
       </joint>
       <link name="finger${fnum}_link2">
@@ -138,7 +133,7 @@
             <iyz>${l2_yz_inertia}</iyz>
           </inertia>
         </inertial>
-        <visual name='link2_visual'>
+        <visual name="link2_visual">
           <pose>0 0 -${l2_length/2} 0 0 0</pose>
           <geometry>
             <cylinder>
@@ -152,18 +147,18 @@
         </visual>
         <!--The link 2 collision element extends up to (but not including) the
             sphere fingertip-->
-        <collision name='link2_collision'>
+        <collision name="link2_collision">
           <pose>0 0 -${(l2_length + sensor_length + tip_adapter_length + tip_cylinder_length)/2} 0 0 0</pose>
           <geometry>
             <box>
-              <size> ${2 * l2_radius} ${2 * l2_radius} ${l2_length + sensor_length + tip_adapter_length + tip_cylinder_length} </size>
+              <size>${2 * l2_radius} ${2 * l2_radius} ${l2_length + sensor_length + tip_adapter_length + tip_cylinder_length}</size>
             </box>
           </geometry>
           <material>
             <diffuse>1 0 1 1</diffuse>
           </material>
         </collision>
-        <visual name='sensor_visual'>
+        <visual name="sensor_visual">
           <pose>0 0 -${l2_length + sensor_length/2.0} 0 0 0</pose>
           <geometry>
             <box>
@@ -171,15 +166,13 @@
             </box>
           </geometry>
           <material>
-            <diffuse>.8 .8 .8 1</diffuse>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
           </material>
         </visual>
       </link>
-      <joint name='finger${fnum}_MidJoint' type='revolute'>
+      <joint name="finger${fnum}_MidJoint" type="revolute">
         <parent>finger${fnum}_link1</parent>
         <child>finger${fnum}_link2</child>
-        <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
-        <pose>0 0 0 0 0 0</pose>
         <axis>
           <xyz>1 0 0</xyz>
           <limit>
@@ -190,7 +183,6 @@
           <dynamics>
             <damping>${mid_joint_damping}</damping>
           </dynamics>
-          <use_parent_model_frame>1</use_parent_model_frame>
         </axis>
       </joint>
       <!-- The tip link's mass/inertia values are already included in link 2,
@@ -202,10 +194,14 @@
         <pose>0 0 -${l1_length + l2_length + sensor_length} 0 0 0</pose>
         <inertial>
           <pose>0 0 -${(tip_adapter_length + tip_cylinder_length)/2} 0 0 0</pose>
-          <mass>1e-7</mass>
+          <mass>1e-07</mass>
           <inertia>
-            <ixx>1e-7</ixx><iyy>1e-7</iyy><izz>1e-7</izz>
-            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+            <ixx>1e-07</ixx>
+            <iyy>1e-07</iyy>
+            <izz>1e-07</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
           </inertia>
         </inertial>
         <visual name="tip_adapter_visual">
@@ -217,7 +213,7 @@
             </cylinder>
           </geometry>
           <material>
-            <diffuse>.3 .3 .3 1</diffuse>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
         <visual name="tip_cylinder_visual">
@@ -229,10 +225,10 @@
             </cylinder>
           </geometry>
           <material>
-            <diffuse>.3 .3 .3 1</diffuse>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
-        <visual name='tip_sphere_visual'>
+        <visual name="tip_sphere_visual">
           <pose>0 0 -${tip_adapter_length + tip_sphere_radius} 0 0 0</pose>
           <geometry>
             <sphere>
@@ -243,7 +239,7 @@
             <diffuse>1 1 1 1</diffuse>
           </material>
         </visual>
-        <collision name='tip_sphere_collision'>
+        <collision name="tip_sphere_collision">
           <pose>0 0 -${tip_adapter_length + tip_sphere_radius} 0 0 0</pose>
           <geometry>
             <sphere>
@@ -255,16 +251,13 @@
           </material>
         </collision>
       </link>
-      <joint name='finger${fnum}_sensor_weldjoint' type='fixed'>
+      <joint name="finger${fnum}_sensor_weldjoint" type="fixed">
         <parent>finger${fnum}_link2</parent>
         <child>finger${fnum}_tip_link</child>
-        <pose>0 0 0 0 0 0</pose>
       </joint>
     </xacro:macro>
-
-    <xacro:finger fnum="1" />
-    <xacro:finger fnum="2" />
-    <xacro:finger fnum="3" />
-
+    <xacro:finger fnum="1"/>
+    <xacro:finger fnum="2"/>
+    <xacro:finger fnum="3"/>
   </model>
 </sdf>

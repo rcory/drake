@@ -57,7 +57,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>.1 .1 .1 1</diffuse>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -75,7 +75,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <link name="finger1_link2">
@@ -118,7 +117,7 @@
         <pose>0 0 -0.0299 0 0 0</pose>
         <geometry>
           <box>
-            <size> 0.022 0.022 0.0598 </size>
+            <size>0.022 0.022 0.0598</size>
           </box>
         </geometry>
         <material>
@@ -133,14 +132,13 @@
           </box>
         </geometry>
         <material>
-          <diffuse>.8 .8 .8 1</diffuse>
+          <diffuse>0.8 0.8 0.8 1</diffuse>
         </material>
       </visual>
     </link>
     <joint name="finger1_MidJoint" type="revolute">
       <parent>finger1_link1</parent>
       <child>finger1_link2</child>
-      <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <axis>
         <xyz>1 0 0</xyz>
         <limit>
@@ -151,7 +149,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <!-- The tip link's mass/inertia values are already included in link 2,
@@ -163,11 +160,11 @@
       <pose>0 0 -0.13 0 0 0</pose>
       <inertial>
         <pose>0 0 -0.0074 0 0 0</pose>
-        <mass>1e-7</mass>
+        <mass>1e-07</mass>
         <inertia>
-          <ixx>1e-7</ixx>
-          <iyy>1e-7</iyy>
-          <izz>1e-7</izz>
+          <ixx>1e-07</ixx>
+          <iyy>1e-07</iyy>
+          <izz>1e-07</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
@@ -182,7 +179,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_cylinder_visual">
@@ -194,7 +191,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_sphere_visual">
@@ -276,7 +273,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>.1 .1 .1 1</diffuse>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -294,7 +291,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <link name="finger2_link2">
@@ -337,7 +333,7 @@
         <pose>0 0 -0.0299 0 0 0</pose>
         <geometry>
           <box>
-            <size> 0.022 0.022 0.0598 </size>
+            <size>0.022 0.022 0.0598</size>
           </box>
         </geometry>
         <material>
@@ -352,14 +348,13 @@
           </box>
         </geometry>
         <material>
-          <diffuse>.8 .8 .8 1</diffuse>
+          <diffuse>0.8 0.8 0.8 1</diffuse>
         </material>
       </visual>
     </link>
     <joint name="finger2_MidJoint" type="revolute">
       <parent>finger2_link1</parent>
       <child>finger2_link2</child>
-      <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <axis>
         <xyz>1 0 0</xyz>
         <limit>
@@ -370,7 +365,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <!-- The tip link's mass/inertia values are already included in link 2,
@@ -382,11 +376,11 @@
       <pose>0 0 -0.13 0 0 0</pose>
       <inertial>
         <pose>0 0 -0.0074 0 0 0</pose>
-        <mass>1e-7</mass>
+        <mass>1e-07</mass>
         <inertia>
-          <ixx>1e-7</ixx>
-          <iyy>1e-7</iyy>
-          <izz>1e-7</izz>
+          <ixx>1e-07</ixx>
+          <iyy>1e-07</iyy>
+          <izz>1e-07</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
@@ -401,7 +395,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_cylinder_visual">
@@ -413,7 +407,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_sphere_visual">
@@ -495,7 +489,7 @@
           </sphere>
         </geometry>
         <material>
-          <diffuse>.1 .1 .1 1</diffuse>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
         </material>
       </visual>
     </link>
@@ -513,7 +507,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <link name="finger3_link2">
@@ -556,7 +549,7 @@
         <pose>0 0 -0.0299 0 0 0</pose>
         <geometry>
           <box>
-            <size> 0.022 0.022 0.0598 </size>
+            <size>0.022 0.022 0.0598</size>
           </box>
         </geometry>
         <material>
@@ -571,14 +564,13 @@
           </box>
         </geometry>
         <material>
-          <diffuse>.8 .8 .8 1</diffuse>
+          <diffuse>0.8 0.8 0.8 1</diffuse>
         </material>
       </visual>
     </link>
     <joint name="finger3_MidJoint" type="revolute">
       <parent>finger3_link1</parent>
       <child>finger3_link2</child>
-      <!-- Pose X_CJ of the joint frame J in the frame C of the child link -->
       <axis>
         <xyz>1 0 0</xyz>
         <limit>
@@ -589,7 +581,6 @@
         <dynamics>
           <damping>0</damping>
         </dynamics>
-        <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
     <!-- The tip link's mass/inertia values are already included in link 2,
@@ -601,11 +592,11 @@
       <pose>0 0 -0.13 0 0 0</pose>
       <inertial>
         <pose>0 0 -0.0074 0 0 0</pose>
-        <mass>1e-7</mass>
+        <mass>1e-07</mass>
         <inertia>
-          <ixx>1e-7</ixx>
-          <iyy>1e-7</iyy>
-          <izz>1e-7</izz>
+          <ixx>1e-07</ixx>
+          <iyy>1e-07</iyy>
+          <izz>1e-07</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
@@ -620,7 +611,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_cylinder_visual">
@@ -632,7 +623,7 @@
           </cylinder>
         </geometry>
         <material>
-          <diffuse>.3 .3 .3 1</diffuse>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
         </material>
       </visual>
       <visual name="tip_sphere_visual">

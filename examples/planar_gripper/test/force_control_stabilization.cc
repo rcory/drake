@@ -105,7 +105,7 @@ DEFINE_bool(test, false,
 DEFINE_bool(print_keyframes, false,
             "Print joint positions (keyframes) to standard out?");
 
-DEFINE_double(time_scale_factor, 0.7, "time scale factor.");
+DEFINE_double(time_scale_factor, 0.8, "time scale factor.");
 DEFINE_bool(add_floor, true, "Adds a floor to the simulation");
 
 // This system generates three outputs (one for each finger) indicating whether
@@ -141,7 +141,14 @@ class KeyframeControlType final : public systems::LeafSystem<double> {
       systems::CompositeEventCollection<double>* events,
       double* time) const override {
     LeafSystem<double>::DoCalcNextUpdateTime(context, events, time);
-    *time = times_(context.get_discrete_state(0).get_value()(0));
+    auto current_time = context.get_time();
+
+    auto time_index = context.get_discrete_state(0).get_value()(0);
+    if (time_index >= times_.size()) {
+      *time = current_time + 1.0;
+    } else {
+      *time = times_(time_index);
+    }
 
     // Create a discrete update event and tie the handler to the corresponding
     // function.
@@ -188,7 +195,7 @@ class KeyframeControlType final : public systems::LeafSystem<double> {
       systems::DiscreteValues<double>* values) const {
     double current_index = values->get_vector().get_value()(0);
     values->get_mutable_vector().get_mutable_value()(0) =
-        std::min<double>(times_.size() - 1, current_index + 1);
+        std::min<double>(times_.size(), current_index + 1);
     return systems::EventStatus::Succeeded();
   }
 
@@ -527,7 +534,7 @@ int DoMain() {
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
-  simulator.AdvanceTo(times.tail(1)(0));
+  simulator.AdvanceTo(times.tail(1)(0) + 2.0);
 
   // TODO(rcory) Implement a proper unit test once all shared parameters are
   //  moved to a YAML file.
@@ -542,7 +549,7 @@ int DoMain() {
             post_plant_context, planar_gripper->get_brick_index());
 
     // Check to within an experimentally determined threshold.
-    DRAKE_DEMAND(brick_xg.isApprox(post_brick_state, 5e-2));  // thetadot
+    DRAKE_DEMAND(brick_xg.isApprox(post_brick_state, 2e-2));
   }
   return 0;
 }
