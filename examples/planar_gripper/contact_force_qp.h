@@ -25,6 +25,7 @@ using Eigen::Vector2d;
 enum class BrickType {
   PinBrick,
   PlanarBrick,
+  FixedBrick,  // For unit testing.
 };
 
 /**

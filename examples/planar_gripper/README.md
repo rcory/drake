@@ -17,7 +17,7 @@ Ensure that you have built the Drake visualizer with
 bazel build //tools:drake_visualizer
 ```
 
-Build the example in this directory
+Build the examples in this directory
 ```
 bazel build //examples/planar_gripper/...
 ```
@@ -29,12 +29,12 @@ Before running the example, launch the visualizer:
 bazel-bin/tools/drake_visualizer
 ```
 
-## Example
+## Examples
 
 ### Run Trajectory Publisher
 
 ```
-bazel-bin/examples/planar_gripper/planar_gripper_trajectory_publisher
+bazel-bin/examples/planar_gripper/run_planar_gripper_trajectory_publisher
 ```
 
 Sends desired joint positions over LCM. Requires a suitable LCM based
@@ -50,7 +50,7 @@ Run the following example of an (LCM based) simulation of a planar-gripper:
 
 
 ```
-bazel-bin/examples/planar_gripper/planar_gripper_simulation
+bazel-bin/examples/planar_gripper/run_planar_gripper_simulation
 ```
 
 This simulates a planar-gripper with a position-based inverse dynamics

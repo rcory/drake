@@ -876,7 +876,7 @@ void ConnectLCMQPController(
       planar_gripper.get_num_brick_states(),
       planar_gripper.get_num_brick_velocities(),
       GetBrickBodyIndex(planar_gripper.get_multibody_plant()), lcm,
-      kGripperLcmPeriod /* publish period */);
+      get_planar_gripper_lcm_period() /* publish period */);
 
   // Get the QP controller ports.
 

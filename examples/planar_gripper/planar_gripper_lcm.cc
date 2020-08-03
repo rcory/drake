@@ -28,6 +28,10 @@ using systems::DiscreteValues;
 using systems::State;
 using systems::UnrestrictedUpdateEvent;
 
+double get_planar_gripper_lcm_period() {
+  return 0.002;
+}
+
 GripperCommandDecoder::GripperCommandDecoder(int num_fingers)
     : num_fingers_(num_fingers), num_joints_(num_fingers * 2) {
   this->DeclareAbstractInputPort("lcmt_planar_gripper_command",
@@ -39,7 +43,8 @@ GripperCommandDecoder::GripperCommandDecoder(int num_fingers)
       "torques", systems::BasicVector<double>(num_joints_),
       &GripperCommandDecoder::OutputTorqueCommand);
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0., &GripperCommandDecoder::UpdateDiscreteState);
+      get_planar_gripper_lcm_period(), 0.,
+      &GripperCommandDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(
@@ -159,7 +164,8 @@ GripperStatusDecoder::GripperStatusDecoder(int num_fingers)
   this->DeclareDiscreteState((num_joints_ * 2) + (num_fingers_ * 2));
 
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0., &GripperStatusDecoder::UpdateDiscreteState);
+      get_planar_gripper_lcm_period(), 0.,
+      &GripperStatusDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(
@@ -275,7 +281,8 @@ QPBrickControlDecoder::QPBrickControlDecoder(
       std::make_unique<Value<
           std::vector<multibody::ExternallyAppliedSpatialForce<double>>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
-      kGripperLcmPeriod, 0., &QPBrickControlDecoder::UpdateAbstractState);
+      get_planar_gripper_lcm_period(), 0.,
+      &QPBrickControlDecoder::UpdateAbstractState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedUnrestrictedUpdateEvent(
@@ -380,7 +387,8 @@ QPFingersControlDecoder::QPFingersControlDecoder(
       std::make_unique<Value<std::unordered_map<
           Finger, multibody::ExternallyAppliedSpatialForce<double>>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
-      kGripperLcmPeriod, 0., &QPFingersControlDecoder::UpdateAbstractState);
+      get_planar_gripper_lcm_period(), 0.,
+      &QPFingersControlDecoder::UpdateAbstractState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedUnrestrictedUpdateEvent(
@@ -482,7 +490,8 @@ QPEstimatedStateDecoder::QPEstimatedStateDecoder(const int num_plant_states)
                                 systems::BasicVector<double>(num_plant_states),
                                 &QPEstimatedStateDecoder::OutputEstimatedState);
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0., &QPEstimatedStateDecoder::UpdateDiscreteState);
+      get_planar_gripper_lcm_period(), 0.,
+      &QPEstimatedStateDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(
@@ -558,7 +567,7 @@ QPFingerFaceAssignmentsDecoder::QPFingerFaceAssignmentsDecoder() {
   this->DeclareAbstractState(
       std::make_unique<Value<std::unordered_map<Finger, BrickFaceInfo>>>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
-      kGripperLcmPeriod, 0.,
+      get_planar_gripper_lcm_period(), 0.,
       &QPFingerFaceAssignmentsDecoder::UpdateAbstractState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
@@ -658,7 +667,8 @@ QPBrickDesiredDecoder::QPBrickDesiredDecoder(const int num_brick_states,
       &QPBrickDesiredDecoder::DecodeBrickDesiredAccel);
 
   this->DeclarePeriodicDiscreteUpdateEvent(
-      kGripperLcmPeriod, 0., &QPBrickDesiredDecoder::UpdateDiscreteState);
+      get_planar_gripper_lcm_period(), 0.,
+      &QPBrickDesiredDecoder::UpdateDiscreteState);
   // Register a forced discrete state update event. It is added for unit test,
   // or for potential users who require forced updates.
   this->DeclareForcedDiscreteUpdateEvent(

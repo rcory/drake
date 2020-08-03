@@ -121,7 +121,8 @@ int DoMain() {
                                   &out_ports);
   const auto lcm_sim = builder.AddSystem<PlanarGripperSimulationLCM>(
       plant.num_multibody_states(), planar_gripper.get_num_brick_states(),
-      planar_gripper.get_num_brick_velocities(), lcm, kGripperLcmPeriod);
+      planar_gripper.get_num_brick_velocities(), lcm,
+      get_planar_gripper_lcm_period());
 
   // Connect the LCM sim outputs to the QP controller inputs.
   builder.Connect(lcm_sim->GetOutputPort("qp_estimated_plant_state"),
