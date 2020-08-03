@@ -267,6 +267,8 @@ class InstantaneousContactForceQPController
       std::vector<multibody::ExternallyAppliedSpatialForce<double>>*
           contact_forces) const;
 
+  VectorX<double> get_brick_state(const VectorX<double>& plant_state) const;
+
   const BrickType brick_type_;
   const multibody::MultibodyPlant<double>* plant_;
   double mu_;

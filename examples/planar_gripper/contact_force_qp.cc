@@ -302,37 +302,21 @@ void InstantaneousContactForceQPController::CalcFingersControl(
     return;
   }
 
+  // The QP force planner computes contact forces using a one-step look ahead,
+  // essentially solving a constrained inverse-dynamics problem. This greedy
+  // approach generally doesn't work well in cases where we don't have
+  // force-closure on the brick (although it works ok some of the time). The
+  // single finger case performs particularly bad, hence we avoid this case
+  // here.
   // If we have a planar brick and there is only one finger in contact, then
   // don't attempt to apply a force.
-  // TODO(rcory) currently the planner gives bogus results when a single finger
-  //  is in contact with the planar brick, which can result in the brick state
-  //  actually getting further away from the goal.
+  // TODO(rcory) Remove this once N-step horizon planning comes online.
   if (finger_face_assignments.size() == 1 && brick_type_ ==
           BrickType::PlanarBrick) {
-    drake::log()->warn(
+    drake::log()->debug(
         "QP force planning for single-finger contact with a planar-brick is "
         "currently unreliable. Skipping force calculation.");
     return;
-  }
-
-  VectorX<double> brick_accel_ff;
-  VectorX<double> brick_state;
-  if (brick_type_ == BrickType::PlanarBrick) {
-    brick_accel_ff = Vector3d::Zero();
-    brick_state = Vector6<double>::Zero();
-    brick_state << plant_state(brick_translate_y_position_index_),
-        plant_state(brick_translate_z_position_index_),
-        plant_state(brick_revolute_x_position_index_),
-        plant_state(plant_->num_positions() +
-                    brick_translate_y_position_index_),
-        plant_state(plant_->num_positions() +
-                    brick_translate_z_position_index_),
-        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
-  } else {  // brick_type is PinBrick
-    brick_accel_ff = Vector1d::Zero();
-    brick_state = Eigen::Vector2d::Zero();
-    brick_state << plant_state(brick_revolute_x_position_index_),
-        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
   }
 
   // Adds integral error to desired acceleration term.
@@ -342,16 +326,19 @@ void InstantaneousContactForceQPController::CalcFingersControl(
   const Eigen::VectorBlock<const VectorX<double>> state_block =
       dynamic_cast<const systems::BasicVector<double>&>(state_vector)
           .get_value();
+  VectorX<double> brick_accel_ff;
   if (brick_type_ == BrickType::PlanarBrick) {
+    brick_accel_ff = Vector3d::Zero();
     brick_accel_ff.head<2>() = desired_brick_acceleration.head<2>() +
                                (Ki_t_.asDiagonal() * state_block.head<2>());
     brick_accel_ff(2) =
         desired_brick_acceleration(2) + (ki_r_ * state_block(2));
   } else {
+    brick_accel_ff = Vector1d::Zero();
     brick_accel_ff(0) =
         desired_brick_acceleration(0) + (ki_r_ * state_block(0));
   }
-
+  VectorX<double> brick_state = get_brick_state(plant_state);
   InstantaneousContactForceQP qp(
       brick_type_, brick_state, desired_brick_state, brick_accel_ff,
       Kp_t_, Kd_t_, kp_r_, kd_r_, finger_face_assignments, weight_a_error_,
@@ -394,6 +381,34 @@ void InstantaneousContactForceQPController::CalcBrickControl(
   }
 }
 
+VectorX<double> InstantaneousContactForceQPController::get_brick_state(
+    const VectorX<double>& plant_state) const {
+  VectorX<double> brick_state;
+  switch (brick_type_) {
+    case BrickType::PlanarBrick:
+      brick_state = VectorX<double>::Zero(6);
+      brick_state << plant_state(brick_translate_y_position_index_),
+          plant_state(brick_translate_z_position_index_),
+          plant_state(brick_revolute_x_position_index_),
+          plant_state(plant_->num_positions() +
+                      brick_translate_y_position_index_),
+          plant_state(plant_->num_positions() +
+                      brick_translate_z_position_index_),
+          plant_state(plant_->num_positions() +
+                      brick_revolute_x_position_index_);
+      break;
+    case BrickType::PinBrick:
+      brick_state = Eigen::Vector2d::Zero();
+      brick_state << plant_state(brick_revolute_x_position_index_),
+          plant_state(plant_->num_positions() +
+                      brick_revolute_x_position_index_);
+      break;
+    default:
+      throw std::logic_error("Invalid brick type provided.");
+  }
+  return brick_state;
+}
+
 void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
     const drake::systems::Context<double>& context,
     drake::systems::ContinuousState<double>* derivatives) const {
@@ -403,16 +418,8 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
       get_input_port_desired_brick_state().Eval(context);
   VectorX<double> brick_positions;
   VectorX<double> desired_brick_positions;
+  VectorX<double> brick_state = get_brick_state(plant_state);
   if (brick_type_ == BrickType::PlanarBrick) {
-    Vector6<double> brick_state;
-    brick_state << plant_state(brick_translate_y_position_index_),
-        plant_state(brick_translate_z_position_index_),
-        plant_state(brick_revolute_x_position_index_),
-        plant_state(plant_->num_positions() +
-            brick_translate_y_position_index_),
-        plant_state(plant_->num_positions() +
-            brick_translate_z_position_index_),
-        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
     brick_positions = brick_state.head<3>();
     desired_brick_positions = desired_brick_state.head<3>();
 
@@ -426,19 +433,15 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
     // Loop over y-translation, z-translation, theta-rotation.
     Eigen::Vector3d Ki_sat(Ki_t_sat_(0), Ki_t_sat_(1), ki_r_sat_);
     for (int i=0; i < 3; i++) {
-      if (state_block(i) > Ki_sat(i) &&
+      if (state_block(i) >= Ki_sat(i) &&
           (desired_brick_positions(i) > brick_positions(i))) {
-        brick_positions = desired_brick_positions;
-      } else if (state_block(i) < -Ki_sat(i) &&
+        brick_positions(i) = desired_brick_positions(i);
+      } else if (state_block(i) <= -Ki_sat(i) &&
           (desired_brick_positions(i) < brick_positions(i))) {
-        brick_positions = desired_brick_positions;
+        brick_positions(i) = desired_brick_positions(i);
       }
     }
   } else {  // brick_type is PinBrick
-    VectorX<double> brick_state;
-    brick_state = Eigen::Vector2d::Zero();
-    brick_state << plant_state(brick_revolute_x_position_index_),
-        plant_state(plant_->num_positions() + brick_revolute_x_position_index_);
     brick_positions = brick_state.head<1>();
     desired_brick_positions = desired_brick_state.head<1>();
 
@@ -448,10 +451,10 @@ void InstantaneousContactForceQPController::DoCalcTimeDerivatives(
     const Eigen::VectorBlock<const VectorX<double>> state_block =
         dynamic_cast<const systems::BasicVector<double>&>(state_vector)
             .get_value();
-    if (state_block(0) > ki_r_sat_ &&
+    if (state_block(0) >= ki_r_sat_ &&
         (desired_brick_positions(0) > brick_positions(0))) {
       brick_positions = desired_brick_positions;
-    } else if (state_block(0) < -ki_r_sat_ &&
+    } else if (state_block(0) <= -ki_r_sat_ &&
                (desired_brick_positions(0) < brick_positions(0))) {
       brick_positions = desired_brick_positions;
     }
