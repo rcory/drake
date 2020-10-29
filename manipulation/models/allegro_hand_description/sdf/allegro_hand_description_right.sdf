@@ -230,11 +230,11 @@
         </geometry>
       </visual>
       <visual name="link_3_tip_visual_1">
-        <pose>0 0 0.0267 0 0 0</pose>
+        <pose>.005 -0.0005 .031 0 -0.2 0</pose>
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>../meshes/link_3.0_tip.obj</uri>
+            <uri>../meshes/fingernail_L_10.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -627,14 +627,13 @@
         </geometry>
       </visual>
       <visual name="link_7_tip_visual_1">
-        <pose>0 0 0.0267 0 0 0</pose>
+        <pose>.005 -0.0005 .031 0 -0.2 0</pose>
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>../meshes/link_3.0_tip.obj</uri>
+            <uri>../meshes/fingernail_L_10.obj</uri>
           </mesh>
-        </geometry>
-      </visual>
+        </geometry>      </visual>
     </link>
     <joint name="joint_7" type="revolute">
       <child>link_7</child>
@@ -824,14 +823,13 @@
         </geometry>
       </visual>
       <visual name="link_11_tip_visual_1">
-        <pose>0 0 0.0267 0 0 0</pose>
+        <pose>.005 -0.0005 .031 0 -0.2 0</pose>
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>../meshes/link_3.0_tip.obj</uri>
+            <uri>../meshes/fingernail_L_10.obj</uri>
           </mesh>
-        </geometry>
-      </visual>
+        </geometry>      </visual>
     </link>
     <joint name="joint_11" type="revolute">
       <child>link_11</child>

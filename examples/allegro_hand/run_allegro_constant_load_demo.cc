@@ -41,7 +41,7 @@ DEFINE_bool(use_right_hand, true,
 DEFINE_double(max_time_step, 1.0e-4,
               "Simulation time step used for integrator.");
 
-DEFINE_bool(add_gravity, true, "Indicator for whether terrestrial gravity"
+DEFINE_bool(add_gravity, false, "Indicator for whether terrestrial gravity"
                                 " (9.81 m/s²) is included or not.");
 
 DEFINE_double(target_realtime_rate, 1,
@@ -104,7 +104,9 @@ void DoMain() {
   builder.Connect(scene_graph.get_query_output_port(),
                   plant.get_geometry_query_input_port());
 
-  geometry::ConnectDrakeVisualizer(&builder, scene_graph);
+  drake::lcm::DrakeLcm drake_lcm;
+  geometry::ConnectDrakeVisualizer(&builder, scene_graph, &drake_lcm,
+                                   geometry::Role::kProximity);
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
 
   // Create a context for this system:
@@ -118,13 +120,13 @@ void DoMain() {
   // are set to some arbitrary values.
   const multibody::RevoluteJoint<double>& joint_finger_1_root =
       plant.GetJointByName<multibody::RevoluteJoint>("joint_1");
-  joint_finger_1_root.set_angle(&plant_context, 0.5);
+  joint_finger_1_root.set_angle(&plant_context, 0);
   const multibody::RevoluteJoint<double>& joint_finger_2_middle =
       plant.GetJointByName<multibody::RevoluteJoint>("joint_6");
-  joint_finger_2_middle.set_angle(&plant_context, -0.1);
+  joint_finger_2_middle.set_angle(&plant_context, 0);
   const multibody::RevoluteJoint<double>& joint_finger_3_tip =
       plant.GetJointByName<multibody::RevoluteJoint>("joint_11");
-  joint_finger_3_tip.set_angle(&plant_context, 0.5);
+  joint_finger_3_tip.set_angle(&plant_context, 0);
 
   // Set up simulator.
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
