@@ -19,11 +19,13 @@ drake_cc_library(
     hdrs = [
         "make_rolling_sphere_plant.h",
     ],
+    data = [":plate_files"],
     deps = [
         "//common:default_scalars",
         "//geometry:geometry_ids",
         "//geometry:scene_graph",
         "//math:geometric_transform",
+        "//multibody/parsing",
         "//multibody/plant",
     ],
 )
@@ -46,6 +48,22 @@ drake_cc_binary(
         "//systems/analysis:simulator_print_stats",
         "//systems/framework:diagram",
         "@gflags",
+    ],
+)
+
+filegroup(
+    name = "plate_files",
+    srcs = [
+        "ikea_dinera_plate_8in_2000.obj",
+        "ikea_dinera_plate_8in_2000.obj.mtl",
+        "ikea_dinera_plate_8in_4000.obj",
+        "ikea_dinera_plate_8in_4000.obj.mtl",
+        "ikea_dinera_plate_8in.obj",
+        "ikea_dinera_plate_8in.mtl",
+        "ikea_dinera_plate_8in_500.obj",
+        "ikea_dinera_plate_8in_500.obj.mtl",
+        "ikea_dinera_plate_8in_color.png",
+        "ikea_dinera_plate_8in_no_collisions.sdf",
     ],
 )
 

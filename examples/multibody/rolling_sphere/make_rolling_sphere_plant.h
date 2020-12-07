@@ -51,12 +51,11 @@ namespace bouncing_ball {
 ///   If this argument is omitted, no geometry will be registered.
 /// @note The MultibodyPlant model is not finalized. You must call Finalize() on
 /// the new model once you are done creating it.
-std::unique_ptr<drake::multibody::MultibodyPlant<double>>
-MakeBouncingBallPlant(
-    double radius, double mass,
-    double elastic_modulus, double dissipation,
+std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
+    double radius, double mass, double elastic_modulus, double dissipation,
     const drake::multibody::CoulombFriction<double>& surface_friction,
     const Vector3<double>& gravity_W, bool rigid_sphere, bool soft_ground,
+    double resolution_hint_factor,
     geometry::SceneGraph<double>* scene_graph = nullptr);
 
 }  // namespace bouncing_ball

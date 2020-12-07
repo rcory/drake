@@ -4,6 +4,8 @@
 
 #include "drake/geometry/proximity_properties.h"
 #include "drake/multibody/tree/uniform_gravity_field_element.h"
+#include "drake/multibody/parsing/parser.h"
+#include "drake/common/find_resource.h"
 
 namespace drake {
 namespace examples {
@@ -17,6 +19,7 @@ using drake::geometry::AddSoftHydroelasticPropertiesForHalfSpace;
 using drake::geometry::ProximityProperties;
 using drake::geometry::SceneGraph;
 using drake::geometry::Sphere;
+using drake::geometry::Box;
 using drake::multibody::CoulombFriction;
 using drake::multibody::MultibodyPlant;
 using drake::multibody::RigidBody;
@@ -28,7 +31,7 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
     double radius, double mass, double elastic_modulus, double dissipation,
     const CoulombFriction<double>& surface_friction,
     const Vector3<double>& gravity_W, bool rigid_sphere, bool soft_ground,
-    SceneGraph<double>* scene_graph) {
+    double resolution_hint_factor, SceneGraph<double>* scene_graph) {
   auto plant = std::make_unique<MultibodyPlant<double>>(0.0);
 
   UnitInertia<double> G_Bcm = UnitInertia<double>::SolidSphere(radius);
@@ -36,24 +39,31 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
 
   const RigidBody<double>& ball = plant->AddRigidBody("Ball", M_Bcm);
 
+  drake::multibody::Parser parser(plant.get());
+
   if (scene_graph != nullptr) {
     plant->RegisterAsSourceForSceneGraph(scene_graph);
 
-    const RigidTransformd X_WG;  // identity.
-    ProximityProperties ground_props;
-    if (soft_ground) {
-      AddSoftHydroelasticPropertiesForHalfSpace(1.0, &ground_props);
-    } else {
-      AddRigidHydroelasticProperties(&ground_props);
-    }
-    AddContactMaterial(elastic_modulus, dissipation, surface_friction,
-                       &ground_props);
-    plant->RegisterCollisionGeometry(plant->world_body(), X_WG,
-                                     geometry::HalfSpace{}, "collision",
-                                     std::move(ground_props));
-    // Add visual for the ground.
-    plant->RegisterVisualGeometry(plant->world_body(), X_WG,
-                                  geometry::HalfSpace{}, "visual");
+//    const RigidTransformd X_WG;  // identity.
+//    ProximityProperties ground_props;
+//    if (soft_ground) {
+//      AddSoftHydroelasticPropertiesForHalfSpace(1.0, &ground_props);
+//    } else {
+//      AddRigidHydroelasticProperties(&ground_props);
+//    }
+//    AddContactMaterial(elastic_modulus, dissipation, surface_friction,
+//                       &ground_props);
+//    plant->RegisterCollisionGeometry(plant->world_body(), X_WG,
+//                                     geometry::HalfSpace{}, "collision",
+//                                     std::move(ground_props));
+//    // Add visual for the ground.
+//    plant->RegisterVisualGeometry(plant->world_body(), X_WG,
+//                                  geometry::HalfSpace{}, "visual");
+
+    std::string full_name = FindResourceOrThrow(
+        "drake/examples/multibody/rolling_sphere/"
+        "ikea_dinera_plate_8in_no_collisions.sdf");
+    const auto plate_instance_id = parser.AddModelFromFile(full_name);
 
     // Add sphere geometry for the ball.
     // Pose of sphere geometry S in body frame B.
@@ -65,13 +75,14 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
     if (rigid_sphere) {
       AddRigidHydroelasticProperties(radius, &ball_props);
     } else {
-      AddSoftHydroelasticProperties(radius, &ball_props);
+      AddSoftHydroelasticProperties(radius * resolution_hint_factor,
+                                    &ball_props);
     }
     plant->RegisterCollisionGeometry(ball, X_BS, Sphere(radius), "collision",
                                      std::move(ball_props));
 
     // Add visual for the ball.
-    const Vector4<double> orange(1.0, 0.55, 0.0, 1.0);
+    const Vector4<double> orange(1.0, 0.55, 0.0, 0.2);
     plant->RegisterVisualGeometry(ball, X_BS, Sphere(radius), "visual", orange);
 
     // We add a few purple spots so that we can appreciate the sphere's
@@ -79,7 +90,7 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
     const Vector4<double> red(1.0, 0.0, 0.0, 1.0);
     const Vector4<double> green(0.0, 1.0, 0.0, 1.0);
     const Vector4<double> blue(0.0, 0.0, 1.0, 1.0);
-    const double visual_radius = 0.2 * radius;
+    const double visual_radius = 0.05 * radius;
     const geometry::Cylinder spot(visual_radius, visual_radius);
     // N.B. We do not place the cylinder's cap exactly on the sphere surface to
     // avoid visualization artifacts when the surfaces are kissing.
@@ -104,6 +115,32 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
                                   spot, "sphere_z+", blue);
     plant->RegisterVisualGeometry(ball, spot_pose({0., 0., -radial_offset}),
                                   spot, "sphere_z-", blue);
+
+    // Add a floor, to support the plate
+    const double Lx = 0.15, Ly = 0.15, Lz = 2e-3;
+    UnitInertia<double> G_Fcm = UnitInertia<double>::SolidBox(Lx, Ly, Lz);
+    SpatialInertia<double> M_Fcm(mass, Vector3<double>::Zero(), G_Fcm);
+    const RigidBody<double>& floor =
+        plant->AddRigidBody("Floor", plate_instance_id, M_Fcm);
+
+    const RigidTransformd X_BF = RigidTransformd::Identity();
+    ProximityProperties floor_props;
+    const CoulombFriction<double> floor_friction(0.3 /* static friction */,
+                                                 0.3 /* dynamic friction */);
+    AddContactMaterial(5.0e4 /* elastic modulus */, 5.0 /* dissipation */,
+                       floor_friction, &floor_props);
+    AddSoftHydroelasticProperties(radius * resolution_hint_factor,
+                                  &floor_props);
+    plant->RegisterCollisionGeometry(floor, X_BF, Box(Lx, Ly, Lz), "collision",
+                                     std::move(floor_props));
+
+    // Add visual for the floor.
+    plant->RegisterVisualGeometry(floor, X_BF, Box(Lx, Ly, Lz), "visual",
+                                  orange);
+
+    const drake::multibody::Frame<double>& floor_base_frame =
+        plant->GetFrameByName("Floor");
+    plant->WeldFrames(plant->world_frame(), floor_base_frame, RigidTransformd());
   }
 
   // Gravity acting in the -z direction.

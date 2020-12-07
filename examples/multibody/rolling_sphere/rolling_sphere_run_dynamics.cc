@@ -18,11 +18,11 @@
 #include "drake/systems/framework/diagram_builder.h"
 
 // Integration parameters.
-DEFINE_double(simulation_time, 2.0,
+DEFINE_double(simulation_time, 4.0,
               "Desired duration of the simulation in seconds.");
 
 // Contact model parameters.
-DEFINE_string(contact_model, "point",
+DEFINE_string(contact_model, "hydroelastic",
               "Contact model. Options are: 'point', 'hydroelastic', 'hybrid'.");
 DEFINE_double(elastic_modulus, 5.0e4,
               "For hydroelastic (and hybrid) contact, elastic modulus, [Pa].");
@@ -50,7 +50,7 @@ DEFINE_bool(visualize, true,
             "visualizer. Useful to turn off during profiling sessions.");
 
 // Sphere's spatial velocity.
-DEFINE_double(vx, 1.5,
+DEFINE_double(vx, 0,
               "Sphere's initial translational velocity in the x-axis in m/s.");
 DEFINE_double(vy, 0.0,
               "Sphere's initial translational velocity in the y-axis in m/s.");
@@ -58,7 +58,7 @@ DEFINE_double(vz, 0.0,
               "Sphere's initial translational velocity in the z-axis in m/s.");
 DEFINE_double(wx, 0.0,
               "Sphere's initial angular velocity in the y-axis in degrees/s.");
-DEFINE_double(wy, -360.0,
+DEFINE_double(wy, -10.0,
               "Sphere's initial angular velocity in the y-axis in degrees/s.");
 DEFINE_double(wz, 0.0,
               "Sphere's initial angular velocity in the y-axis in degrees/s.");
@@ -67,7 +67,10 @@ DEFINE_double(wz, 0.0,
 DEFINE_double(roll, 0.0, "Sphere's initial roll in degrees.");
 DEFINE_double(pitch, 0.0, "Sphere's initial pitch in degrees.");
 DEFINE_double(yaw, 0.0, "Sphere's initial yaw in degrees.");
-DEFINE_double(z0, 0.05, "Sphere's initial position in the z-axis.");
+DEFINE_double(z0, 0.1, "Sphere's initial position in the z-axis.");
+DEFINE_double(x0, 0.08, "Sphere's initial position in the x-axis.");
+
+DEFINE_double(resolution_hint_factor, 0.5, "resolution hint.");
 
 namespace drake {
 namespace examples {
@@ -99,6 +102,7 @@ int do_main() {
   const double mass = 0.1;      // kg
   const double g = 9.81;        // m/s^2
   const double z0 = FLAGS_z0;        // Initial height.
+  const double x0 = FLAGS_x0;
   const CoulombFriction<double> coulomb_friction(
       FLAGS_friction_coefficient /* static friction */,
       FLAGS_friction_coefficient /* dynamic friction */);
@@ -106,7 +110,7 @@ int do_main() {
   MultibodyPlant<double>& plant = *builder.AddSystem(MakeBouncingBallPlant(
       radius, mass, FLAGS_elastic_modulus, FLAGS_dissipation, coulomb_friction,
       -g * Vector3d::UnitZ(), FLAGS_rigid_ball, FLAGS_soft_ground,
-      &scene_graph));
+      FLAGS_resolution_hint_factor, &scene_graph));
 
   if (FLAGS_add_wall) {
     geometry::Box wall{0.2, 4, 0.4};
@@ -142,8 +146,8 @@ int do_main() {
                              "'.");
   }
 
-  DRAKE_DEMAND(plant.num_velocities() == 6);
-  DRAKE_DEMAND(plant.num_positions() == 7);
+  DRAKE_DEMAND(plant.num_velocities() == 12);
+  DRAKE_DEMAND(plant.num_positions() == 14);
 
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(!!plant.get_source_id());
@@ -170,7 +174,7 @@ int do_main() {
   // Set the sphere's initial pose.
   math::RotationMatrixd R_WB(math::RollPitchYawd(
       M_PI / 180.0 * Vector3<double>(FLAGS_roll, FLAGS_pitch, FLAGS_yaw)));
-  math::RigidTransformd X_WB(R_WB, Vector3d(0.0, 0.0, z0));
+  math::RigidTransformd X_WB(R_WB, Vector3d(x0, 0.0, z0));
   plant.SetFreeBodyPose(
       &plant_context, plant.GetBodyByName("Ball"), X_WB);
 
@@ -211,7 +215,7 @@ int main(int argc, char* argv[]) {
   // We slow down the default realtime rate to 0.2, so that we can appreciate
   // the motion. Users can still change it on command-line, e.g.
   // --simulator_target_realtime_rate=0.5.
-  FLAGS_simulator_target_realtime_rate = 0.2;
+//  FLAGS_simulator_target_realtime_rate = 0;
   // Simulator default parameters for this demo.
   FLAGS_simulator_accuracy = 1.0e-3;
   FLAGS_simulator_max_time_step = 1.0e-3;

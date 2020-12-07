@@ -1,0 +1,11 @@
+# File produced by Open Asset Import Library (http://www.assimp.sf.net)
+# (assimp v4.1.0)
+
+newmtl ikea_dinera_plate_8in
+Kd 1 1 1
+Ke 0 0 0
+illum 1
+map_Kd ikea_dinera_plate_8in_color.png
+bump ikea_dinera_plate_8in_normal.png
+map_bump ikea_dinera_plate_8in_normal.png
+
