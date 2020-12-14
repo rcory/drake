@@ -21,10 +21,10 @@ drake_cc_binary(
     ],
     deps = [
         "//common:find_resource",
-        "//common:text_logging_gflags",
         "//common:type_safe_index",
         "//examples/allegro_hand:allegro_common",
         "//examples/allegro_hand:allegro_lcm",
+        "//geometry:drake_visualizer",
         "//geometry:geometry_visualization",
         "//lcm",
         "//lcmtypes:allegro",

@@ -12,7 +12,6 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
-#include "drake/common/text_logging_gflags.h"
 #include "drake/examples/allegro_hand/allegro_common.h"
 #include "drake/examples/allegro_hand/allegro_lcm.h"
 #include "drake/geometry/geometry_visualization.h"
@@ -42,6 +41,7 @@
 #include "drake/systems/primitives/multiplexer.h"
 #include "drake/systems/primitives/signal_logger.h"
 #include "drake/multibody/tree/revolute_joint.h"
+#include "drake/geometry/drake_visualizer.h"
 
 namespace drake {
 namespace examples {
@@ -281,8 +281,8 @@ void DoMain() {
                                                   M_PI);
   const Vector3<double> p_WoHo_W = Eigen::Vector3d(0, FLAGS_hand_y, FLAGS_hand_height);
   const math::RigidTransform<double> X_WA(R_WH, p_WoHo_W);
-  plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(), nullopt,
-                                       joint_hand_root, nullopt, X_WA);
+  plant.AddJoint<multibody::WeldJoint>("weld_hand", plant.world_body(), std::nullopt,
+                                       joint_hand_root, std::nullopt, X_WA);
 
   if (!FLAGS_add_gravity) {
     plant.mutable_gravity_field().set_gravity_vector(Eigen::Vector3d::Zero());
@@ -292,8 +292,8 @@ void DoMain() {
   MultibodyPlant<double> control_plant(FLAGS_max_time_step);
   multibody::Parser(&control_plant).AddModelFromFile(hand_model_path);
   control_plant.AddJoint<multibody::WeldJoint>(
-      "weld_hand", control_plant.world_body(), nullopt,
-      control_plant.GetBodyByName("hand_root"), nullopt,
+      "weld_hand", control_plant.world_body(), std::nullopt,
+      control_plant.GetBodyByName("hand_root"), std::nullopt,
       math::RigidTransformd::Identity());
 
   // Add a floor (an infinite halfspace) to the plant
@@ -393,7 +393,9 @@ void DoMain() {
                   status_sender.get_command_input_port());
 
   // Connect scenegraph and drake visualizer
-  geometry::ConnectDrakeVisualizer(&builder, scene_graph, lcm);
+  //geometry::ConnectDrakeVisualizer(&builder, scene_graph, lcm);
+  drake::geometry::DrakeVisualizer::AddToBuilder(&builder, scene_graph, lcm);
+
   DRAKE_DEMAND(!!plant.get_source_id());
   builder.Connect(
       plant.get_geometry_poses_output_port(),
@@ -466,7 +468,7 @@ void DoMain() {
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
 
   simulator.reset_integrator<drake::systems::RungeKutta2Integrator<double>>(
-      *diagram, FLAGS_rk_time_step, &simulator.get_mutable_context());
+      FLAGS_rk_time_step);
 
   simulator.set_target_realtime_rate(FLAGS_target_realtime_rate);
   simulator.Initialize();
