@@ -34,10 +34,10 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
     double resolution_hint_factor, SceneGraph<double>* scene_graph) {
   auto plant = std::make_unique<MultibodyPlant<double>>(0.0);
 
-  UnitInertia<double> G_Bcm = UnitInertia<double>::SolidSphere(radius);
-  SpatialInertia<double> M_Bcm(mass, Vector3<double>::Zero(), G_Bcm);
+//  UnitInertia<double> G_Bcm = UnitInertia<double>::SolidSphere(radius);
+//  SpatialInertia<double> M_Bcm(mass, Vector3<double>::Zero(), G_Bcm);
 
-  const RigidBody<double>& ball = plant->AddRigidBody("Ball", M_Bcm);
+//  const RigidBody<double>& ball = plant->AddRigidBody("Ball", M_Bcm);
 
   drake::multibody::Parser parser(plant.get());
 
@@ -65,56 +65,56 @@ std::unique_ptr<drake::multibody::MultibodyPlant<double>> MakeBouncingBallPlant(
         "ikea_dinera_plate_8in_no_collisions.sdf");
     const auto plate_instance_id = parser.AddModelFromFile(full_name);
 
-    // Add sphere geometry for the ball.
-    // Pose of sphere geometry S in body frame B.
-    const RigidTransformd X_BS = RigidTransformd::Identity();
-    // Set material properties for hydroelastics.
-    ProximityProperties ball_props;
-    AddContactMaterial(elastic_modulus, dissipation, surface_friction,
-                       &ball_props);
-    if (rigid_sphere) {
-      AddRigidHydroelasticProperties(radius, &ball_props);
-    } else {
-      AddSoftHydroelasticProperties(radius * resolution_hint_factor,
-                                    &ball_props);
-    }
-    plant->RegisterCollisionGeometry(ball, X_BS, Sphere(radius), "collision",
-                                     std::move(ball_props));
-
-    // Add visual for the ball.
+//    // Add sphere geometry for the ball.
+//    // Pose of sphere geometry S in body frame B.
+//    const RigidTransformd X_BS = RigidTransformd::Identity();
+//    // Set material properties for hydroelastics.
+//    ProximityProperties ball_props;
+//    AddContactMaterial(elastic_modulus, dissipation, surface_friction,
+//                       &ball_props);
+//    if (rigid_sphere) {
+//      AddRigidHydroelasticProperties(radius, &ball_props);
+//    } else {
+//      AddSoftHydroelasticProperties(radius * resolution_hint_factor,
+//                                    &ball_props);
+//    }
+//    plant->RegisterCollisionGeometry(ball, X_BS, Sphere(radius), "collision",
+//                                     std::move(ball_props));
+//
+//    // Add visual for the ball.
     const Vector4<double> orange(1.0, 0.55, 0.0, 0.2);
-    plant->RegisterVisualGeometry(ball, X_BS, Sphere(radius), "visual", orange);
-
-    // We add a few purple spots so that we can appreciate the sphere's
-    // rotation.
-    const Vector4<double> red(1.0, 0.0, 0.0, 1.0);
-    const Vector4<double> green(0.0, 1.0, 0.0, 1.0);
-    const Vector4<double> blue(0.0, 0.0, 1.0, 1.0);
-    const double visual_radius = 0.05 * radius;
-    const geometry::Cylinder spot(visual_radius, visual_radius);
-    // N.B. We do not place the cylinder's cap exactly on the sphere surface to
-    // avoid visualization artifacts when the surfaces are kissing.
-    const double radial_offset = radius - 0.45 * visual_radius;
-    auto spot_pose = [](const Vector3<double>& position) {
-      // The cylinder's z-axis is defined as the normalized vector from the
-      // sphere's origin to the cylinder's center `position`.
-      const Vector3<double> axis = position.normalized();
-      return RigidTransformd(
-          Eigen::Quaterniond::FromTwoVectors(Vector3<double>::UnitZ(), axis),
-          position);
-    };
-    plant->RegisterVisualGeometry(ball, spot_pose({radial_offset, 0., 0.}),
-                                  spot, "sphere_x+", red);
-    plant->RegisterVisualGeometry(ball, spot_pose({-radial_offset, 0., 0.}),
-                                  spot, "sphere_x-", red);
-    plant->RegisterVisualGeometry(ball, spot_pose({0., radial_offset, 0.}),
-                                  spot, "sphere_y+", green);
-    plant->RegisterVisualGeometry(ball, spot_pose({0., -radial_offset, 0.}),
-                                  spot, "sphere_y-", green);
-    plant->RegisterVisualGeometry(ball, spot_pose({0., 0., radial_offset}),
-                                  spot, "sphere_z+", blue);
-    plant->RegisterVisualGeometry(ball, spot_pose({0., 0., -radial_offset}),
-                                  spot, "sphere_z-", blue);
+//    plant->RegisterVisualGeometry(ball, X_BS, Sphere(radius), "visual", orange);
+//
+//    // We add a few purple spots so that we can appreciate the sphere's
+//    // rotation.
+//    const Vector4<double> red(1.0, 0.0, 0.0, 1.0);
+//    const Vector4<double> green(0.0, 1.0, 0.0, 1.0);
+//    const Vector4<double> blue(0.0, 0.0, 1.0, 1.0);
+//    const double visual_radius = 0.05 * radius;
+//    const geometry::Cylinder spot(visual_radius, visual_radius);
+//    // N.B. We do not place the cylinder's cap exactly on the sphere surface to
+//    // avoid visualization artifacts when the surfaces are kissing.
+//    const double radial_offset = radius - 0.45 * visual_radius;
+//    auto spot_pose = [](const Vector3<double>& position) {
+//      // The cylinder's z-axis is defined as the normalized vector from the
+//      // sphere's origin to the cylinder's center `position`.
+//      const Vector3<double> axis = position.normalized();
+//      return RigidTransformd(
+//          Eigen::Quaterniond::FromTwoVectors(Vector3<double>::UnitZ(), axis),
+//          position);
+//    };
+//    plant->RegisterVisualGeometry(ball, spot_pose({radial_offset, 0., 0.}),
+//                                  spot, "sphere_x+", red);
+//    plant->RegisterVisualGeometry(ball, spot_pose({-radial_offset, 0., 0.}),
+//                                  spot, "sphere_x-", red);
+//    plant->RegisterVisualGeometry(ball, spot_pose({0., radial_offset, 0.}),
+//                                  spot, "sphere_y+", green);
+//    plant->RegisterVisualGeometry(ball, spot_pose({0., -radial_offset, 0.}),
+//                                  spot, "sphere_y-", green);
+//    plant->RegisterVisualGeometry(ball, spot_pose({0., 0., radial_offset}),
+//                                  spot, "sphere_z+", blue);
+//    plant->RegisterVisualGeometry(ball, spot_pose({0., 0., -radial_offset}),
+//                                  spot, "sphere_z-", blue);
 
     // Add a floor, to support the plate
     const double Lx = 0.15, Ly = 0.15, Lz = 2e-3;

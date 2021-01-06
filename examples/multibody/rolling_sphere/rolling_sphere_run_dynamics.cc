@@ -101,8 +101,8 @@ int do_main() {
   const double radius = 0.05;   // m
   const double mass = 0.1;      // kg
   const double g = 9.81;        // m/s^2
-  const double z0 = FLAGS_z0;        // Initial height.
-  const double x0 = FLAGS_x0;
+//  const double z0 = FLAGS_z0;        // Initial height.
+//  const double x0 = FLAGS_x0;
   const CoulombFriction<double> coulomb_friction(
       FLAGS_friction_coefficient /* static friction */,
       FLAGS_friction_coefficient /* dynamic friction */);
@@ -146,8 +146,8 @@ int do_main() {
                              "'.");
   }
 
-  DRAKE_DEMAND(plant.num_velocities() == 12);
-  DRAKE_DEMAND(plant.num_positions() == 14);
+//  DRAKE_DEMAND(plant.num_velocities() == 12);
+//  DRAKE_DEMAND(plant.num_positions() == 14);
 
   // Sanity check on the availability of the optional source id before using it.
   DRAKE_DEMAND(!!plant.get_source_id());
@@ -168,20 +168,20 @@ int do_main() {
   // Create a context for this system:
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
-  systems::Context<double>& plant_context =
-      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+//  systems::Context<double>& plant_context =
+//      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Set the sphere's initial pose.
-  math::RotationMatrixd R_WB(math::RollPitchYawd(
-      M_PI / 180.0 * Vector3<double>(FLAGS_roll, FLAGS_pitch, FLAGS_yaw)));
-  math::RigidTransformd X_WB(R_WB, Vector3d(x0, 0.0, z0));
-  plant.SetFreeBodyPose(
-      &plant_context, plant.GetBodyByName("Ball"), X_WB);
+//  math::RotationMatrixd R_WB(math::RollPitchYawd(
+//      M_PI / 180.0 * Vector3<double>(FLAGS_roll, FLAGS_pitch, FLAGS_yaw)));
+//  math::RigidTransformd X_WB(R_WB, Vector3d(x0, 0.0, z0));
+//  plant.SetFreeBodyPose(
+//      &plant_context, plant.GetBodyByName("Ball"), X_WB);
 
-  const SpatialVelocity<double> V_WB(Vector3d(FLAGS_wx, FLAGS_wy, FLAGS_wz),
-                                     Vector3d(FLAGS_vx, FLAGS_vy, FLAGS_vz));
-  plant.SetFreeBodySpatialVelocity(
-      &plant_context, plant.GetBodyByName("Ball"), V_WB);
+//  const SpatialVelocity<double> V_WB(Vector3d(FLAGS_wx, FLAGS_wy, FLAGS_wz),
+//                                     Vector3d(FLAGS_vx, FLAGS_vy, FLAGS_vz));
+//  plant.SetFreeBodySpatialVelocity(
+//      &plant_context, plant.GetBodyByName("Ball"), V_WB);
 
   auto simulator =
       systems::MakeSimulatorFromGflags(*diagram, std::move(diagram_context));
