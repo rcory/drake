@@ -446,7 +446,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.001"/>
       <geometry>
-        <sphere radius="0.06"/>
+        <sphere radius="0.043"/>
       </geometry>
       <material name="Grey"/>
     </collision>

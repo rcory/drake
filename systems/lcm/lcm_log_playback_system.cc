@@ -26,9 +26,18 @@ void LcmLogPlaybackSystem::DoCalcNextUpdateTime(
   DRAKE_THROW_UNLESS(std::isinf(*time));
 
   // If there are no more messages in the log, do nothing.
-  const double next_message_time = log_->GetNextMessageTime();
+  double next_message_time = log_->GetNextMessageTime();
   if (std::isinf(next_message_time)) {
     return;
+  }
+  while (next_message_time <= context.get_time()) {
+    log_->DispatchMessageAndAdvanceLog(log_->GetNextMessageTime());
+    next_message_time = log_->GetNextMessageTime();
+  }
+  if (next_message_time <= context.get_time()) {
+    std::string str = "next_msg_time:" + std::to_string(next_message_time) +
+                      ", context_time: " + std::to_string(context.get_time());
+    throw std::logic_error(str);
   }
   DRAKE_THROW_UNLESS(next_message_time > context.get_time());
 

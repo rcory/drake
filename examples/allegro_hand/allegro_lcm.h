@@ -21,7 +21,7 @@ namespace allegro_hand {
 // The publication period of hand status publish.
 // TODO(WenzhenYuan-TRI): match the value with the real hand's communication
 // rate.
-const double kLcmStatusPeriod = 0.003;
+const double kLcmStatusPeriod = 0.05;
 
 /// Handles lcmt_allegro_command messages from a LcmSubscriberSystem.
 /// Has two output ports: one for the commanded position for each joint along
