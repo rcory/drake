@@ -70,7 +70,7 @@ DEFINE_double(yaw, 0.0, "Sphere's initial yaw in degrees.");
 DEFINE_double(z0, 0.1, "Sphere's initial position in the z-axis.");
 DEFINE_double(x0, 0.08, "Sphere's initial position in the x-axis.");
 
-DEFINE_double(resolution_hint_factor, 0.5, "resolution hint.");
+DEFINE_double(resolution_hint_factor, 0.15, "resolution hint.");
 
 namespace drake {
 namespace examples {
