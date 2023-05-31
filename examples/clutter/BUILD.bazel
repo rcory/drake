@@ -1,0 +1,28 @@
+load(
+    "//tools/skylark:drake_py.bzl",
+    "drake_py_binary",
+    "drake_py_test",
+)
+load("//tools/skylark:drake_data.bzl", "models_filegroup")
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+package(default_visibility = ["//visibility:private"])
+
+models_filegroup(
+    name = "models",
+    visibility = ["//visibility:public"],
+)
+
+drake_py_binary(
+    name = "clutter_demo",
+    srcs = ["clutter_teleop_sim.py"],
+    data = [
+        ":models",
+        "sim_directives.dmd.yaml",
+    ],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+add_lint_tests()

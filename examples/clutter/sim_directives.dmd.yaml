@@ -1,0 +1,135 @@
+directives:
+- add_model:
+    name: table
+    file: package://clutter/models/table.sdf
+- add_weld:
+    parent: world
+    child: table::table
+- add_model:
+    name: paddle
+    file: package://clutter/models/paddle.sdf
+    default_joint_positions:
+      x_joint: [0]
+      y_joint: [0]
+      theta_joint: [0]
+- add_frame:
+    name: paddle_on_world
+    X_PF:
+      base_frame: world
+      translation: [0, -0.5, 0.045]
+      rotation: !Rpy { deg: [0, 0, 180] }
+- add_weld:
+    parent: paddle_on_world
+    child: paddle::dummy_1
+- add_model:
+    name: cylinder1
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, 0.28, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder2
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, 0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder3
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0.07, 0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder4
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ -0.07, 0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder5
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, 0.07, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder6
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, 0.0, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder7
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, -0.07, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder8
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0.07, 0.0, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder9
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ -0.07, 0.07, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder10
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ -0.07, -0.07, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder11
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, -0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder12
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0.07, -0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder13
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ -0.07, -0.14, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder14
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0, -0.21, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder15
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ 0.07, -0.21, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }
+- add_model:
+    name: cylinder16
+    file: package://clutter/models/cylinder.sdf
+    default_free_body_pose:
+      cylinder:
+        translation: [ -0.07, -0.21, 0.072 ]
+        rotation: !Rpy { deg: [ 0, 0, 0 ] }

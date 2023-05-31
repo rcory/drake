@@ -1,0 +1,49 @@
+<?xml version='1.0'?>
+<sdf version="1.7" xmlns:drake='drake.mit.edu'>
+    <model name='cylinder'>
+        <link name='cylinder'>
+            <inertial>
+                <!-- Assume a density of 350 kg/m^3 -->
+                <pose>0 0 0 0 0 0</pose>
+                <mass>0.10949418</mass>
+                <inertia>
+                    <ixx>1.11030815e-04</ixx>
+                    <ixy>6.78382269e-11</ixy>
+                    <ixz>7.23783036e-23</ixz>
+                    <iyy>1.11054035e-04</iyy>
+                    <iyz>0.000000</iyz>
+                    <izz>5.73873560e-05</izz>
+                </inertia>
+            </inertial>
+            <visual name='cylinder'>
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <mesh>
+                        <uri>cylinder.obj</uri>
+                        <scale>1.0 1.0 1.0</scale>
+                        <drake:declare_convex/>
+                    </mesh>
+                </geometry>
+                <material>
+                    <diffuse>0.5 0.2 0.2 0.5</diffuse>
+                </material>
+            </visual>
+            <collision name='cylinder_collision'>
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <mesh>
+                        <uri>cylinder.obj</uri>
+                        <scale>1.0 1.0 1.0</scale>
+                        <drake:declare_convex/>
+                    </mesh>
+                </geometry>
+                <!-- Duplicates the proximity properties of //models/food_prep/extra_firm_tofu_block.sdf. -->
+                <drake:proximity_properties>
+                    <drake:mu_dynamic>0.1</drake:mu_dynamic>
+                    <drake:mu_static>0.1</drake:mu_static>
+                    <drake:rigid_hydroelastic/>
+                </drake:proximity_properties>
+            </collision>
+        </link>
+    </model>
+</sdf>
