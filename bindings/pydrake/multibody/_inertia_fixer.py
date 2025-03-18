@@ -596,18 +596,13 @@ class InertiaProcessor:
         # * G: the frame of a single attached geometry
         # * Bcm: the body frame, translated to the center of mass, but not
         #   rotated.
-        M_BBo_B_one = SpatialInertia(0, np.zeros(3), UnitInertia(0, 0, 0))
+        M_BBo_B = SpatialInertia(0, np.zeros(3), UnitInertia(0, 0, 0))
         for geom in geoms:
-            M_GG_G_one = CalcSpatialInertia(inspector.GetShape(geom), 1.0)
+            M_GG_G = CalcSpatialInertia(inspector.GetShape(geom), density=1000)
             X_BG = inspector.GetPoseInFrame(geom)
-            M_GBo_B_one = M_GG_G_one.ReExpress(
+            M_GBo_B = M_GG_G.ReExpress(
                 X_BG.rotation()).Shift(-X_BG.translation())
-            M_BBo_B_one += M_GBo_B_one
-
-            # Rebuild the final inertia using the mass found in the input.
-            mass = old_inertia.get_mass()
-            M_BBo_B = SpatialInertia(mass, M_BBo_B_one.get_com(),
-                                     M_BBo_B_one.get_unit_inertia())
+            M_BBo_B += M_GBo_B
 
         # TODO(rpoyner-tri): rotate to zero out products of inertia, and return
         # both inertia matrix and pose.
