@@ -13,9 +13,13 @@ import numpy as np
 from pydrake.geometry import (
     Box,
     Cylinder,
+    EnvironmentMap,
+    EquirectangularMap,
     GeometryInstance,
+    LightParameter,
     MakePhongIllustrationProperties,
     MeshcatCone,
+    RenderEngineVtkParams,
     Role,
     Rgba,
     StartMeshcat,
@@ -399,7 +403,16 @@ class ModelVisualizer:
         # sensor is affixed to the world frame and we'll modify that pose
         # below.
         if self._show_rgbd_sensor:
+            renderer_params = RenderEngineVtkParams(backend="EGL")
+            renderer_params.environment_map = EnvironmentMap(
+                skybox=True, texture=EquirectangularMap(path="/home/rickcory/Pictures/environments_hdr/yoga_room_4k.hdr")
+            )
+            renderer_params.exposure = 0.4
+            renderer_params.shadow_map_size = 1024
+            renderer_params.cast_shadows = True
+
             camera_config = CameraConfig(width=1440, height=1080)
+            camera_config.renderer_class = renderer_params
             camera_config.name = "preview"
             camera_config.X_PB.base_frame = "$rgbd_sensor_body"
             camera_config.z_far = 3  # Show 3m of frustum.
@@ -408,7 +421,6 @@ class ModelVisualizer:
             if not is_unit_test:
                 # Pop up a local window.
                 camera_config.show_rgb = True
-                camera_config.renderer_class = RenderEngineVtkParams()
                 if "darwin" not in sys.platform:
                     camera_config.renderer_class.backend = "GLX"
             ApplyCameraConfig(
